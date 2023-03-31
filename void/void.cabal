@@ -1,0 +1,22 @@
+cabal-version:      2.4
+name:               voidcore
+version:            0.1.0.0
+
+-- synopsis:
+
+-- description:
+
+author:             head-gardener
+maintainer:         trashbin2019np@gmail.com
+
+executable void
+    main-is:          Main.hs
+
+    other-modules:    GUI, Data
+
+    -- LANGUAGE extensions used by modules in this package.
+    -- other-extensions:
+    extra-libraries:  voidgui SDL2
+    build-depends:    base ^>=4.15.1.0, sdl2 >= 2.5.0
+    hs-source-dirs:   app
+    default-language: Haskell2010

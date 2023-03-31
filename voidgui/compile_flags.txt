@@ -1,0 +1,4 @@
+-I:voidgui/include
+-I:voidgui/include/render
+-I:voidgui/include/widget
+-I:build/voidgui/src/render/shaders
