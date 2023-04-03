@@ -7,10 +7,12 @@ project(
 
 sdl = dependency('sdl2', version : '>=2.26.0')
 glew = dependency('glew', version : '>=2.2.0')
+pangocairo = dependency('pangocairo')
 
 deps = [
   sdl,
   glew,
+  pangocairo,
 ]
 
 sources = files(
@@ -23,7 +25,7 @@ sources = files(
 )
 
 include = [
-  'include', 
+  'include',
   'include/widgets',
   'include/render',
 ]

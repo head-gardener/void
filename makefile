@@ -12,29 +12,29 @@ run: build
 debug: build
 	gdb $(PROJECT_ROOT)/$(BINPATH)/void
 
+clear: 
+	rm -rf build/*
+
+configure: 
+	cd voidgui && meson setup ../build
+
 build: build/voidgui build/void
 
 build/voidgui: voidgui/meson.build $(C_SOURCES) $(C_HEADERS) $(GLSL_SOURCES)
-	cd voidgui && meson compile -C ../build/voidgui
+	cd voidgui && meson compile -C ../build
 
 build/void: void/void.cabal $(HASKELL_SOURCES)
 	cd void && cabal build --builddir=../build/void
 
 link: uninstall
-	ln -sv $(PROJECT_ROOT)/build/voidgui/libvoidgui.so /usr/lib/
+	ln -sv $(PROJECT_ROOT)/build/libvoidgui.so /usr/lib/
 	ln -sv $(PROJECT_ROOT)/voidgui/include/voidgui.h /usr/include/
-	ln -sv $(PROJECT_ROOT)/voidgui/include/widgets/window.h /usr/include/
-	ln -sv $(PROJECT_ROOT)/voidgui/include/widgets/table.h /usr/include/
-	ln -sv $(PROJECT_ROOT)/voidgui/include/render/painter.h /usr/include/
 
 # FIXME: rework all this stuff idk
 install:
-	install build/voidgui/libvoidgui.so /usr/lib/
+	install build/libvoidgui.so /usr/lib/
 	install voidgui/include/voidgui.h /usr/include/
 
 uninstall:
 	rm -f /usr/lib/libvoidgui.so
 	rm -f /usr/include/voidgui.h
-	rm -f /usr/include/window.h
-	rm -f /usr/include/table.h
-	rm -f /usr/include/painter.h

@@ -10,7 +10,7 @@ struct void_window {
   struct painter *painter;
 };
 
-struct void_window *init_void_window();
+struct void_window *init_void_window(int width, int height);
 void free_void_window(struct void_window *window);
 
 #endif

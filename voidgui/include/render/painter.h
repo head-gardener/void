@@ -3,27 +3,56 @@
 
 #include <GLES3/gl3.h>
 
+struct void_box {
+  int x;
+  int y;
+  int width;
+  int height;
+};
+
 /**
  * Contains information necessary for painting to OpenGL context
  */
 struct painter {
   struct {
-    GLuint common;
+    struct {
+      GLuint prog;
+      GLuint vbo;
+      GLuint ebo;
+      GLint posAttrib;
+    } common;
+    struct {
+      GLuint prog;
+      GLuint vbo;
+      GLuint ebo;
+      GLint posAttrib;
+      GLint texAttrib;
+    } tex;
   } shaders;
+
+  struct void_box window_box;
+
+  struct {
+    float bg_color[3];
+  } opts ;
 };
 
 /**
  * Allocate a painter and prepare OpenGL tools
  */
-struct painter *init_painter();
-/**
- * Prepare to draw a table
- */
-int prepare_table(struct painter *painter);
-/**
- * Draw whatever has been prepared
- */
-void draw(struct painter *painter);
+struct painter *init_painter(int width, int height);
+
+int prepare_rectangle(struct painter *painter);
+int draw_rectangle(struct painter *painter, struct void_box *box);
+
+int prepare_grid(struct painter *painter);
+int draw_grid(struct painter *painter, struct void_box *box, int rows,
+              int columns, float *row_ratio, float *column_ratio);
+
+int prepare_text(struct painter *painter);
+int draw_text(struct painter *painter);
+
+void clear(struct painter *painter);
 /**
  * Free pointer and OpenGL tools
  */

@@ -3,6 +3,6 @@
 
 #include <window.h>
 
-int draw_table(struct void_window *window, const char *name);
+int draw_table_ugh(struct void_window *window, const char *name);
 
 #endif

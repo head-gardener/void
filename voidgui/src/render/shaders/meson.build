@@ -3,6 +3,8 @@ embed = find_program('./embed.sh', native: true)
 shaders = [
     'common.vert',
     'common.frag',
+    'tex.vert',
+    'tex.frag',
 ]
 
 foreach name : shaders
