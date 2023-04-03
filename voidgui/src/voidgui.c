@@ -45,13 +45,14 @@ int void_gui_exec(struct void_window *window) {
     clear(window->painter);
 
     struct void_box box;
-    box.x = 55;
-    box.y = 105;
-    box.width = 490;
-    box.height = 390;
+    box.x = 50;
+    box.y = 100;
+    box.width = 500;
+    box.height = 400;
+    float color[] = {0.7f, 0.7f, 0.7f, 1.0};
 
-    /* prepare_rectangle(window->painter); */
-    /* draw_rectangle(window->painter, &box); */
+    prepare_rectangle(window->painter);
+    draw_rectangle(window->painter, &box, color);
 
     box.x = 50;
     box.y = 100;
@@ -59,9 +60,10 @@ int void_gui_exec(struct void_window *window) {
     box.height = 400;
     float vert_ratio[] = {0.5f, 0.5f, 0.5f, 0.5f};
     float horz_ratio[] = {0.5f, 0.5f, 0.5f, 0.5f};
+    float color1[] = {0.4f, 0.4f, 0.4f, 1.0};
 
     prepare_grid(window->painter);
-    draw_grid(window->painter, &box, 2, 2, vert_ratio, horz_ratio);
+    draw_grid(window->painter, &box, 2, 2, vert_ratio, horz_ratio, color1);
 
     /* prepare_text(window->painter); */
     /* draw_text(window->painter); */

@@ -186,6 +186,7 @@ struct painter *init_painter(int width, int height) {
   }
   painter->shaders.common.prog = prog;
   painter->shaders.common.posAttrib = glGetAttribLocation(prog, "pos");
+  painter->shaders.common.color = glGetUniformLocation(prog, "color");
   glGenBuffers(1, &painter->shaders.common.vbo);
   glGenBuffers(1, &painter->shaders.common.ebo);
 
@@ -318,10 +319,13 @@ int prepare_rectangle(struct painter *painter) {
   return 0;
 }
 
-int draw_rectangle(struct painter *painter, struct void_box *box) {
+int draw_rectangle(struct painter *painter, struct void_box *box,
+                   float color[4]) {
   GLfloat *vertices = calloc(8, sizeof(GLfloat));
   boxes_to_ratio(&painter->window_box, box, vertices);
   spread_rectangle_horizontal(slice4(vertices), vertices);
+
+  glUniform4f(painter->shaders.common.color, slice4(color));
 
   glBindBuffer(GL_ARRAY_BUFFER, painter->shaders.common.vbo);
   glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
@@ -344,7 +348,8 @@ int prepare_grid(struct painter *painter) {
 }
 
 int draw_grid(struct painter *painter, struct void_box *box, int rows,
-              int columns, float *row_ratio, float *column_ratio) {
+              int columns, float *row_ratio, float *column_ratio,
+              float color[4]) {
   int n_vertices = 4 * (rows + 1 + columns + 1);
   GLfloat *vertices = calloc(n_vertices, sizeof(GLfloat));
 
@@ -369,6 +374,8 @@ int draw_grid(struct painter *painter, struct void_box *box, int rows,
   glBufferData(GL_ARRAY_BUFFER, n_vertices * sizeof(GLfloat), vertices,
                GL_STATIC_DRAW);
   free(vertices);
+
+  glUniform4f(painter->shaders.common.color, slice4(color));
 
   glVertexAttribPointer(painter->shaders.common.posAttrib, 2, GL_FLOAT,
                         GL_FALSE, 0, 0);
