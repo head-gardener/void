@@ -1,174 +1,10 @@
 #include "painter.h"
-#include "cairo/cairo.h"
-#include "common_frag_src.h"
-#include "common_vert_src.h"
-#include "pango/pango.h"
-#include "pango/pangocairo.h"
-#include "tex_frag_src.h"
-#include "tex_vert_src.h"
+#include "macros.h"
 #include "window.h"
 #include <GLES3/gl3.h>
 #include <SDL2/SDL.h>
-
-#define slice3(a) a[0], a[1], a[2]
-#define slice4(a) a[0], a[1], a[2], a[3]
-#define slice6(a) a[0], a[1], a[2], a[3], a[4], a[5]
-
-#define split4(type, a, b, c, d, arr)                                          \
-  type a = arr[0];                                                             \
-  type b = arr[1];                                                             \
-  type c = arr[2];                                                             \
-  type d = arr[3];
-
-/**
- * Spreads three coords over an 4-element array to form two vertices of a
- * horizontal line.
- */
-void spread_line_horizontal(float x1, float x2, float y, float *vertices) {
-  vertices[0] = x1;
-  vertices[1] = y;
-  vertices[2] = x2;
-  vertices[3] = y;
-}
-
-/**
- * Spreads three coords over an 4-element array to form two vertices of a
- * vertical line.
- */
-void spread_line_vertical(float y1, float y2, float x, float *vertices) {
-  vertices[0] = x;
-  vertices[1] = y1;
-  vertices[2] = x;
-  vertices[3] = y2;
-}
-
-/**
- * Spreads two points over an 8-element array to form all vertices of a
- * rectangle. `a` it top-left, `b` it bottom-right. Vertices are ordered
- * as follows: top-left, top-right, bottom-right, bottom-left.
- */
-void spread_rectangle_horizontal(float a_x, float a_y, float b_x, float b_y,
-                                 float *vertices) {
-  spread_line_horizontal(a_x, b_x, a_y, vertices);
-  spread_line_horizontal(b_x, a_x, b_y, &vertices[4]);
-}
-
-/**
- * Spreads two points over an 8-element array to form all vertices of a
- * rectangle. `a` it top-left, `b` it bottom-right. Vertices are ordered
- * as follows: top-left, bottom-left, top-right, bottom-right.
- */
-void spread_rectangle_vertical(float a_x, float a_y, float b_x, float b_y,
-                               float *vertices) {
-  spread_line_vertical(a_y, b_y, a_x, vertices);
-  spread_line_vertical(b_y, a_y, b_x, &vertices[4]);
-}
-
-/**
- * Sections area between `a` and `b` into `n` points according to ratios.
- */
-void section(float a, float b, int n, float *ratios, float *points) {
-  /* #ifdef VOID_SANER */
-  float sum = 0;
-  for (int i = 0; i < n - 1; i++) {
-    sum += ratios[i];
-  }
-  if (sum != 1.0f) {
-    printf("Invalid ratio sum: %f, expected 1\n", sum);
-  }
-  /* #endif */
-
-  float dist = b - a;
-  points[0] = a;
-
-  for (int i = 1; i < n; i++) {
-    points[i] = points[i - 1] + dist * ratios[i - 1];
-  }
-}
-
-/**
- * Convert two boxes to their relative ratio for OpenGL rendering.
- * `ratios` should have space allocated for 4 elements: {a_x, a_y, b_x, b_y}.
- */
-void boxes_to_ratio(struct void_box *outer, struct void_box *inner,
-                    GLfloat *ratios) {
-  float outer_half_width = (float)outer->width / 2;
-  float outer_half_height = (float)outer->height / 2;
-  float outer_center_x = outer->x + outer_half_width;
-  float outer_center_y = outer->y + outer_half_height;
-
-  // Top-left
-  int a_x = inner->x;
-  int a_y = inner->y;
-  // Bottom-right
-  int b_x = inner->x + inner->width;
-  int b_y = inner->y + inner->height;
-
-  // Top-left
-  ratios[0] = (a_x - outer_center_x) / outer_half_width;
-  ratios[1] = (a_y - outer_center_y) / outer_half_height;
-  // Bottom-right
-  ratios[2] = (b_x - outer_center_x) / outer_half_width;
-  ratios[3] = (b_y - outer_center_y) / outer_half_height;
-}
-
-static GLuint compile_shader(GLuint type, const GLchar *src) {
-  GLuint shader = glCreateShader(type);
-  glShaderSource(shader, 1, &src, NULL);
-  glCompileShader(shader);
-
-  GLint ok;
-  glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
-  if (ok == GL_FALSE) {
-    GLint log_len;
-    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &log_len);
-    char *log = calloc(log_len, sizeof(char));
-    glGetShaderInfoLog(shader, log_len, NULL, log);
-
-    printf("Failed to compile shader\n %s\n", log);
-    glDeleteShader(shader);
-    shader = 0;
-  }
-
-  return shader;
-}
-
-static GLuint link_program(const GLchar *vert_src, const GLchar *frag_src) {
-  GLuint vert = compile_shader(GL_VERTEX_SHADER, vert_src);
-  if (!vert) {
-    goto error;
-  }
-
-  GLuint frag = compile_shader(GL_FRAGMENT_SHADER, frag_src);
-  if (!frag) {
-    glDeleteShader(vert);
-    goto error;
-  }
-
-  GLuint prog = glCreateProgram();
-  glAttachShader(prog, vert);
-  glAttachShader(prog, frag);
-  glLinkProgram(prog);
-
-  glDetachShader(prog, vert);
-  glDetachShader(prog, frag);
-  glDeleteShader(vert);
-  glDeleteShader(frag);
-
-  GLint ok;
-  glGetProgramiv(prog, GL_LINK_STATUS, &ok);
-  if (ok == GL_FALSE) {
-    ;
-    printf("Failed to link shader\n");
-    glDeleteProgram(prog);
-    goto error;
-  }
-
-  return prog;
-
-error:
-  return 0;
-}
+#include <cairo/cairo.h>
+#include <pango/pangocairo.h>
 
 struct painter *init_painter(int width, int height) {
   struct painter *painter = calloc(1, sizeof(struct painter));
@@ -178,28 +14,19 @@ struct painter *init_painter(int width, int height) {
   painter->window_box.width = width;
   painter->window_box.height = height;
 
-  // shaders
-  GLuint prog = link_program(common_vert_src, common_frag_src);
-  if (!prog) {
-    free(painter);
-    return 0;
-  }
-  painter->shaders.common.prog = prog;
-  painter->shaders.common.posAttrib = glGetAttribLocation(prog, "pos");
-  painter->shaders.common.color = glGetUniformLocation(prog, "color");
+  fail_condition(init_shaders(&painter->shaders));
+  fail_condition(init_shape_buffer(&painter->shape_buffer));
+
   glGenBuffers(1, &painter->shaders.common.vbo);
   glGenBuffers(1, &painter->shaders.common.ebo);
-
-  prog = link_program(tex_vert_src, tex_frag_src);
-  if (!prog) {
-    free(painter);
-    return 0;
-  }
-  painter->shaders.tex.prog = prog;
-  painter->shaders.tex.texAttrib = glGetAttribLocation(prog, "texcoord");
-  painter->shaders.tex.posAttrib = glGetAttribLocation(prog, "pos");
   glGenBuffers(1, &painter->shaders.tex.vbo);
   glGenBuffers(1, &painter->shaders.tex.ebo);
+  glGenBuffers(1, &painter->common.rectangle_ebo);
+
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, painter->common.rectangle_ebo);
+  GLuint elements[] = {0, 1, 2, 2, 3, 0};
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(elements), elements,
+               GL_STATIC_DRAW);
 
   float bg_color[] = {0.9f, 0.9f, 0.9f};
   memcpy(painter->opts.bg_color, bg_color, sizeof(bg_color));
@@ -210,6 +37,10 @@ struct painter *init_painter(int width, int height) {
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
   return painter;
+
+failed:
+  free(painter);
+  return 0;
 }
 
 int prepare_text(struct painter *painter) {
@@ -310,30 +141,24 @@ int draw_text(struct painter *painter) {
 int prepare_rectangle(struct painter *painter) {
   glUseProgram(painter->shaders.common.prog);
 
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, painter->shaders.common.ebo);
-
-  GLuint elements[] = {0, 1, 2, 2, 3, 0};
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(elements), elements,
-               GL_STATIC_DRAW);
-
   return 0;
 }
 
-int draw_rectangle(struct painter *painter, struct void_box *box,
+int draw_rectangle(struct painter *painter, shape_ptr shape_ptr,
                    float color[4]) {
-  GLfloat *vertices = calloc(8, sizeof(GLfloat));
-  boxes_to_ratio(&painter->window_box, box, vertices);
-  spread_rectangle_horizontal(slice4(vertices), vertices);
-
   glUniform4f(painter->shaders.common.color, slice4(color));
 
-  glBindBuffer(GL_ARRAY_BUFFER, painter->shaders.common.vbo);
-  glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
-  free(vertices);
+  struct shape shape = painter->shape_buffer.shapes[shape_ptr];
 
+  /* #ifdef VOID_GUI_SANER */
+  if (!shape.vao || !shape.vbo) {
+    printf("Invalid shape passed to draw_rectangle: vao %u vbo %u", shape.vao,
+           shape.vbo);
+  }
+  /* #endif */
+
+  glBindVertexArray(shape.vao);
   glEnableVertexAttribArray(painter->shaders.common.posAttrib);
-  glVertexAttribPointer(painter->shaders.common.posAttrib, 2, GL_FLOAT,
-                        GL_FALSE, 0, 0);
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
   return 0;
@@ -347,39 +172,45 @@ int prepare_grid(struct painter *painter) {
   return 0;
 }
 
-int draw_grid(struct painter *painter, struct void_box *box, int rows,
-              int columns, float *row_ratio, float *column_ratio,
-              float color[4]) {
-  int n_vertices = 4 * (rows + 1 + columns + 1);
-  GLfloat *vertices = calloc(n_vertices, sizeof(GLfloat));
+int draw_grid(struct painter *painter, shape_ptr shape_ptr, float color[4]) {
+  /* int n_vertices = 4 * (rows + 1 + columns + 1); */
+  /* GLfloat *vertices = calloc(n_vertices, sizeof(GLfloat)); */
 
-  // {x0 .. x<rows>, y0, .. y<columns>}
-  float *coords = calloc(rows + columns + 2, sizeof(float));
+  /* // {x0 .. x<rows>, y0, .. y<columns>} */
+  /* float *coords = calloc(rows + columns + 2, sizeof(float)); */
 
-  // fill coords
-  boxes_to_ratio(&painter->window_box, box, coords);
-  split4(GLfloat, a_x, a_y, b_x, b_y, coords);
-  section(a_x, b_x, rows + 1, row_ratio, coords);
-  section(a_y, b_y, columns + 1, column_ratio, &coords[rows + 1]);
+  /* // fill coords */
+  /* boxes_to_ratio(&painter->window_box, box, coords); */
+  /* split4(GLfloat, a_x, a_y, b_x, b_y, coords); */
+  /* section(a_x, b_x, rows + 1, row_ratio, coords); */
+  /* section(a_y, b_y, columns + 1, column_ratio, &coords[rows + 1]); */
 
-  for (int i = 0; i < rows + 1; i++) {
-    spread_line_horizontal(coords[0], coords[rows], coords[rows + 1 + i],
-                           &vertices[4 * i]);
-  }
-  for (int i = 0; i < columns + 1; i++) {
-    spread_line_vertical(coords[rows + 1], coords[rows + 1 + columns],
-                         coords[i], &vertices[4 * (rows + 1) + 4 * i]);
-  }
+  /* for (int i = 0; i < rows + 1; i++) { */
+  /*   spread_line_horizontal(coords[0], coords[rows], coords[rows + 1 + i], */
+  /*                          &vertices[4 * i]); */
+  /* } */
+  /* for (int i = 0; i < columns + 1; i++) { */
+  /*   spread_line_vertical(coords[rows + 1], coords[rows + 1 + columns], */
+  /*                        coords[i], &vertices[4 * (rows + 1) + 4 * i]); */
+  /* } */
 
-  glBufferData(GL_ARRAY_BUFFER, n_vertices * sizeof(GLfloat), vertices,
-               GL_STATIC_DRAW);
-  free(vertices);
+  /* glBufferData(GL_ARRAY_BUFFER, n_vertices * sizeof(GLfloat), vertices, */
+  /*              GL_STATIC_DRAW); */
+  /* free(vertices); */
 
   glUniform4f(painter->shaders.common.color, slice4(color));
+  struct shape shape = painter->shape_buffer.shapes[shape_ptr];
 
-  glVertexAttribPointer(painter->shaders.common.posAttrib, 2, GL_FLOAT,
-                        GL_FALSE, 0, 0);
+  /* #ifdef VOID_GUI_SANER */
+  if (!shape.vao || !shape.vbo) {
+    printf("Invalid shape passed to draw_rectangle: vao %u vbo %u", shape.vao,
+           shape.vbo);
+  }
+  /* #endif */
+
+  glBindVertexArray(shape.vao);
   glEnableVertexAttribArray(painter->shaders.common.posAttrib);
+
   glDrawArrays(GL_LINES, 0, 16);
 
   return 0;

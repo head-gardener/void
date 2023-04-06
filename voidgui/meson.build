@@ -22,6 +22,9 @@ sources = files(
   'src/widgets/window.c',
 
   'src/render/painter.c',
+  'src/render/shaders.c',
+  'src/render/shapes.c',
+  'src/render/shape_buffer.c',
 )
 
 include = [

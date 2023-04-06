@@ -1,7 +1,9 @@
+#include "shapes.h"
 #define GLEW_STATIC
 
-#include "voidgui.h"
+#include "macros.h"
 #include "painter.h"
+#include "voidgui.h"
 #include "window.h"
 #include <SDL2/SDL.h>
 
@@ -30,6 +32,26 @@ struct void_window *void_gui_init(int time) {
   v_window->hw_window = window;
   v_window->context = context;
 
+  glGenVertexArrays(1, &v_window->painter->vao);
+  glGenVertexArrays(1, &v_window->painter->vao1);
+  struct void_box box;
+  box.x = 50;
+  box.y = 100;
+  box.width = 500;
+  box.height = 400;
+  unsigned int ind;
+  get_new_shape(&v_window->painter->shape_buffer, &ind);
+  make_rectangle(&v_window->painter->shaders, &v_window->painter->common,
+                 &v_window->painter->shape_buffer.shapes[ind], &box,
+                 &v_window->painter->window_box);
+  get_new_shape(&v_window->painter->shape_buffer, &ind);
+  float row_ratio[] = {0.5f, 0.5f, 0.5f, 0.5f};
+  float column_ratio[] = {0.5f, 0.5f, 0.5f, 0.5f};
+  make_grid(&v_window->painter->shaders,
+            &v_window->painter->shape_buffer.shapes[ind], &box, 2, 2, row_ratio,
+            column_ratio, &v_window->painter->window_box);
+  print_gl_error;
+
   return v_window;
 }
 
@@ -44,26 +66,26 @@ int void_gui_exec(struct void_window *window) {
 
     clear(window->painter);
 
-    struct void_box box;
-    box.x = 50;
-    box.y = 100;
-    box.width = 500;
-    box.height = 400;
     float color[] = {0.7f, 0.7f, 0.7f, 1.0};
-
-    prepare_rectangle(window->painter);
-    draw_rectangle(window->painter, &box, color);
-
-    box.x = 50;
-    box.y = 100;
-    box.width = 500;
-    box.height = 400;
-    float vert_ratio[] = {0.5f, 0.5f, 0.5f, 0.5f};
-    float horz_ratio[] = {0.5f, 0.5f, 0.5f, 0.5f};
     float color1[] = {0.4f, 0.4f, 0.4f, 1.0};
 
+    prepare_rectangle(window->painter);
+    draw_rectangle(window->painter, 0, color);
+    /* draw_rectangle(window->painter, 1, color1); */
+    /* prepare_rectangle(window->painter); */
+    /* draw_rectangle(window->painter, window->painter->vao1, color1); */
+    print_gl_error;
+
+    struct void_box box;
+    /* box.x = 50; */
+    /* box.y = 100; */
+    /* box.width = 500; */
+    /* box.height = 400; */
+    /* float vert_ratio[] = {0.5f, 0.5f, 0.5f, 0.5f}; */
+    /* float horz_ratio[] = {0.5f, 0.5f, 0.5f, 0.5f}; */
+
     prepare_grid(window->painter);
-    draw_grid(window->painter, &box, 2, 2, vert_ratio, horz_ratio, color1);
+    draw_grid(window->painter, 1, color1);
 
     /* prepare_text(window->painter); */
     /* draw_text(window->painter); */
