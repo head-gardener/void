@@ -87,7 +87,7 @@ int void_gui_exec(struct void_window *window) {
     /* draw_texture(window->painter, 0); */
 
     prepare_text(window->painter);
-    draw_text(window->painter, 2);
+    draw_texture(window->painter, 2);
     print_gl_error;
 
     SDL_GL_SwapWindow(window->hw_window);

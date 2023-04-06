@@ -72,8 +72,7 @@ int draw_text(struct painter *painter, shape_ptr shape_ptr) {
   PangoFontDescription *desc;
   PangoLayout *layout;
 
-  tmp_surface =
-      cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
+  tmp_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
   layout_context = cairo_create(tmp_surface);
 
   /* Create a PangoLayout, set the font and text */
@@ -176,56 +175,28 @@ int prepare_texture(struct painter *painter) {
 }
 
 int draw_texture(struct painter *painter, shape_ptr shape_ptr) {
-  /* struct shape shape = painter->shape_buffer.shapes[shape_ptr]; */
+  struct shape shape = painter->shape_buffer.shapes[shape_ptr];
 
-  /* /1* #ifdef VOID_GUI_SANER *1/ */
-  /* if (!shape.vao || !shape.vbo) { */
-  /*   printf("Invalid shape passed to draw_texture: vao %u vbo %u", shape.vao,
-   */
-  /*          shape.vbo); */
-  /* } */
-  /* /1* #endif *1/ */
+  /* #ifdef VOID_GUI_SANER */
+  if (!shape.vao || !shape.vbo || !shape.params) {
+    printf("Invalid shape passed to draw_texture: vao %u vbo %u tex %p", shape.vao,
+           shape.vbo, shape.params);
+  }
+  /* #endif */
 
-  /* glBindVertexArray(shape.vao); */
+  glBindVertexArray(shape.vao);
+  glEnableVertexAttribArray(painter->shaders.tex.posAttrib);
+  glEnableVertexAttribArray(painter->shaders.tex.texAttrib);
 
-  GLuint vbo;
-  glGenBuffers(1, &vbo);
-
-  GLfloat vertices[] = {
-      -0.5f, 0.5f,  0.0f, 0.0f, // Top-left
-      0.5f,  0.5f,  1.0f, 0.0f, // Top-right
-      0.5f,  -0.5f, 1.0f, 1.0f, // Bottom-right
-      -0.5f, -0.5f, 0.0f, 1.0f  // Bottom-left
-  };
-  glBindBuffer(GL_ARRAY_BUFFER, vbo);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, painter->common.rectangle_ebo);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-  GLuint tex;
-  glGenTextures(1, &tex);
-  glBindTexture(GL_TEXTURE_2D, tex);
-  // TODO: mipmap?
   cairo_surface_t *surface = cairo_image_surface_create_from_png(
       "/home/mkultra/Code/void/voidgui/res/dog.png");
   int tex_w = cairo_image_surface_get_width(surface);
   int tex_h = cairo_image_surface_get_height(surface);
   unsigned char *data = cairo_image_surface_get_data(surface);
-  glTexImage2D(GL_TEXTURE_2D, 0, 4, tex_w, tex_h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex_w, tex_h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                data);
   print_gl_error;
-  free(data);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-  glEnableVertexAttribArray(painter->shaders.tex.posAttrib);
-  glEnableVertexAttribArray(painter->shaders.tex.texAttrib);
-
-  glVertexAttribPointer(painter->shaders.tex.posAttrib, 2, GL_FLOAT, GL_FALSE,
-                        4 * sizeof(GLfloat), 0);
-  glVertexAttribPointer(painter->shaders.tex.texAttrib, 2, GL_FLOAT, GL_FALSE,
-                        4 * sizeof(GLfloat), (void *)(2 * sizeof(GLfloat)));
+  cairo_surface_destroy(surface);
 
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
