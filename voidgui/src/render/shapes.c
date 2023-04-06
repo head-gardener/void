@@ -120,6 +120,7 @@ int make_rectangle(struct shaders *shaders, struct commons *common,
   return 0;
 }
 
+// FIXME: grid stopped working wtf?
 int make_grid(struct shaders *shaders, struct shape *shape,
               struct void_box *box, int rows, int columns, float *row_ratio,
               float *column_ratio, struct void_box *window) {
@@ -142,8 +143,8 @@ int make_grid(struct shaders *shaders, struct shape *shape,
                            &vertices[4 * i]);
   }
   for (int i = 0; i < columns + 1; i++) {
-    spread_line_vertical(coords[rows + 1], coords[rows + 1 + columns], 0,
-                         coords[i], &vertices[4 * (rows + 1) + 4 * i]);
+    spread_line_vertical(coords[rows + 1], coords[rows + 1 + columns],
+                         coords[i], 0, &vertices[4 * (rows + 1) + 4 * i]);
   }
 
   glBindBuffer(GL_ARRAY_BUFFER, shape->vbo);
@@ -180,10 +181,6 @@ int make_texture(struct shaders *shaders, struct commons *common,
   };
   boxes_to_ratio(window, box, coords);
   spread_rectangle_horizontal(slice4(coords), 2, vertices);
-  printf("%f %f %f %f\n", slice4(vertices));
-  printf("%f %f %f %f\n", slice4(&vertices[4]));
-  printf("%f %f %f %f\n", slice4(&vertices[8]));
-  printf("%f %f %f %f\n", slice4(&vertices[12]));
   glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
   glVertexAttribPointer(shaders->tex.posAttrib, 2, GL_FLOAT, GL_FALSE,

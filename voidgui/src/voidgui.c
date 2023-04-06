@@ -47,11 +47,14 @@ struct void_window *void_gui_init(int time) {
   get_new_shape(&v_window->painter->shape_buffer, &ind);
   float row_ratio[] = {0.5f, 0.5f, 0.5f, 0.5f};
   float column_ratio[] = {0.5f, 0.5f, 0.5f, 0.5f};
-  // FIXME: grid stopped working wtf?
   make_grid(&v_window->painter->shaders,
             &v_window->painter->shape_buffer.shapes[ind], &box, 2, 2, row_ratio,
             column_ratio, &v_window->painter->window_box);
   get_new_shape(&v_window->painter->shape_buffer, &ind);
+  box.x = 50;
+  box.y = 100;
+  box.width = 250;
+  box.height = 200;
   make_texture(&v_window->painter->shaders, &v_window->painter->common,
                &v_window->painter->shape_buffer.shapes[ind], &box,
                &v_window->painter->window_box);
@@ -76,15 +79,6 @@ int void_gui_exec(struct void_window *window) {
 
     prepare_rectangle(window->painter);
     draw_rectangle(window->painter, 0, color);
-    /* draw_rectangle(window->painter, 1, color1); */
-
-    struct void_box box;
-    /* box.x = 50; */
-    /* box.y = 100; */
-    /* box.width = 500; */
-    /* box.height = 400; */
-    /* float vert_ratio[] = {0.5f, 0.5f, 0.5f, 0.5f}; */
-    /* float horz_ratio[] = {0.5f, 0.5f, 0.5f, 0.5f}; */
 
     prepare_grid(window->painter);
     draw_grid(window->painter, 1, color1);
