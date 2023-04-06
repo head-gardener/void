@@ -1,5 +1,7 @@
 #include "shapes.h"
 #include "macros.h"
+#include <cairo/cairo.h>
+#include <pango/pangocairo.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -120,7 +122,6 @@ int make_rectangle(struct shaders *shaders, struct commons *common,
   return 0;
 }
 
-// FIXME: grid stopped working wtf?
 int make_grid(struct shaders *shaders, struct shape *shape,
               struct void_box *box, int rows, int columns, float *row_ratio,
               float *column_ratio, struct void_box *window) {
@@ -162,13 +163,6 @@ int make_texture(struct shaders *shaders, struct commons *common,
                  struct void_box *window) {
   glBindVertexArray(shape->vao);
 
-  GLuint *texture_id = calloc(1, sizeof(GLuint));
-  glGenTextures(1, texture_id);
-  glBindTexture(GL_TEXTURE_2D, *texture_id);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  shape->params = texture_id;
-
   glBindBuffer(GL_ARRAY_BUFFER, shape->vbo);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, common->rectangle_ebo);
 
@@ -187,6 +181,88 @@ int make_texture(struct shaders *shaders, struct commons *common,
                         4 * sizeof(GLfloat), 0);
   glVertexAttribPointer(shaders->tex.texAttrib, 2, GL_FLOAT, GL_FALSE,
                         4 * sizeof(GLfloat), (void *)(2 * sizeof(GLfloat)));
+
+  return 0;
+}
+
+int render_texture(struct shape *shape, const char *path) {
+  glBindVertexArray(shape->vao);
+
+  GLuint *texture_id = calloc(1, sizeof(GLuint));
+  glGenTextures(1, texture_id);
+  glBindTexture(GL_TEXTURE_2D, *texture_id);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  shape->params = texture_id;
+
+  cairo_surface_t *surface = cairo_image_surface_create_from_png(path);
+  int tex_w = cairo_image_surface_get_width(surface);
+  int tex_h = cairo_image_surface_get_height(surface);
+  unsigned char *data = cairo_image_surface_get_data(surface);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex_w, tex_h, 0, GL_RGBA,
+               GL_UNSIGNED_BYTE, data);
+  print_gl_error;
+  cairo_surface_destroy(surface);
+
+  return 0;
+}
+
+// TODO: make this good!
+int render_text(struct shape *shape, const char *text) {
+  glBindVertexArray(shape->vao);
+
+  GLuint *texture_id = calloc(1, sizeof(GLuint));
+  glGenTextures(1, texture_id);
+  glBindTexture(GL_TEXTURE_2D, *texture_id);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  shape->params = texture_id;
+
+  cairo_t *layout_context;
+  cairo_t *render_context;
+  cairo_surface_t *tmp_surface;
+  cairo_surface_t *out_surface;
+  unsigned char *surface_data = NULL;
+  PangoFontDescription *desc;
+  PangoLayout *layout;
+
+  tmp_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
+  layout_context = cairo_create(tmp_surface);
+
+  /* Create a PangoLayout, set the font and text */
+  layout = pango_cairo_create_layout(layout_context);
+  pango_layout_set_text(layout, text, -1);
+
+  /* Load the font */
+  desc = pango_font_description_from_string("Sans Bold 17");
+  pango_layout_set_font_description(layout, desc);
+  pango_font_description_free(desc);
+
+  /* Get text dimensions and create a context to render to */
+  int text_width = 100;
+  int text_height = 100;
+  pango_layout_get_pixel_size(layout, &text_width, &text_height);
+  surface_data = calloc(4 * text_width * text_height, sizeof(unsigned char));
+  out_surface = cairo_image_surface_create_for_data(
+      surface_data, CAIRO_FORMAT_ARGB32, text_width, text_height,
+      4 * text_width);
+  render_context = cairo_create(out_surface);
+
+  /* Render */
+  cairo_set_source_rgba(render_context, 1, 1, 1, 1);
+  pango_cairo_show_layout(render_context, layout);
+
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, text_width, text_height, 0, GL_RGBA,
+               GL_UNSIGNED_BYTE, surface_data);
+  print_gl_error;
+
+  /* Clean up */
+  free(surface_data);
+  g_object_unref(layout);
+  cairo_destroy(layout_context);
+  cairo_destroy(render_context);
+  cairo_surface_destroy(tmp_surface);
+  cairo_surface_destroy(out_surface);
 
   return 0;
 }

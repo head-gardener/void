@@ -38,9 +38,6 @@ int draw_grid(struct painter *painter, shape_ptr shape, float color[4]);
 int prepare_texture(struct painter *painter);
 int draw_texture(struct painter *painter, shape_ptr shape);
 
-int prepare_text(struct painter *painter);
-int draw_text(struct painter *painter, shape_ptr shape);
-
 void clear(struct painter *painter);
 /**
  * Free pointer and OpenGL tools

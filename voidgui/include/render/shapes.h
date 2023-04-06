@@ -28,6 +28,9 @@ int make_texture(struct shaders *shaders, struct commons *common,
                  struct shape *shape, struct void_box *box,
                  struct void_box *window);
 
+int render_texture(struct shape *shape, const char *path);
+int render_text(struct shape *shape, const char *text);
+
 void init_shape(struct shape *);
 void free_shape(struct shape *);
 

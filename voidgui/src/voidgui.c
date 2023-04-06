@@ -58,6 +58,7 @@ struct void_window *void_gui_init(int time) {
   make_texture(&v_window->painter->shaders, &v_window->painter->common,
                &v_window->painter->shape_buffer.shapes[ind], &box,
                &v_window->painter->window_box);
+  render_text(&v_window->painter->shape_buffer.shapes[ind], "/home/mkultra/Code/void/voidgui/res/dog.png");
   print_gl_error;
 
   return v_window;
@@ -83,10 +84,7 @@ int void_gui_exec(struct void_window *window) {
     prepare_grid(window->painter);
     draw_grid(window->painter, 1, color1);
 
-    /* prepare_texture(window->painter); */
-    /* draw_texture(window->painter, 0); */
-
-    prepare_text(window->painter);
+    prepare_texture(window->painter);
     draw_texture(window->painter, 2);
     print_gl_error;
 
