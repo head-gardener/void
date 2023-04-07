@@ -32,33 +32,48 @@ struct void_window *void_gui_init(int time) {
   v_window->hw_window = window;
   v_window->context = context;
 
-  glGenVertexArrays(1, &v_window->painter->vao);
-  glGenVertexArrays(1, &v_window->painter->vao1);
-  struct void_box box;
-  box.x = 50;
-  box.y = 100;
-  box.width = 500;
-  box.height = 400;
   unsigned int ind;
-  get_new_shape(&v_window->painter->shape_buffer, &ind);
-  make_rectangle(&v_window->painter->shaders, &v_window->painter->common,
-                 &v_window->painter->shape_buffer.shapes[ind], &box,
-                 &v_window->painter->window_box);
-  get_new_shape(&v_window->painter->shape_buffer, &ind);
-  float row_ratio[] = {0.5f, 0.5f, 0.5f, 0.5f};
-  float column_ratio[] = {0.5f, 0.5f, 0.5f, 0.5f};
-  make_grid(&v_window->painter->shaders,
-            &v_window->painter->shape_buffer.shapes[ind], &box, 2, 2, row_ratio,
-            column_ratio, &v_window->painter->window_box);
-  get_new_shape(&v_window->painter->shape_buffer, &ind);
-  box.x = 50;
-  box.y = 100;
-  box.width = 250;
-  box.height = 200;
-  make_texture(&v_window->painter->shaders, &v_window->painter->common,
-               &v_window->painter->shape_buffer.shapes[ind], &box,
-               &v_window->painter->window_box);
-  render_text(&v_window->painter->shape_buffer.shapes[ind], "/home/mkultra/Code/void/voidgui/res/dog.png");
+  get_new_shape(&v_window->painter.shape_buffer, &ind);
+  make_texture(&v_window->painter.shaders, &v_window->painter.common,
+               &v_window->painter.shape_buffer.shapes[ind], &v_window->table.layout[0],
+               &v_window->painter.window_box);
+  render_text(&v_window->painter.shape_buffer.shapes[ind], "1");
+  get_new_shape(&v_window->painter.shape_buffer, &ind);
+  make_texture(&v_window->painter.shaders, &v_window->painter.common,
+               &v_window->painter.shape_buffer.shapes[ind], &v_window->table.layout[1],
+               &v_window->painter.window_box);
+  render_text(&v_window->painter.shape_buffer.shapes[ind], "2");
+  get_new_shape(&v_window->painter.shape_buffer, &ind);
+  make_texture(&v_window->painter.shaders, &v_window->painter.common,
+               &v_window->painter.shape_buffer.shapes[ind], &v_window->table.layout[2],
+               &v_window->painter.window_box);
+  render_text(&v_window->painter.shape_buffer.shapes[ind], "3");
+  get_new_shape(&v_window->painter.shape_buffer, &ind);
+  make_texture(&v_window->painter.shaders, &v_window->painter.common,
+               &v_window->painter.shape_buffer.shapes[ind], &v_window->table.layout[3],
+               &v_window->painter.window_box);
+  render_text(&v_window->painter.shape_buffer.shapes[ind], "4");
+  get_new_shape(&v_window->painter.shape_buffer, &ind);
+  make_texture(&v_window->painter.shaders, &v_window->painter.common,
+               &v_window->painter.shape_buffer.shapes[ind], &v_window->table.layout[4],
+               &v_window->painter.window_box);
+  render_text(&v_window->painter.shape_buffer.shapes[ind], "5");
+  get_new_shape(&v_window->painter.shape_buffer, &ind);
+  make_texture(&v_window->painter.shaders, &v_window->painter.common,
+               &v_window->painter.shape_buffer.shapes[ind], &v_window->table.layout[5],
+               &v_window->painter.window_box);
+  render_text(&v_window->painter.shape_buffer.shapes[ind], "6");
+
+  /*   get_new_shape(&painter->shape_buffer, &ind); */
+  /*   make_texture(&painter->shaders, &painter->common, */
+  /*                &painter->shape_buffer.shapes[ind], &box,
+   * &painter->window_box); */
+  /*   render_texture(&painter->shape_buffer.shapes[ind],
+   * "voidgui/res/dog.png"); */
+  /*   table->text2 = ind; */
+
+  glGenVertexArrays(1, &v_window->painter.vao);
+  glGenVertexArrays(1, &v_window->painter.vao1);
   print_gl_error;
 
   return v_window;
@@ -73,19 +88,17 @@ int void_gui_exec(struct void_window *window) {
       }
     }
 
-    clear(window->painter);
+    clear(&window->painter);
 
-    float color[] = {0.7f, 0.7f, 0.7f, 1.0};
-    float color1[] = {0.4f, 0.4f, 0.4f, 1.0};
+    draw_table(&window->painter, &window->table);
 
-    prepare_rectangle(window->painter);
-    draw_rectangle(window->painter, 0, color);
-
-    prepare_grid(window->painter);
-    draw_grid(window->painter, 1, color1);
-
-    prepare_texture(window->painter);
-    draw_texture(window->painter, 2);
+    prepare_texture(&window->painter);
+    draw_texture(&window->painter, 2);
+    draw_texture(&window->painter, 3);
+    draw_texture(&window->painter, 4);
+    draw_texture(&window->painter, 5);
+    draw_texture(&window->painter, 6);
+    draw_texture(&window->painter, 7);
     print_gl_error;
 
     SDL_GL_SwapWindow(window->hw_window);

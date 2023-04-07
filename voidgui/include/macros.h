@@ -1,6 +1,8 @@
 #ifndef VOID_GUI_MACROS
 #define VOID_GUI_MACROS
 
+#define max(a, b) a > b ? a : b
+
 #define fail_condition(condition)                                              \
   if (condition) {                                                             \
     goto failed;                                                               \
@@ -18,6 +20,7 @@
     goto failed;                                                               \
   }
 
+#define slice2(a) (a)[0], (a)[1]
 #define slice3(a) (a)[0], (a)[1], (a)[2]
 #define slice4(a) (a)[0], (a)[1], (a)[2], (a)[3]
 #define slice6(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]

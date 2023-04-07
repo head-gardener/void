@@ -6,9 +6,7 @@
 #include <cairo/cairo.h>
 #include <pango/pangocairo.h>
 
-struct painter *init_painter(int width, int height) {
-  struct painter *painter = calloc(1, sizeof(struct painter));
-
+int init_painter(int width, int height, struct painter *painter) {
   painter->window_box.x = 0;
   painter->window_box.y = 0;
   painter->window_box.width = width;
@@ -36,11 +34,10 @@ struct painter *init_painter(int width, int height) {
   glEnable(GL_BLEND);
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
-  return painter;
+  return 0;
 
 failed:
-  free(painter);
-  return 0;
+  return 1;
 }
 
 int prepare_rectangle(struct painter *painter) {
@@ -107,12 +104,13 @@ int draw_texture(struct painter *painter, shape_ptr shape_ptr) {
 
   /* #ifdef VOID_GUI_SANER */
   if (!shape.vao || !shape.vbo || !shape.params) {
-    printf("Invalid shape passed to draw_texture: vao %u vbo %u tex %p\n", shape.vao,
-           shape.vbo, shape.params);
+    printf("Invalid shape passed to draw_texture: vao %u vbo %u tex %p\n",
+           shape.vao, shape.vbo, shape.params);
   }
   /* #endif */
 
   glBindVertexArray(shape.vao);
+  glBindTexture(GL_TEXTURE_2D, *(GLuint *)shape.params);
   glEnableVertexAttribArray(painter->shaders.tex.posAttrib);
   glEnableVertexAttribArray(painter->shaders.tex.texAttrib);
 
@@ -130,5 +128,4 @@ void free_painter(struct painter *painter) {
   // TODO: more!!
   glDeleteProgram(painter->shaders.common.prog);
   glDeleteProgram(painter->shaders.tex.prog);
-  free(painter);
 }

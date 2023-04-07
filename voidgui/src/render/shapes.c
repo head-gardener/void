@@ -63,7 +63,11 @@ void section(float a, float b, int n, float *ratios, float *points) {
     sum += ratios[i];
   }
   if (sum != 1.0f) {
-    printf("Invalid ratio sum: %f, expected 1\n", sum);
+    printf("Invalid ratio sum: %f, expected 1\nRatios: ", sum);
+    for (int i = 0; i < n - 1; i++) {
+      printf("%f ", ratios[i]);
+    }
+    printf("\n");
   }
   /* #endif */
 
@@ -77,26 +81,26 @@ void section(float a, float b, int n, float *ratios, float *points) {
 
 /**
  * Convert two boxes to their relative ratio for OpenGL rendering.
- * `ratios` should have space allocated for 4 elements: {a_x, a_y, b_x, b_y}.
+ * `ratios` should have space allocated for 4 elements: {a_x, a_y, b_x, b_y},
+ * where `a` is bottom-left and `b` is top-right.
  */
-void boxes_to_ratio(struct void_box *outer, struct void_box *inner,
-                    GLfloat *ratios) {
+void boxes_to_ratio(struct box *outer, struct box *inner, GLfloat *ratios) {
   float outer_half_width = (float)outer->width / 2;
   float outer_half_height = (float)outer->height / 2;
   float outer_center_x = outer->x + outer_half_width;
   float outer_center_y = outer->y + outer_half_height;
 
-  // Top-left
+  // Bottom-left
   int a_x = inner->x;
   int a_y = inner->y;
-  // Bottom-right
+  // Top-right
   int b_x = inner->x + inner->width;
   int b_y = inner->y + inner->height;
 
-  // Top-left
+  // Bottom-left
   ratios[0] = (a_x - outer_center_x) / outer_half_width;
   ratios[1] = (a_y - outer_center_y) / outer_half_height;
-  // Bottom-right
+  // Top-right
   ratios[2] = (b_x - outer_center_x) / outer_half_width;
   ratios[3] = (b_y - outer_center_y) / outer_half_height;
 }
@@ -104,8 +108,7 @@ void boxes_to_ratio(struct void_box *outer, struct void_box *inner,
 // PUBLIC
 
 int make_rectangle(struct shaders *shaders, struct commons *common,
-                   struct shape *shape, struct void_box *box,
-                   struct void_box *window) {
+                   struct shape *shape, struct box *box, struct box *window) {
   glBindVertexArray(shape->vao);
 
   GLfloat vertices[8];
@@ -122,9 +125,10 @@ int make_rectangle(struct shaders *shaders, struct commons *common,
   return 0;
 }
 
-int make_grid(struct shaders *shaders, struct shape *shape,
-              struct void_box *box, int rows, int columns, float *row_ratio,
-              float *column_ratio, struct void_box *window) {
+// FIXME: fails comedically when rows =/= columns
+int make_grid(struct shaders *shaders, struct shape *shape, struct box *box,
+              int rows, int columns, float *row_ratio, float *column_ratio,
+              struct box *window) {
   glBindVertexArray(shape->vao);
 
   int n_vertices = 4 * (rows + 1 + columns + 1);
@@ -136,16 +140,16 @@ int make_grid(struct shaders *shaders, struct shape *shape,
   // fill coords
   boxes_to_ratio(window, box, coords);
   split4(GLfloat, a_x, a_y, b_x, b_y, coords);
-  section(a_x, b_x, rows + 1, row_ratio, coords);
-  section(a_y, b_y, columns + 1, column_ratio, &coords[rows + 1]);
+  section(a_y, b_y, rows + 1, row_ratio, coords);
+  section(a_x, b_x, columns + 1, column_ratio, &coords[rows + 1]);
 
   for (int i = 0; i < rows + 1; i++) {
-    spread_line_horizontal(coords[0], coords[rows], coords[rows + 1 + i], 0,
-                           &vertices[4 * i]);
+    spread_line_horizontal(coords[rows + 1], coords[rows + 1 + columns],
+                         coords[i], 0, &vertices[4 * i]);
   }
   for (int i = 0; i < columns + 1; i++) {
-    spread_line_vertical(coords[rows + 1], coords[rows + 1 + columns],
-                         coords[i], 0, &vertices[4 * (rows + 1) + 4 * i]);
+    spread_line_vertical(coords[0], coords[rows], coords[rows + 1 + i], 0,
+                           &vertices[4 * (rows + 1) + 4 * i]);
   }
 
   glBindBuffer(GL_ARRAY_BUFFER, shape->vbo);
@@ -159,8 +163,7 @@ int make_grid(struct shaders *shaders, struct shape *shape,
 }
 
 int make_texture(struct shaders *shaders, struct commons *common,
-                 struct shape *shape, struct void_box *box,
-                 struct void_box *window) {
+                 struct shape *shape, struct box *box, struct box *window) {
   glBindVertexArray(shape->vao);
 
   glBindBuffer(GL_ARRAY_BUFFER, shape->vbo);
@@ -185,6 +188,7 @@ int make_texture(struct shaders *shaders, struct commons *common,
   return 0;
 }
 
+// FIXME: messes up previous texture
 int render_texture(struct shape *shape, const char *path) {
   glBindVertexArray(shape->vao);
 
@@ -234,7 +238,7 @@ int render_text(struct shape *shape, const char *text) {
   pango_layout_set_text(layout, text, -1);
 
   /* Load the font */
-  desc = pango_font_description_from_string("Sans Bold 17");
+  desc = pango_font_description_from_string("Sans Bold 37");
   pango_layout_set_font_description(layout, desc);
   pango_font_description_free(desc);
 
@@ -249,7 +253,7 @@ int render_text(struct shape *shape, const char *text) {
   render_context = cairo_create(out_surface);
 
   /* Render */
-  cairo_set_source_rgba(render_context, 1, 1, 1, 1);
+  cairo_set_source_rgba(render_context, .3, .3, .3, 1);
   pango_cairo_show_layout(render_context, layout);
 
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, text_width, text_height, 0, GL_RGBA,
@@ -282,5 +286,6 @@ void free_shape(struct shape *shape) {
 
 void free_texture_shape(struct shape *shape) {
   glDeleteTextures(1, shape->params);
+  free(shape->params);
   free_shape(shape);
 }

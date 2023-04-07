@@ -15,7 +15,7 @@ struct painter {
   GLuint vao;
   GLuint vao1;
 
-  struct void_box window_box;
+  struct box window_box;
 
   struct {
     float bg_color[3];
@@ -27,7 +27,7 @@ struct painter {
 /**
  * Allocate a painter and prepare OpenGL tools
  */
-struct painter *init_painter(int width, int height);
+int init_painter(int width, int height, struct painter *painter);
 
 int prepare_rectangle(struct painter *painter);
 int draw_rectangle(struct painter *painter, shape_ptr shape, float color[4]);

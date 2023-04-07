@@ -11,22 +11,32 @@ struct shape {
   void *params;
 };
 
-struct void_box {
+struct box {
   int x;
   int y;
   int width;
   int height;
 };
 
+struct point {
+  int x;
+  int y;
+};
+
+struct size {
+  int width;
+  int height;
+};
+
 int make_rectangle(struct shaders *shaders, struct commons *common,
-                   struct shape *shape, struct void_box *box,
-                   struct void_box *window);
+                   struct shape *shape, struct box *box,
+                   struct box *window);
 int make_grid(struct shaders *shaders, struct shape *shape,
-              struct void_box *box, int rows, int columns, float *row_ratio,
-              float *column_ratio, struct void_box *window);
+              struct box *box, int rows, int columns, float *row_ratio,
+              float *column_ratio, struct box *window);
 int make_texture(struct shaders *shaders, struct commons *common,
-                 struct shape *shape, struct void_box *box,
-                 struct void_box *window);
+                 struct shape *shape, struct box *box,
+                 struct box *window);
 
 int render_texture(struct shape *shape, const char *path);
 int render_text(struct shape *shape, const char *text);
