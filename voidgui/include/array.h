@@ -5,12 +5,12 @@
 
 #define init_array(type, array, capacity) array = calloc(capacity, sizeof(type))
 
-#define array_expand(type, array, new_capacity, on_error)                      \
+#define array_expand(type, array, capacity, cap_mod, on_error)                 \
   {                                                                            \
-    type *buf = calloc(new_capacity * 2, sizeof(type));                        \
+    type *buf = calloc(capacity * cap_mod, sizeof(type));                      \
     if (!buf)                                                                  \
       on_error;                                                                \
-    memcpy(buf, array, sizeof(type) * new_capacity);                           \
+    memcpy(buf, array, sizeof(type) * capacity * cap_mod);                     \
     free(array);                                                               \
     array = buf;                                                               \
   }

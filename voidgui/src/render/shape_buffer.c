@@ -21,6 +21,7 @@ failed:
   return 2;
 }
 
+// FIXME: buffer doesn't expand correctly
 int get_new_shape(struct shape_buffer *buffer, unsigned int *ind) {
   unsigned int i = 0;
 
@@ -28,7 +29,8 @@ int get_new_shape(struct shape_buffer *buffer, unsigned int *ind) {
     if (!buffer->shapes[i].vao)
       goto succeeded;
 
-  array_expand(struct shape, buffer->shapes, buffer->capacity * 2, goto failed);
+  array_expand(struct shape, buffer->shapes, buffer->capacity, 2, goto failed);
+  buffer->capacity *= 2;
   i = buffer->capacity - 1;
 
 succeeded:

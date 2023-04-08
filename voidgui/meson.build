@@ -26,12 +26,15 @@ sources = files(
   'src/render/shaders.c',
   'src/render/shapes.c',
   'src/render/shape_buffer.c',
+
+  'src/logic/click_sink.c',
 )
 
 include = [
   'include',
   'include/widgets',
   'include/render',
+  'include/logic',
 ]
 
 subdir('src/render/shaders')

@@ -38,22 +38,25 @@ struct void_window *void_gui_init(int time) {
 }
 
 int void_gui_exec(struct void_window *window) {
-  SDL_Event windowEvent;
-  while (1) {
-    if (SDL_PollEvent(&windowEvent)) {
-      if (windowEvent.type == SDL_QUIT) {
-        return 0;
-      }
-    }
-
+  SDL_Event window_event;
+  while (SDL_PollEvent(&window_event)) {
 
     clear(&window->painter);
+    switch (window_event.type) {
+    case SDL_QUIT:
+      return 0;
+    case SDL_MOUSEBUTTONUP:
+      catch_click(&window->painter, &window->sink, window_event.motion.x,
+                  window_event.motion.y);
+    }
 
     draw_spreadsheet(&window->painter, &window->ssheet);
     print_gl_error;
 
     SDL_GL_SwapWindow(window->hw_window);
   }
+
+  return 1;
 }
 
 int void_gui_finish(struct void_window *window) {

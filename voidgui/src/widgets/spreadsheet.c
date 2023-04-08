@@ -56,8 +56,8 @@ int upload_spreadsheet(struct painter *painter, struct spreadsheet *ssheet) {
                                  &sizes[i + 1].height, &surfaces[i + 1]));
   }
 
-  generate_table_layout(&ssheet->table, ssheet->size, DATA_FIELD_COUNT,
-                        sizes, ssheet->pole.x, ssheet->pole.y, 10, 10);
+  generate_table_layout(&ssheet->table, ssheet->size, DATA_FIELD_COUNT, sizes,
+                        ssheet->pole.x, ssheet->pole.y, 10, 10);
   fail_condition(
       upload_table(painter, &ssheet->table, ssheet->size, DATA_FIELD_COUNT));
 
@@ -131,10 +131,10 @@ void free_spreadsheet(struct painter *painter, struct spreadsheet *ssheet) {
 int spreadsheet_put(struct painter *painter, struct spreadsheet *ssheet,
                     struct data *data) {
   if (ssheet->size >= ssheet->capacity) {
-    array_expand(struct data, ssheet->data, ssheet->capacity * 2, goto failed);
-    array_expand(int_fast8_t, ssheet->dirty, ssheet->capacity * 2, goto failed);
-    array_expand(shape_ptr, ssheet->labels,
-                 ssheet->capacity * 2 * DATA_FIELD_COUNT, goto failed);
+    array_expand(struct data, ssheet->data, ssheet->capacity, 2, goto failed);
+    array_expand(int_fast8_t, ssheet->dirty, ssheet->capacity, 2, goto failed);
+    array_expand(shape_ptr, ssheet->labels, ssheet->capacity,
+                 2 * DATA_FIELD_COUNT, goto failed);
 
     ssheet->capacity *= 2;
   }

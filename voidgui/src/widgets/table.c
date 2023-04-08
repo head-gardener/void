@@ -4,6 +4,7 @@
 
 int init_table(struct painter *painter, struct table *table) {
   unsigned int ind;
+
   get_new_shape(&painter->shape_buffer, &ind);
   table->bg = ind;
 
