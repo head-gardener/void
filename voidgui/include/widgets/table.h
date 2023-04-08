@@ -20,12 +20,24 @@ struct table {
   float *column_ratios;
 };
 
-int init_table(struct painter *painter, struct table *table, int x, int y);
+int init_table(struct painter *painter, struct table *table);
+/**
+ * Fill `table->layout`, ratios and `table->box` according to
+ * `x`, `y` and `sizes`. The later should store `rows * columns` of
+ * `struct sizes` for table contents.
+ */
 void generate_table_layout(struct painter *painter, struct table *table,
                            int rows, int columns, struct size *sizes, int x,
                            int y);
+/**
+ * Generate GL buffers necessary for drawing a grid according to
+ * `table->layout` and `table->box`.
+ */
 int render_table(struct painter *painter, struct table *table, int rows,
                  int columns);
+/**
+ * Draw a grid with a background according to the layout.
+ */
 int draw_table(struct painter *painter, struct table *table);
 void free_table(struct painter *painter, struct table *table);
 

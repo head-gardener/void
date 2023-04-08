@@ -82,7 +82,7 @@ void section(float a, float b, int n, float *ratios, float *points) {
 /**
  * Convert two boxes to their relative ratio for OpenGL rendering.
  * `ratios` should have space allocated for 4 elements: {a_x, a_y, b_x, b_y},
- * where `a` is bottom-left and `b` is top-right.
+ * where `a` is top-left and `b` is bottom-right.
  */
 void boxes_to_ratio(struct box *outer, struct box *inner, GLfloat *ratios) {
   float outer_half_width = (float)outer->width / 2;
@@ -90,19 +90,19 @@ void boxes_to_ratio(struct box *outer, struct box *inner, GLfloat *ratios) {
   float outer_center_x = outer->x + outer_half_width;
   float outer_center_y = outer->y + outer_half_height;
 
-  // Bottom-left
+  // Top-left
   int a_x = inner->x;
   int a_y = inner->y;
-  // Top-right
+  // Bottom-right
   int b_x = inner->x + inner->width;
   int b_y = inner->y + inner->height;
 
-  // Bottom-left
+  // Top-left
   ratios[0] = (a_x - outer_center_x) / outer_half_width;
-  ratios[1] = (a_y - outer_center_y) / outer_half_height;
-  // Top-right
+  ratios[1] = -(a_y - outer_center_y) / outer_half_height;
+  // Bottom-right
   ratios[2] = (b_x - outer_center_x) / outer_half_width;
-  ratios[3] = (b_y - outer_center_y) / outer_half_height;
+  ratios[3] = -(b_y - outer_center_y) / outer_half_height;
 }
 
 // PUBLIC
@@ -145,11 +145,11 @@ int make_grid(struct shaders *shaders, struct shape *shape, struct box *box,
 
   for (int i = 0; i < rows + 1; i++) {
     spread_line_horizontal(coords[rows + 1], coords[rows + 1 + columns],
-                         coords[i], 0, &vertices[4 * i]);
+                           coords[i], 0, &vertices[4 * i]);
   }
   for (int i = 0; i < columns + 1; i++) {
     spread_line_vertical(coords[0], coords[rows], coords[rows + 1 + i], 0,
-                           &vertices[4 * (rows + 1) + 4 * i]);
+                         &vertices[4 * (rows + 1) + 4 * i]);
   }
 
   glBindBuffer(GL_ARRAY_BUFFER, shape->vbo);
@@ -171,10 +171,10 @@ int make_texture(struct shaders *shaders, struct commons *common,
 
   GLfloat coords[4];
   GLfloat vertices[] = {
-      0, 0, 0.0f, 1.0f, // Bottom-left
-      0, 0, 1.0f, 1.0f, // Bottom-right
-      0, 0, 1.0f, 0.0f, // Top-right
       0, 0, 0.0f, 0.0f, // Top-left
+      0, 0, 1.0f, 0.0f, // Top-right
+      0, 0, 1.0f, 1.0f, // Bottom-right
+      0, 0, 0.0f, 1.0f, // Bottom-left
   };
   boxes_to_ratio(window, box, coords);
   spread_rectangle_horizontal(slice4(coords), 2, vertices);

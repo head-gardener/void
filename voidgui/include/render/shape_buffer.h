@@ -2,6 +2,7 @@
 #define VOID_GUI_SHAPE_BUFFER
 
 #include "shapes.h"
+#include "array.h"
 #include <GLES3/gl3.h>
 
 #ifndef SHAPE_BUFFER_INNITIAL_CAPACITY
@@ -11,7 +12,7 @@
 typedef unsigned shape_ptr;
 
 struct shape_buffer {
-  struct shape *shapes;
+  array(struct shape, shapes);
   unsigned int capacity;
 };
 

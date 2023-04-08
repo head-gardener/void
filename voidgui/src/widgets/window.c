@@ -10,21 +10,29 @@ struct void_window *init_void_window(int width, int height) {
     free(window);
     return 0;
   }
-  if (init_table(&window->painter, &window->table, 0, 0)) {
+  int code;
+  if ((code = init_spreadsheet(&window->painter, &window->ssheet, 20, 20))) {
+    printf("Unable to initialize spreadsheet. Code: %i\n", code);
     free_painter(&window->painter);
     free(window);
     return 0;
   }
-  struct size sizes[] = {{100, 150}, {200, 100}, {100, 100},
-                         {100, 100}, {100, 100}, {100, 100}};
-  generate_table_layout(&window->painter, &window->table, 2, 3, sizes, 100,
-                        200);
-  render_table(&window->painter, &window->table, 2, 3);
+
+  struct data data;
+  data.name = strdup("Igor");
+  data.phone = strdup("158");
+  spreadsheet_put(&window->painter, &window->ssheet, &data);
+  data.name = strdup("Vasya");
+  data.phone = strdup("231");
+  spreadsheet_put(&window->painter, &window->ssheet, &data);
+  render_spreadsheet(&window->painter, &window->ssheet);
+  render_spreadsheet(&window->painter, &window->ssheet);
 
   return window;
 }
 
 void free_void_window(struct void_window *window) {
+  free_spreadsheet(&window->painter, &window->ssheet);
   free_painter(&window->painter);
   free(window);
 }

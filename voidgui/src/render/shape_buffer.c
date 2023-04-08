@@ -18,7 +18,7 @@ failed:
 
     free(buffer);
   }
-  return 1;
+  return 2;
 }
 
 int get_new_shape(struct shape_buffer *buffer, unsigned int *ind) {
@@ -28,12 +28,7 @@ int get_new_shape(struct shape_buffer *buffer, unsigned int *ind) {
     if (!buffer->shapes[i].vao)
       goto succeeded;
 
-  struct shape *new_shapes = calloc(buffer->capacity * 2, sizeof(struct shape));
-  fail_condition(!new_shapes);
-  memcpy(new_shapes, buffer->shapes, sizeof(struct shape) * buffer->capacity);
-  free(buffer->shapes);
-  buffer->shapes = new_shapes;
-  buffer->capacity *= 2;
+  array_expand(struct shape, buffer->shapes, buffer->capacity * 2, goto failed);
   i = buffer->capacity - 1;
 
 succeeded:
@@ -45,5 +40,5 @@ succeeded:
   return 0;
 
 failed:
-  return 1;
+  return 2;
 }

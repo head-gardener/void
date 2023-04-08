@@ -19,6 +19,7 @@ sources = files(
   'src/voidgui.c',
 
   'src/widgets/table.c',
+  'src/widgets/spreadsheet.c',
   'src/widgets/window.c',
 
   'src/render/painter.c',

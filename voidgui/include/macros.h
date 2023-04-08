@@ -10,7 +10,7 @@
 
 #define fail_condition_with_code(condition, _code)                             \
   if (condition) {                                                             \
-    int code = _code;                                                          \
+    code = _code;                                                              \
     goto failed;                                                               \
   }
 
