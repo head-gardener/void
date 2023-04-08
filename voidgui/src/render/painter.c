@@ -15,10 +15,6 @@ int init_painter(int width, int height, struct painter *painter) {
   fail_condition(init_shaders(&painter->shaders));
   fail_condition(init_shape_buffer(&painter->shape_buffer));
 
-  glGenBuffers(1, &painter->shaders.common.vbo);
-  glGenBuffers(1, &painter->shaders.common.ebo);
-  glGenBuffers(1, &painter->shaders.tex.vbo);
-  glGenBuffers(1, &painter->shaders.tex.ebo);
   glGenBuffers(1, &painter->common.rectangle_ebo);
 
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, painter->common.rectangle_ebo);

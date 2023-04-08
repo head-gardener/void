@@ -8,6 +8,12 @@
     goto failed;                                                               \
   }
 
+#define fail_condition_propagate(condition)                                    \
+  code = condition;                                                            \
+  if (code) {                                                                  \
+    goto failed;                                                               \
+  }
+
 #define fail_condition_with_code(condition, _code)                             \
   if (condition) {                                                             \
     code = _code;                                                              \

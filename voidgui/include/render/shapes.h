@@ -29,17 +29,19 @@ struct size {
 };
 
 int make_rectangle(struct shaders *shaders, struct commons *common,
-                   struct shape *shape, struct box *box,
-                   struct box *window);
-int make_grid(struct shaders *shaders, struct shape *shape,
-              struct box *box, int rows, int columns, float *row_ratio,
-              float *column_ratio, struct box *window);
+                   struct shape *shape, struct box *box, struct box *window);
+int make_grid(struct shaders *shaders, struct shape *shape, struct box *box,
+              int rows, int columns, float *row_ratio, float *column_ratio,
+              struct box *window);
 int make_texture(struct shaders *shaders, struct commons *common,
-                 struct shape *shape, struct box *box,
-                 struct box *window);
+                 struct shape *shape, struct box *box, struct box *window);
 
-int render_texture(struct shape *shape, const char *path);
-int render_text(struct shape *shape, const char *text);
+int upload_texture(struct shape *shape, const char *path);
+int upload_text(struct shape *shape, int width, int height,
+                unsigned char *surface_data);
+
+int render_text(const char *text, int *width, int *height,
+                unsigned char **surface_data);
 
 void init_shape(struct shape *);
 void free_shape(struct shape *);

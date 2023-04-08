@@ -7,14 +7,10 @@ struct shaders {
   struct {
     GLuint prog;
     GLint color;
-    GLuint vbo;
-    GLuint ebo;
     GLint posAttrib;
   } common;
   struct {
     GLuint prog;
-    GLuint vbo;
-    GLuint ebo;
     GLint posAttrib;
     GLint texAttrib;
   } tex;

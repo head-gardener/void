@@ -12,8 +12,6 @@
 struct painter {
   struct shaders shaders;
   struct shape_buffer shape_buffer;
-  GLuint vao;
-  GLuint vao1;
 
   struct box window_box;
 

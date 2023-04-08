@@ -13,9 +13,9 @@ int init_table(struct painter *painter, struct table *table) {
   return 0;
 }
 
-void generate_table_layout(struct painter *painter, struct table *table,
-                           int rows, int columns, struct size *sizes, int x,
-                           int y) {
+void generate_table_layout(struct table *table, int rows, int columns,
+                           struct size *sizes, int x, int y, int vert_padding,
+                           int horz_padding) {
   if (table->layout)
     free(table->layout);
   if (table->row_ratios)
@@ -27,7 +27,6 @@ void generate_table_layout(struct painter *painter, struct table *table,
   table->layout = calloc(rows * columns, sizeof(struct box));
 
   int height = 0;
-  // reversed
   int *row_height = calloc(rows, sizeof(int));
   int width = 0;
   int *column_width = calloc(columns, sizeof(int));
@@ -38,6 +37,7 @@ void generate_table_layout(struct painter *painter, struct table *table,
       max_row_height = sizes[i].height;
 
     if (i % columns == columns - 1) {
+      max_row_height += 2 * vert_padding;
       height += max_row_height;
       row_height[j++] = max_row_height;
       max_row_height = 0;
@@ -51,6 +51,7 @@ void generate_table_layout(struct painter *painter, struct table *table,
 
     i += columns;
     if (i >= rows * columns) {
+      max_column_width += 2 * horz_padding;
       width += max_column_width;
       column_width[j++] = max_column_width;
       max_column_width = 0;
@@ -58,8 +59,8 @@ void generate_table_layout(struct painter *painter, struct table *table,
     }
   }
 
-  int x_offset = x;
-  int y_offset = y;
+  int x_offset = x + horz_padding;
+  int y_offset = y + vert_padding;
   for (int i = 0; i < rows * columns; i++) {
     table->layout[i].x = x_offset;
     table->layout[i].y = y_offset;
@@ -69,7 +70,7 @@ void generate_table_layout(struct painter *painter, struct table *table,
     x_offset += column_width[i % columns];
     if (i % columns == columns - 1) {
       y_offset += row_height[i / columns];
-      x_offset = x;
+      x_offset -= width;
     }
   }
 
@@ -84,16 +85,20 @@ void generate_table_layout(struct painter *painter, struct table *table,
   table->box.height = height;
 }
 
-int render_table(struct painter *painter, struct table *table, int rows,
+int upload_table(struct painter *painter, struct table *table, int rows,
                  int columns) {
-  make_rectangle(&painter->shaders, &painter->common,
-                 &painter->shape_buffer.shapes[table->bg], &table->box,
-                 &painter->window_box);
-  make_grid(&painter->shaders, &painter->shape_buffer.shapes[table->grid],
-            &table->box, rows, columns, table->row_ratios, table->column_ratios,
-            &painter->window_box);
+  fail_condition(make_rectangle(&painter->shaders, &painter->common,
+                                &painter->shape_buffer.shapes[table->bg],
+                                &table->box, &painter->window_box));
+  fail_condition(make_grid(&painter->shaders,
+                           &painter->shape_buffer.shapes[table->grid],
+                           &table->box, rows, columns, table->row_ratios,
+                           table->column_ratios, &painter->window_box));
 
   return 0;
+
+failed:
+  return 3;
 }
 
 int draw_table(struct painter *painter, struct table *table) {

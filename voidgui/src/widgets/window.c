@@ -1,34 +1,43 @@
 #include "window.h"
+#include "macros.h"
 #include "painter.h"
 #include "table.h"
 
 struct void_window *init_void_window(int width, int height) {
-  struct void_window *window = calloc(1, sizeof(struct void_window));
+  struct void_window *window;
+  int ssheet_code = 1;
+  int painter_code = 1;
 
-  if (init_painter(width, height, &window->painter)) {
-    printf("Unable to initialize painter\n");
-    free(window);
-    return 0;
-  }
-  int code;
-  if ((code = init_spreadsheet(&window->painter, &window->ssheet, 20, 20))) {
-    printf("Unable to initialize spreadsheet. Code: %i\n", code);
-    free_painter(&window->painter);
-    free(window);
-    return 0;
-  }
+  verbose_fail_condition(!(window = calloc(1, sizeof(struct void_window))),
+                         "Allocation error at %s:%i\n", __FILE__, __LINE__);
+  verbose_fail_condition(
+      (painter_code = init_painter(width, height, &window->painter)),
+      "Unable to initialize painter\n");
+  verbose_fail_condition(
+      (ssheet_code = init_spreadsheet(&window->painter, &window->ssheet, 20, 20)),
+      "Unable to initialize spreadsheet. Code: %i\n", ssheet_code);
 
-  struct data data;
-  data.name = strdup("Igor");
-  data.phone = strdup("158");
-  spreadsheet_put(&window->painter, &window->ssheet, &data);
-  data.name = strdup("Vasya");
-  data.phone = strdup("231");
-  spreadsheet_put(&window->painter, &window->ssheet, &data);
-  render_spreadsheet(&window->painter, &window->ssheet);
-  render_spreadsheet(&window->painter, &window->ssheet);
+  struct data data1 = {strdup("IGOR"), strdup("158")};
+  struct data data2 = {strdup("VASYA"), strdup("623")};
+  struct data data3 = {strdup("Charlie"), strdup("293")};
+  struct data data4 = {strdup("Ch"), strdup("2931240")};
+  spreadsheet_put(&window->painter, &window->ssheet, &data1);
+  spreadsheet_put(&window->painter, &window->ssheet, &data2);
+  spreadsheet_put(&window->painter, &window->ssheet, &data3);
+  spreadsheet_put(&window->painter, &window->ssheet, &data4);
+  upload_spreadsheet(&window->painter, &window->ssheet);
 
   return window;
+
+failed:
+  if (!ssheet_code)
+    free_spreadsheet(&window->painter, &window->ssheet);
+  if (!painter_code)
+    free_painter(&window->painter);
+  if (window)
+    free(window);
+
+  return 0;
 }
 
 void free_void_window(struct void_window *window) {

@@ -125,7 +125,6 @@ int make_rectangle(struct shaders *shaders, struct commons *common,
   return 0;
 }
 
-// FIXME: fails comedically when rows =/= columns
 int make_grid(struct shaders *shaders, struct shape *shape, struct box *box,
               int rows, int columns, float *row_ratio, float *column_ratio,
               struct box *window) {
@@ -188,8 +187,7 @@ int make_texture(struct shaders *shaders, struct commons *common,
   return 0;
 }
 
-// FIXME: messes up previous texture
-int render_texture(struct shape *shape, const char *path) {
+int upload_texture(struct shape *shape, const char *path) {
   glBindVertexArray(shape->vao);
 
   GLuint *texture_id = calloc(1, sizeof(GLuint));
@@ -211,8 +209,8 @@ int render_texture(struct shape *shape, const char *path) {
   return 0;
 }
 
-// TODO: make this good!
-int render_text(struct shape *shape, const char *text) {
+int upload_text(struct shape *shape, int width, int height,
+                unsigned char *surface_data) {
   glBindVertexArray(shape->vao);
 
   GLuint *texture_id = calloc(1, sizeof(GLuint));
@@ -222,11 +220,19 @@ int render_text(struct shape *shape, const char *text) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   shape->params = texture_id;
 
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
+               GL_UNSIGNED_BYTE, surface_data);
+  print_gl_error;
+
+  return 0;
+}
+
+int render_text(const char *text, int *width, int *height,
+                unsigned char **surface_data) {
   cairo_t *layout_context;
   cairo_t *render_context;
   cairo_surface_t *tmp_surface;
   cairo_surface_t *out_surface;
-  unsigned char *surface_data = NULL;
   PangoFontDescription *desc;
   PangoLayout *layout;
 
@@ -238,30 +244,22 @@ int render_text(struct shape *shape, const char *text) {
   pango_layout_set_text(layout, text, -1);
 
   /* Load the font */
-  desc = pango_font_description_from_string("Sans Bold 37");
+  desc = pango_font_description_from_string("Sans Bold 17");
   pango_layout_set_font_description(layout, desc);
   pango_font_description_free(desc);
 
   /* Get text dimensions and create a context to render to */
-  int text_width = 100;
-  int text_height = 100;
-  pango_layout_get_pixel_size(layout, &text_width, &text_height);
-  surface_data = calloc(4 * text_width * text_height, sizeof(unsigned char));
+  pango_layout_get_pixel_size(layout, width, height);
+  *surface_data = calloc(4 * *width * *height, sizeof(unsigned char));
   out_surface = cairo_image_surface_create_for_data(
-      surface_data, CAIRO_FORMAT_ARGB32, text_width, text_height,
-      4 * text_width);
+      *surface_data, CAIRO_FORMAT_ARGB32, *width, *height, 4 * *width);
   render_context = cairo_create(out_surface);
 
   /* Render */
   cairo_set_source_rgba(render_context, .3, .3, .3, 1);
   pango_cairo_show_layout(render_context, layout);
 
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, text_width, text_height, 0, GL_RGBA,
-               GL_UNSIGNED_BYTE, surface_data);
-  print_gl_error;
-
   /* Clean up */
-  free(surface_data);
   g_object_unref(layout);
   cairo_destroy(layout_context);
   cairo_destroy(render_context);

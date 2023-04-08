@@ -39,43 +39,66 @@ failed:
   return code;
 }
 
-int render_spreadsheet(struct painter *painter, struct spreadsheet *ssheet) {
-  // TODO: generate the sizes
-  struct size sizes[] = {{100, 150}, {200, 100}, {100, 100}, {100, 100},
-                         {100, 100}, {100, 100}, {100, 100}, {100, 100}};
+int upload_spreadsheet(struct painter *painter, struct spreadsheet *ssheet) {
+  struct size *sizes;
+  unsigned char **surfaces;
+  int label_count = ssheet->size * DATA_FIELD_COUNT;
 
-  generate_table_layout(painter, &ssheet->table, ssheet->size,
-                        DATA_FIELD_COUNT, sizes, ssheet->pole.x,
-                        ssheet->pole.y);
-  render_table(painter, &ssheet->table, ssheet->size, DATA_FIELD_COUNT);
+  fail_condition(!(sizes = calloc(label_count, sizeof(struct size))));
+  fail_condition(!(surfaces = calloc(label_count, sizeof(void *))));
 
-  for (int i = 0; i < ssheet->size; i++) {
-    // PERF: is this efficient?
-    if (ssheet->dirty[i] & DATA_DIRTY_NAME) {
-      shape_ptr tex = ssheet->labels[i * DATA_FIELD_COUNT];
-      fail_condition(make_texture(&painter->shaders, &painter->common,
-                                  &painter->shape_buffer.shapes[tex],
-                                  &ssheet->table.layout[i * DATA_FIELD_COUNT],
-                                  &painter->window_box));
-      fail_condition(render_text(&painter->shape_buffer.shapes[tex],
-                                 ssheet->data[i].name));
-    }
-    if (ssheet->dirty[i] & DATA_DIRTY_PHONE) {
-      shape_ptr tex = ssheet->labels[i * DATA_FIELD_COUNT + 1];
-      fail_condition(
-          make_texture(&painter->shaders, &painter->common,
-                       &painter->shape_buffer.shapes[tex],
-                       &ssheet->table.layout[i * DATA_FIELD_COUNT + 1],
-                       &painter->window_box));
-      fail_condition(render_text(&painter->shape_buffer.shapes[tex],
-                                 ssheet->data[i].phone));
-    }
-    ssheet->dirty[i] = 0;
+  for (int i = 0, j = 0; j < ssheet->size; i += DATA_FIELD_COUNT, j++) {
+    if (ssheet->dirty[j] & DATA_DIRTY_NAME)
+      fail_condition(render_text(ssheet->data[j].name, &sizes[i].width,
+                                 &sizes[i].height, &surfaces[i]));
+    if (ssheet->dirty[j] & DATA_DIRTY_PHONE)
+      fail_condition(render_text(ssheet->data[j].phone, &sizes[i + 1].width,
+                                 &sizes[i + 1].height, &surfaces[i + 1]));
   }
+
+  generate_table_layout(&ssheet->table, ssheet->size, DATA_FIELD_COUNT,
+                        sizes, ssheet->pole.x, ssheet->pole.y, 10, 10);
+  fail_condition(
+      upload_table(painter, &ssheet->table, ssheet->size, DATA_FIELD_COUNT));
+
+  for (int i = 0, j = 0; j < ssheet->size; i += DATA_FIELD_COUNT, j++) {
+    // PERF: is this efficient?
+    if (ssheet->dirty[j] & DATA_DIRTY_NAME) {
+      struct box box = {ssheet->table.layout[i].x, ssheet->table.layout[i].y,
+                        sizes[i].width, sizes[i].height};
+      shape_ptr tex = ssheet->labels[i];
+
+      fail_condition(make_texture(&painter->shaders, &painter->common,
+                                  &painter->shape_buffer.shapes[tex], &box,
+                                  &painter->window_box));
+      fail_condition(upload_text(&painter->shape_buffer.shapes[tex], box.width,
+                                 box.height, surfaces[i]));
+    }
+    if (ssheet->dirty[j] & DATA_DIRTY_PHONE) {
+      struct box box = {ssheet->table.layout[i + 1].x,
+                        ssheet->table.layout[i + 1].y, sizes[i + 1].width,
+                        sizes[i + 1].height};
+      shape_ptr tex = ssheet->labels[i + 1];
+
+      fail_condition(make_texture(&painter->shaders, &painter->common,
+                                  &painter->shape_buffer.shapes[tex], &box,
+                                  &painter->window_box));
+      fail_condition(upload_text(&painter->shape_buffer.shapes[tex], box.width,
+                                 box.height, surfaces[i + 1]));
+    }
+
+    free(surfaces[i]);
+    free(surfaces[i + 1]);
+    ssheet->dirty[j] = 0;
+  }
+
+  free(sizes);
+  free(surfaces);
 
   return 0;
 
 failed:
+  // TODO: clean up
   return 1;
 }
 
