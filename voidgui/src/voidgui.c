@@ -40,8 +40,10 @@ struct void_window *void_gui_init(int time) {
 int void_gui_exec(struct void_window *window) {
   SDL_Event window_event;
   while (SDL_PollEvent(&window_event)) {
+    Uint32 time = SDL_GetTicks();
 
     clear(&window->painter);
+
     switch (window_event.type) {
     case SDL_QUIT:
       return 0;
@@ -55,6 +57,10 @@ int void_gui_exec(struct void_window *window) {
     print_gl_error;
 
     SDL_GL_SwapWindow(window->hw_window);
+
+    int rest = SDL_GetTicks() - time - 10;
+    if (rest > 0)
+      SDL_Delay(rest);
   }
 
   return 1;
