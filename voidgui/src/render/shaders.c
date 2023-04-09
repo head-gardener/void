@@ -70,13 +70,13 @@ int init_shaders(struct shaders *shaders) {
   shaders->tex.prog = 0;
 
   GLuint prog = link_program(common_vert_src, common_frag_src);
-  fail_condition(!prog);
+  failure_condition(!prog);
   shaders->common.prog = prog;
   shaders->common.posAttrib = glGetAttribLocation(prog, "pos");
   shaders->common.color = glGetUniformLocation(prog, "color");
 
   prog = link_program(tex_vert_src, tex_frag_src);
-  fail_condition(!prog);
+  failure_condition(!prog);
   shaders->tex.prog = prog;
   shaders->tex.texAttrib = glGetAttribLocation(prog, "texcoord");
   shaders->tex.posAttrib = glGetAttribLocation(prog, "pos");

@@ -2,30 +2,49 @@
 #include "macros.h"
 #include "window.h"
 
-int init_table(struct painter *painter, struct table *table) {
+int init_table(struct painter *painter, struct table *table,
+               int initial_capacity, int x, int y) {
   unsigned int ind;
 
   get_new_shape(&painter->shape_buffer, &ind);
   table->bg = ind;
-
   get_new_shape(&painter->shape_buffer, &ind);
   table->grid = ind;
 
+  failure_condition(!(init_array(struct box, table->layout, initial_capacity)));
+  failure_condition(
+      !(init_array(shape_ptr, table->textures, initial_capacity)));
+  failure_condition(!(init_array(float, table->row_ratios, initial_capacity)));
+  failure_condition(
+      !(init_array(float, table->column_ratios, initial_capacity)));
+  table->size = 0;
+  table->capacity = initial_capacity;
+
+  table->origin.x = x;
+  table->origin.y = y;
+
   return 0;
+
+failed:
+  if (table->textures)
+    free(table->textures);
+
+  free_shape(&painter->shape_buffer.shapes[table->bg]);
+  free_shape(&painter->shape_buffer.shapes[table->grid]);
+  return 2;
 }
 
-void generate_table_layout(struct table *table, int rows, int columns,
-                           struct size *sizes, int x, int y, int vert_padding,
-                           int horz_padding) {
+int plot_table_with_sizes(struct table *table, int rows, int columns,
+                          struct size *sizes) {
   if (table->layout)
     free(table->layout);
   if (table->row_ratios)
     free(table->row_ratios);
   if (table->column_ratios)
     free(table->column_ratios);
-  table->row_ratios = calloc(rows, sizeof(float));
-  table->column_ratios = calloc(columns, sizeof(float));
-  table->layout = calloc(rows * columns, sizeof(struct box));
+  failure_condition(!(init_array(struct box, table->layout, rows * columns)));
+  failure_condition(!(init_array(float, table->row_ratios, rows)));
+  failure_condition(!(init_array(float, table->column_ratios, columns)));
 
   int height = 0;
   int *row_height = calloc(rows, sizeof(int));
@@ -38,7 +57,7 @@ void generate_table_layout(struct table *table, int rows, int columns,
       max_row_height = sizes[i].height;
 
     if (i % columns == columns - 1) {
-      max_row_height += 2 * vert_padding;
+      max_row_height += 2 * table->vert_padding;
       height += max_row_height;
       row_height[j++] = max_row_height;
       max_row_height = 0;
@@ -52,7 +71,7 @@ void generate_table_layout(struct table *table, int rows, int columns,
 
     i += columns;
     if (i >= rows * columns) {
-      max_column_width += 2 * horz_padding;
+      max_column_width += 2 * table->horz_padding;
       width += max_column_width;
       column_width[j++] = max_column_width;
       max_column_width = 0;
@@ -60,8 +79,8 @@ void generate_table_layout(struct table *table, int rows, int columns,
     }
   }
 
-  int x_offset = x;
-  int y_offset = y;
+  int x_offset = table->origin.x;
+  int y_offset = table->origin.y;
   for (int i = 0; i < rows * columns; i++) {
     table->layout[i].x = x_offset;
     table->layout[i].y = y_offset;
@@ -80,21 +99,42 @@ void generate_table_layout(struct table *table, int rows, int columns,
   for (int i = 0; i < columns; i++)
     table->column_ratios[i] = (float)column_width[i] / width;
 
-  table->box.x = x;
-  table->box.y = y;
+  table->box.x = table->origin.x;
+  table->box.y = table->origin.y;
   table->box.width = width;
   table->box.height = height;
+
+  return 0;
+
+failed:
+  return 2;
 }
 
-int upload_table(struct painter *painter, struct table *table, int rows,
-                 int columns) {
-  fail_condition(make_rectangle(&painter->shaders, &painter->common,
-                                &painter->shape_buffer.shapes[table->bg],
-                                &table->box, &painter->window_box));
-  fail_condition(make_grid(&painter->shaders,
-                           &painter->shape_buffer.shapes[table->grid],
-                           &table->box, rows, columns, table->row_ratios,
-                           table->column_ratios, &painter->window_box));
+int sync_table(struct painter *painter, struct table *table,
+               unsigned char **surfaces, struct size *sizes, int rows,
+               int columns) {
+  failure_condition(plot_rectangle(&painter->shaders, &painter->common,
+                                   &painter->shape_buffer.shapes[table->bg],
+                                   &table->box, &painter->window_box));
+  failure_condition(plot_grid(&painter->shaders,
+                              &painter->shape_buffer.shapes[table->grid],
+                              &table->box, rows, columns, table->row_ratios,
+                              table->column_ratios, &painter->window_box));
+
+  // PERF: is this efficient?
+  for (int i = 0; i < table->size; i++) {
+    struct box box = {table->layout[i].x + table->horz_padding,
+                      table->layout[i].y + table->vert_padding, sizes[i].width,
+                      sizes[i].height};
+
+    failure_condition(
+        plot_texture(&painter->shaders, &painter->common,
+                     &painter->shape_buffer.shapes[table->textures[i]], &box,
+                     &painter->window_box));
+    failure_condition(
+        sync_texture(&painter->shape_buffer.shapes[table->textures[i]],
+                     box.width, box.height, surfaces[i]));
+  }
 
   return 0;
 
@@ -112,14 +152,51 @@ int draw_table(struct painter *painter, struct table *table) {
   prepare_grid(painter);
   draw_grid(painter, table->grid, color1);
 
+  prepare_texture(painter);
+  for (int i = 0; i < table->size; i++)
+    draw_texture(painter, table->textures[i]);
+
   return 0;
+}
+
+int table_grow(struct painter *painter, struct table *table, int n) {
+  while (table->size + n >= table->capacity) {
+    array_expand(struct box, table->layout, table->capacity, 2, goto failed);
+    array_expand(shape_ptr, table->textures, table->capacity, 2, goto failed);
+
+    table->capacity *= 2;
+  }
+
+  for (int i = 0; i < n; i++) {
+    failure_condition(get_new_shape(&painter->shape_buffer,
+                                    &table->textures[table->size]));
+    table->size += 1;
+  }
+
+  return 0;
+
+failed:
+  return 2;
+}
+
+void table_shrink(struct painter *painter, struct table *table, int n) {
+  for (int i = 0; i < n; i++)
+    free_texture_shape(
+        &painter->shape_buffer.shapes[table->textures[table->size - i - 1]]);
+
+  table->size -= n;
 }
 
 void free_table(struct painter *painter, struct table *table) {
   free_shape(&painter->shape_buffer.shapes[table->grid]);
   free_shape(&painter->shape_buffer.shapes[table->bg]);
 
+  for (int i = 0; i < table->size; i++)
+    free_texture_shape(
+        &painter->shape_buffer.shapes[table->textures[table->size - i - 1]]);
+
   free(table->column_ratios);
   free(table->row_ratios);
   free(table->layout);
+  free(table->textures);
 }

@@ -24,18 +24,16 @@ struct data {
 
 struct spreadsheet {
   struct table table;
-  struct point pole;
 
-  array(shape_ptr, labels);
-  array(int_fast8_t, dirty);
   array(struct data, data);
+  array(int_fast8_t, dirty);
   int size;
   int capacity;
 };
 
 int init_spreadsheet(struct painter *painter, struct spreadsheet *ssheet, int x,
                      int y);
-int upload_spreadsheet(struct painter *painter, struct spreadsheet *ssheet);
+int sync_spreadsheet(struct painter *painter, struct spreadsheet *ssheet);
 int draw_spreadsheet(struct painter *painter, struct spreadsheet *ssheet);
 void free_spreadsheet(struct painter *painter, struct spreadsheet *ssheet);
 

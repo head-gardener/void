@@ -107,7 +107,7 @@ void boxes_to_ratio(struct box *outer, struct box *inner, GLfloat *ratios) {
 
 // PUBLIC
 
-int make_rectangle(struct shaders *shaders, struct commons *common,
+int plot_rectangle(struct shaders *shaders, struct commons *common,
                    struct shape *shape, struct box *box, struct box *window) {
   glBindVertexArray(shape->vao);
 
@@ -125,7 +125,7 @@ int make_rectangle(struct shaders *shaders, struct commons *common,
   return 0;
 }
 
-int make_grid(struct shaders *shaders, struct shape *shape, struct box *box,
+int plot_grid(struct shaders *shaders, struct shape *shape, struct box *box,
               int rows, int columns, float *row_ratio, float *column_ratio,
               struct box *window) {
   glBindVertexArray(shape->vao);
@@ -161,7 +161,7 @@ int make_grid(struct shaders *shaders, struct shape *shape, struct box *box,
   return 0;
 }
 
-int make_texture(struct shaders *shaders, struct commons *common,
+int plot_texture(struct shaders *shaders, struct commons *common,
                  struct shape *shape, struct box *box, struct box *window) {
   glBindVertexArray(shape->vao);
 
@@ -187,30 +187,8 @@ int make_texture(struct shaders *shaders, struct commons *common,
   return 0;
 }
 
-int upload_texture(struct shape *shape, const char *path) {
-  glBindVertexArray(shape->vao);
-
-  GLuint *texture_id = calloc(1, sizeof(GLuint));
-  glGenTextures(1, texture_id);
-  glBindTexture(GL_TEXTURE_2D, *texture_id);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  shape->params = texture_id;
-
-  cairo_surface_t *surface = cairo_image_surface_create_from_png(path);
-  int tex_w = cairo_image_surface_get_width(surface);
-  int tex_h = cairo_image_surface_get_height(surface);
-  unsigned char *data = cairo_image_surface_get_data(surface);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex_w, tex_h, 0, GL_RGBA,
-               GL_UNSIGNED_BYTE, data);
-  print_gl_error;
-  cairo_surface_destroy(surface);
-
-  return 0;
-}
-
-int upload_text(struct shape *shape, int width, int height,
-                unsigned char *surface_data) {
+int sync_texture(struct shape *shape, int width, int height,
+                 unsigned char *surface_data) {
   glBindVertexArray(shape->vao);
 
   GLuint *texture_id = calloc(1, sizeof(GLuint));
@@ -223,6 +201,18 @@ int upload_text(struct shape *shape, int width, int height,
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
                GL_UNSIGNED_BYTE, surface_data);
   print_gl_error;
+
+  return 0;
+}
+
+int read_texture(const char *png_path, int *width, int *height,
+                 unsigned char **surface_data) {
+  cairo_surface_t *surface = cairo_image_surface_create_from_png(png_path);
+  // TODO: error handling?
+  *width = cairo_image_surface_get_width(surface);
+  *height = cairo_image_surface_get_height(surface);
+  *surface_data = cairo_image_surface_get_data(surface);
+  cairo_surface_destroy(surface);
 
   return 0;
 }
@@ -283,7 +273,9 @@ void free_shape(struct shape *shape) {
 }
 
 void free_texture_shape(struct shape *shape) {
-  glDeleteTextures(1, shape->params);
-  free(shape->params);
+  if (shape->params) {
+    glDeleteTextures(1, shape->params);
+    free(shape->params);
+  }
   free_shape(shape);
 }

@@ -6,7 +6,7 @@
 
 int init_shape_buffer(struct shape_buffer *buffer) {
   buffer->shapes = calloc(SHAPE_BUFFER_INNITIAL_CAPACITY, sizeof(struct shape));
-  fail_condition(!buffer->shapes);
+  failure_condition(!buffer->shapes);
   buffer->capacity = SHAPE_BUFFER_INNITIAL_CAPACITY;
 
   return 0;

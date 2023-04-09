@@ -10,12 +10,10 @@
 
 struct toolbar {
   struct table table;
-
-  shape_ptr labels[TOOLBAR_LABEL_COUNT];
 };
 
 int init_toolbar(struct painter *painter, struct toolbar *toolbar);
-int upload_toolbar(struct painter *painter, struct toolbar *toolbar);
+int sync_toolbar(struct painter *painter, struct toolbar *toolbar);
 int draw_toolbar(struct painter *painter, struct toolbar *toolbar);
 void free_toolbar(struct painter *painter, struct toolbar *toolbar);
 

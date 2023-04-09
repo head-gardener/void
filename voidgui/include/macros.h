@@ -3,24 +3,24 @@
 
 #define max(a, b) a > b ? a : b
 
-#define fail_condition(condition)                                              \
+#define failure_condition(condition)                                           \
   if (condition) {                                                             \
     goto failed;                                                               \
   }
 
-#define fail_condition_propagate(condition)                                    \
+#define failure_condition_propagate(condition)                                 \
   code = condition;                                                            \
   if (code) {                                                                  \
     goto failed;                                                               \
   }
 
-#define fail_condition_with_code(condition, _code)                             \
+#define failure_condition_with_code(condition, _code)                          \
   if (condition) {                                                             \
     code = _code;                                                              \
     goto failed;                                                               \
   }
 
-#define verbose_fail_condition(condition, message, ...)                        \
+#define verbose_failure_condition(condition, message, ...)                     \
   if (condition) {                                                             \
     printf(message, ##__VA_ARGS__);                                            \
     goto failed;                                                               \

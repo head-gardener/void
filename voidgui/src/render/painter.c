@@ -12,8 +12,8 @@ int init_painter(int width, int height, struct painter *painter) {
   painter->window_box.width = width;
   painter->window_box.height = height;
 
-  fail_condition(init_shaders(&painter->shaders));
-  fail_condition(init_shape_buffer(&painter->shape_buffer));
+  failure_condition(init_shaders(&painter->shaders));
+  failure_condition(init_shape_buffer(&painter->shape_buffer));
 
   glGenBuffers(1, &painter->common.rectangle_ebo);
 

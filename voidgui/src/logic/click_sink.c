@@ -37,8 +37,8 @@ failed:
 }
 
 int init_click_sink(struct click_sink *sink) {
-  fail_condition(!(init_array(struct box, sink->areas, 10)));
-  fail_condition(!(sink->funnels = calloc(10, sizeof(void *))));
+  failure_condition(!(init_array(struct box, sink->areas, 10)));
+  failure_condition(!(sink->funnels = calloc(10, sizeof(void *))));
 
   sink->size = 0;
   sink->capacity = 10;
