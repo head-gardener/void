@@ -2,6 +2,7 @@
 #define VOID_GUI_WINDOW
 
 #include "click_sink.h"
+#include "menu.h"
 #include "spreadsheet.h"
 #include "toolbar.h"
 #include <SDL2/SDL.h>
@@ -11,7 +12,7 @@ struct void_window {
   SDL_GLContext context;
 
   struct spreadsheet ssheet;
-  struct toolbar toolbar;
+  struct menu toolbar;
 
   struct painter painter;
   struct click_sink sink;

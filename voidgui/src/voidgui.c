@@ -53,7 +53,7 @@ int void_gui_exec(struct void_window *window) {
     }
 
     draw_spreadsheet(&window->painter, &window->ssheet);
-    draw_toolbar(&window->painter, &window->toolbar);
+    draw_menu(&window->painter, &window->toolbar);
     print_gl_error;
 
     SDL_GL_SwapWindow(window->hw_window);

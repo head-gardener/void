@@ -21,7 +21,6 @@ failed:
   return 2;
 }
 
-// FIXME: buffer doesn't expand correctly
 int get_new_shape(struct shape_buffer *buffer, unsigned int *ind) {
   unsigned int i = 0;
 
@@ -34,8 +33,6 @@ int get_new_shape(struct shape_buffer *buffer, unsigned int *ind) {
   i = buffer->capacity - 1;
 
 succeeded:
-  printf("alloced slot #%i in the buffer\n", i);
-
   init_shape(&buffer->shapes[i]);
   *ind = i;
 

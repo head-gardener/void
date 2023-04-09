@@ -36,13 +36,13 @@ struct void_window *init_void_window(int width, int height) {
   spreadsheet_put(&window->painter, &window->ssheet, &data4);
   sync_spreadsheet(&window->painter, &window->ssheet);
 
-  sync_toolbar(&window->painter, &window->toolbar);
+  sync_toolbar(&window->painter, &window->sink, &window->toolbar);
 
   return window;
 
 failed:
   if (!toolbar_code)
-    free_toolbar(&window->painter, &window->toolbar);
+    free_menu(&window->painter, &window->toolbar);
   if (!sink_code)
     free_click_sink(&window->sink);
   if (!ssheet_code)
@@ -56,7 +56,7 @@ failed:
 }
 
 void free_void_window(struct void_window *window) {
-  free_toolbar(&window->painter, &window->toolbar);
+  free_menu(&window->painter, &window->toolbar);
   free_click_sink(&window->sink);
   free_spreadsheet(&window->painter, &window->ssheet);
   free_painter(&window->painter);
