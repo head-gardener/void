@@ -5,8 +5,6 @@
 #include "shapes.h"
 
 struct funnel_opts {
-  int x;
-  int y;
   struct painter *painter;
 };
 

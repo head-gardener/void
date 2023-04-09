@@ -8,6 +8,7 @@ struct void_window *init_void_window(int width, int height) {
   int ssheet_code = 1;
   int sink_code = 1;
   int painter_code = 1;
+  int toolbar_code = 1;
 
   verbose_fail_condition(!(window = calloc(1, sizeof(struct void_window))),
                          "Allocation error at %s:%i\n", __FILE__, __LINE__);
@@ -16,11 +17,14 @@ struct void_window *init_void_window(int width, int height) {
       "Unable to initialize painter. Code: %i\n", painter_code);
   verbose_fail_condition(
       (ssheet_code =
-           init_spreadsheet(&window->painter, &window->ssheet, 20, 20)),
+           init_spreadsheet(&window->painter, &window->ssheet, 20, 60)),
       "Unable to initialize spreadsheet. Code: %i\n", ssheet_code);
   verbose_fail_condition((sink_code = init_click_sink(&window->sink)),
                          "Unable to initialize click sink. Code: %i\n",
                          sink_code);
+  verbose_fail_condition(
+      (toolbar_code = init_toolbar(&window->painter, &window->toolbar)),
+      "Unable to initialize toolbar. Code: %i\n", toolbar_code);
 
   struct data data1 = {strdup("IGOR"), strdup("158")};
   struct data data2 = {strdup("VASYA"), strdup("623")};
@@ -32,9 +36,13 @@ struct void_window *init_void_window(int width, int height) {
   spreadsheet_put(&window->painter, &window->ssheet, &data4);
   upload_spreadsheet(&window->painter, &window->ssheet);
 
+  upload_toolbar(&window->painter, &window->toolbar);
+
   return window;
 
 failed:
+  if (!toolbar_code)
+    free_toolbar(&window->painter, &window->toolbar);
   if (!sink_code)
     free_click_sink(&window->sink);
   if (!ssheet_code)
@@ -48,6 +56,7 @@ failed:
 }
 
 void free_void_window(struct void_window *window) {
+  free_toolbar(&window->painter, &window->toolbar);
   free_click_sink(&window->sink);
   free_spreadsheet(&window->painter, &window->ssheet);
   free_painter(&window->painter);

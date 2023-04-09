@@ -64,8 +64,9 @@ int upload_spreadsheet(struct painter *painter, struct spreadsheet *ssheet) {
   for (int i = 0, j = 0; j < ssheet->size; i += DATA_FIELD_COUNT, j++) {
     // PERF: is this efficient?
     if (ssheet->dirty[j] & DATA_DIRTY_NAME) {
-      struct box box = {ssheet->table.layout[i].x, ssheet->table.layout[i].y,
-                        sizes[i].width, sizes[i].height};
+      struct box box = {ssheet->table.layout[i].x + 10,
+                        ssheet->table.layout[i].y + 10, sizes[i].width,
+                        sizes[i].height};
       shape_ptr tex = ssheet->labels[i];
 
       fail_condition(make_texture(&painter->shaders, &painter->common,
@@ -75,8 +76,8 @@ int upload_spreadsheet(struct painter *painter, struct spreadsheet *ssheet) {
                                  box.height, surfaces[i]));
     }
     if (ssheet->dirty[j] & DATA_DIRTY_PHONE) {
-      struct box box = {ssheet->table.layout[i + 1].x,
-                        ssheet->table.layout[i + 1].y, sizes[i + 1].width,
+      struct box box = {ssheet->table.layout[i + 1].x + 10,
+                        ssheet->table.layout[i + 1].y + 10, sizes[i + 1].width,
                         sizes[i + 1].height};
       shape_ptr tex = ssheet->labels[i + 1];
 

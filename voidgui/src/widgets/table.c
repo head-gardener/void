@@ -60,8 +60,8 @@ void generate_table_layout(struct table *table, int rows, int columns,
     }
   }
 
-  int x_offset = x + horz_padding;
-  int y_offset = y + vert_padding;
+  int x_offset = x;
+  int y_offset = y;
   for (int i = 0; i < rows * columns; i++) {
     table->layout[i].x = x_offset;
     table->layout[i].y = y_offset;

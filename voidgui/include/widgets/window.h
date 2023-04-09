@@ -3,14 +3,17 @@
 
 #include "click_sink.h"
 #include "spreadsheet.h"
-#include "table.h"
+#include "toolbar.h"
 #include <SDL2/SDL.h>
 
 struct void_window {
   SDL_Window *hw_window;
   SDL_GLContext context;
-  struct painter painter;
+
   struct spreadsheet ssheet;
+  struct toolbar toolbar;
+
+  struct painter painter;
   struct click_sink sink;
 };
 

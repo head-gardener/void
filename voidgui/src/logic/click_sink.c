@@ -5,7 +5,7 @@
 #include <string.h>
 
 int catch_click(void *painter, struct click_sink *sink, int x, int y) {
-  struct funnel_opts opts = {x, y, painter};
+  struct funnel_opts opts = {painter};
 
   for (int i = 0; i < sink->size; i++) {
     int dist_x = x - sink->areas[i].x;
