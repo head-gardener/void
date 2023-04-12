@@ -15,13 +15,13 @@ struct void_window *init_void_window(int width, int height) {
   verbose_failure_condition(
       (painter_code = init_painter(width, height, &window->painter)),
       "Unable to initialize painter. Code: %i\n", painter_code);
+  verbose_failure_condition((sink_code = init_click_sink(&window->sink)),
+                         "Unable to initialize click sink. Code: %i\n",
+                         sink_code);
   verbose_failure_condition(
       (ssheet_code =
            init_spreadsheet(&window->painter, &window->ssheet, 20, 60)),
       "Unable to initialize spreadsheet. Code: %i\n", ssheet_code);
-  verbose_failure_condition((sink_code = init_click_sink(&window->sink)),
-                         "Unable to initialize click sink. Code: %i\n",
-                         sink_code);
   verbose_failure_condition(
       (toolbar_code = init_toolbar(&window->painter, &window->toolbar)),
       "Unable to initialize toolbar. Code: %i\n", toolbar_code);

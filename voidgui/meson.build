@@ -17,6 +17,7 @@ deps = [
 
 sources = files(
   'src/voidgui.c',
+  'src/store.c',
 
   'src/widgets/menu.c',
   'src/widgets/table.c',

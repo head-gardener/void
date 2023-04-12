@@ -16,6 +16,7 @@ struct void_window {
 
   struct painter painter;
   struct click_sink sink;
+  array(void *, store);
 };
 
 struct void_window *init_void_window(int width, int height);
