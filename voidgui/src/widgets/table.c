@@ -95,6 +95,10 @@ int plot_table_with_sizes(struct table *table, int rows, int columns,
     adjusted_y -= height;
     adjusted_x -= width;
     break;
+  case TABLE_ORIGIN_CENTER:
+    adjusted_y -= height / 2;
+    adjusted_x -= width / 2;
+    break;
   }
 
   int x_offset = adjusted_x;

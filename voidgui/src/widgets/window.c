@@ -62,7 +62,7 @@ failed:
   if (!toolbar_code)
     free_menu(&window->painter, &window->toolbar);
   if (!sink_code)
-    free_click_sink(&window->sink);
+    free_sink(&window->sink);
   if (!store_code)
     free_store(&window->store);
   if (!ssheet_code)
@@ -78,7 +78,7 @@ failed:
 void free_void_window(struct void_window *window) {
   foreach_node(*window->queue, free_node(&window->painter, node));
   free(window->queue);
-  free_click_sink(&window->sink);
+  free_sink(&window->sink);
   free_painter(&window->painter);
   free(window);
 }

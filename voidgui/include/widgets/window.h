@@ -16,7 +16,7 @@ struct void_window {
   struct menu toolbar;
 
   struct painter painter;
-  struct click_sink sink;
+  struct sink sink;
   struct ui_node **queue;
   struct store store;
 };

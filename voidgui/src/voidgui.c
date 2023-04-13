@@ -48,9 +48,12 @@ int void_gui_exec(struct void_window *window) {
     switch (window_event.type) {
     case SDL_QUIT:
       return 0;
-    case SDL_MOUSEBUTTONUP:
-      catch_click(&window->painter, window->queue, &window->store,
-                  &window->sink, window_event.motion.x, window_event.motion.y);
+    case SDL_MOUSEBUTTONUP: {
+      struct point attribs = {window_event.motion.x, window_event.motion.y};
+      catch (&window->painter, window->queue, &window->store, &window->sink,
+             &attribs);
+      break;
+    }
     }
 
     foreach_node(*window->queue, draw_node(&window->painter, node));

@@ -35,7 +35,7 @@ int init_toolbar(struct painter *painter, struct menu *toolbar) {
                    TABLE_ORIGIN_TOP_RIGHT);
 }
 
-int sync_toolbar(struct painter *painter, struct click_sink *sink,
+int sync_toolbar(struct painter *painter, struct sink *sink,
                  struct store *store, struct menu *toolbar) {
   char *label_text[] = TOOLBAR_OPTIONS;
 
@@ -46,11 +46,14 @@ int sync_toolbar(struct painter *painter, struct click_sink *sink,
   store_ensure_fits(store, STORE_TOOLBAR_DROPDOWNS);
   store->items[STORE_TOOLBAR_DROPDOWNS] = calloc(1, sizeof(int_fast8_t));
 
+  struct click_funnel_specs *specs =
+      calloc(1, sizeof(struct click_funnel_specs));
+  specs->box = toolbar->table.layout[0];
+  specs->inverted = false;
   struct funnel funnel[] = {
-      {toolbar->table.layout[0], false, &toolbar->table.layout[0],
-       &onclick_table},
+      {&toolbar->table.layout[0], &onclick_table, specs},
   };
-  register_click_funnel(sink, &funnel[0]);
+  register_funnel(sink, &funnel[0]);
   /* for (int i = 0; i < TOOLBAR_OPTION_COUNT; i++) { */
   /* register_click_funnel(sink, &funnel[i]); */
   /* } */

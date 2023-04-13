@@ -11,7 +11,7 @@
   { "Table", "Edit", "Tools", "About" }
 
 int init_toolbar(struct painter *painter, struct menu *toolbar);
-int sync_toolbar(struct painter *painter, struct click_sink *sink,
+int sync_toolbar(struct painter *painter, struct sink *sink,
                  struct store *store, struct menu *toolbar);
 int draw_toolbar(struct painter *painter, struct menu *toolbar);
 

@@ -32,6 +32,7 @@ sources = files(
 
   'src/logic/click_sink.c',
   'src/logic/draw_queue.c',
+  'src/logic/sink.c',
 )
 
 include = [
