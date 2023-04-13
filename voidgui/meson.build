@@ -31,6 +31,7 @@ sources = files(
   'src/render/shape_buffer.c',
 
   'src/logic/click_sink.c',
+  'src/logic/draw_queue.c',
 )
 
 include = [

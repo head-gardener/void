@@ -4,19 +4,25 @@
 #include <stdlib.h>
 #include <string.h>
 
-int catch_click(void *painter, struct click_sink *sink, int x, int y) {
+int catch_click(struct painter *painter, struct ui_node **queue,
+                struct store *store, struct click_sink *sink, int x, int y) {
   for (int i = 0; i < sink->size; i++) {
     int dist_x = x - sink->funnels[i].box.x;
     int dist_y = y - sink->funnels[i].box.y;
-    if (dist_x >= 0 && dist_x <= sink->funnels[i].box.width && dist_y >= 0 &&
-        dist_y <= sink->funnels[i].box.height) {
-      struct funnel_opts opts = {painter, sink->funnels[i].closure};
-
+    if ((!sink->funnels[i].inverted &&
+         ((dist_x >= 0 && dist_x <= sink->funnels[i].box.width) &&
+          (dist_y >= 0 && dist_y <= sink->funnels[i].box.height))) ||
+        (sink->funnels[i].inverted &&
+         (dist_x < 0 || dist_x > sink->funnels[i].box.width) &&
+         (dist_y < 0 || dist_y > sink->funnels[i].box.height))) {
+      struct funnel_opts opts = {painter, queue, store,
+                                 sink->funnels[i].closure};
       sink->funnels[i].callback(&opts);
+      return 0;
     }
   }
 
-  return 0;
+  return 1;
 }
 
 int register_click_funnel(struct click_sink *sink, struct funnel *funnel) {
@@ -49,6 +55,4 @@ failed:
   return 2;
 }
 
-void free_click_sink(struct click_sink *sink) {
-  free(sink->funnels);
-}
+void free_click_sink(struct click_sink *sink) { free(sink->funnels); }

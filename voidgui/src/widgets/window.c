@@ -7,20 +7,27 @@ struct void_window *init_void_window(int width, int height) {
   struct void_window *window;
   int ssheet_code = 1;
   int sink_code = 1;
+  int store_code = 1;
   int painter_code = 1;
   int toolbar_code = 1;
 
   verbose_failure_condition(!(window = calloc(1, sizeof(struct void_window))),
-                         "Allocation error at %s:%i\n", __FILE__, __LINE__);
+                            "Allocation error at %s:%i\n", __FILE__, __LINE__);
+
+  window->queue = calloc(1, sizeof(void *));
+
   verbose_failure_condition(
       (painter_code = init_painter(width, height, &window->painter)),
       "Unable to initialize painter. Code: %i\n", painter_code);
   verbose_failure_condition((sink_code = init_click_sink(&window->sink)),
-                         "Unable to initialize click sink. Code: %i\n",
-                         sink_code);
+                            "Unable to initialize click sink. Code: %i\n",
+                            sink_code);
+  verbose_failure_condition((store_code = init_store(&window->store, 10)),
+                            "Unable to initialize global store. Code: %i\n",
+                            sink_code);
   verbose_failure_condition(
       (ssheet_code =
-           init_spreadsheet(&window->painter, &window->ssheet, 20, 60)),
+           init_spreadsheet(&window->painter, &window->ssheet, 20, 20)),
       "Unable to initialize spreadsheet. Code: %i\n", ssheet_code);
   verbose_failure_condition(
       (toolbar_code = init_toolbar(&window->painter, &window->toolbar)),
@@ -36,7 +43,18 @@ struct void_window *init_void_window(int width, int height) {
   spreadsheet_put(&window->painter, &window->ssheet, &data4);
   sync_spreadsheet(&window->painter, &window->ssheet);
 
-  sync_toolbar(&window->painter, &window->sink, &window->toolbar);
+  sync_toolbar(&window->painter, &window->sink, &window->store,
+               &window->toolbar);
+
+  struct ui_node *node;
+  make_node(
+      &window->ssheet, (int (*)(struct painter *, void *)) & draw_spreadsheet,
+      (void (*)(struct painter *, void *)) & free_spreadsheet, 0, 1, &node);
+  *window->queue = emplace_node(*window->queue, node);
+
+  make_node(&window->toolbar, (int (*)(struct painter *, void *)) & draw_menu,
+            (void (*)(struct painter *, void *)) & free_menu, 0, 1, &node);
+  *window->queue = emplace_node(*window->queue, node);
 
   return window;
 
@@ -45,6 +63,8 @@ failed:
     free_menu(&window->painter, &window->toolbar);
   if (!sink_code)
     free_click_sink(&window->sink);
+  if (!store_code)
+    free_store(&window->store);
   if (!ssheet_code)
     free_spreadsheet(&window->painter, &window->ssheet);
   if (!painter_code)
@@ -56,9 +76,9 @@ failed:
 }
 
 void free_void_window(struct void_window *window) {
-  free_menu(&window->painter, &window->toolbar);
+  foreach_node(*window->queue, free_node(&window->painter, node));
+  free(window->queue);
   free_click_sink(&window->sink);
-  free_spreadsheet(&window->painter, &window->ssheet);
   free_painter(&window->painter);
   free(window);
 }

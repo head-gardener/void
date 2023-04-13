@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 int init_menu(struct painter *painter, int capacity, int x, int y,
-              struct menu *menu) {
+              struct menu *menu, enum origin_position origin_pos) {
   bool table = false;
 
   failure_condition(init_table(painter, &menu->table, capacity, x, y));
@@ -13,6 +13,7 @@ int init_menu(struct painter *painter, int capacity, int x, int y,
 
   menu->table.horz_padding = 10;
   menu->table.vert_padding = 10;
+  menu->table.origin_pos = origin_pos;
 
   return 0;
 
@@ -23,8 +24,8 @@ failed:
   return 1;
 }
 
-int sync_menu(struct painter *painter, char **labels, int rows,
-              int columns, struct menu *menu) {
+int sync_menu(struct painter *painter, char **labels, int rows, int columns,
+              struct menu *menu) {
   struct size sizes[rows * columns];
   unsigned char *surfaces[rows * columns];
 

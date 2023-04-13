@@ -5,6 +5,7 @@
 #include "menu.h"
 #include "spreadsheet.h"
 #include "toolbar.h"
+#include "draw_queue.h"
 #include <SDL2/SDL.h>
 
 struct void_window {
@@ -16,7 +17,8 @@ struct void_window {
 
   struct painter painter;
   struct click_sink sink;
-  array(void *, store);
+  struct ui_node **queue;
+  struct store store;
 };
 
 struct void_window *init_void_window(int width, int height);

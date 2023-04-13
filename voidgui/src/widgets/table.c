@@ -22,6 +22,7 @@ int init_table(struct painter *painter, struct table *table,
 
   table->origin.x = x;
   table->origin.y = y;
+  table->origin_pos = TABLE_ORIGIN_TOP_LEFT;
 
   return 0;
 
@@ -47,8 +48,8 @@ int plot_table_with_sizes(struct table *table, int rows, int columns,
   failure_condition(!(init_array(float, table->column_ratios, columns)));
 
   int height = 0;
-  int *row_height = calloc(rows, sizeof(int));
   int width = 0;
+  int *row_height = calloc(rows, sizeof(int));
   int *column_width = calloc(columns, sizeof(int));
 
   int max_row_height = 0;
@@ -79,8 +80,25 @@ int plot_table_with_sizes(struct table *table, int rows, int columns,
     }
   }
 
-  int x_offset = table->origin.x;
-  int y_offset = table->origin.y;
+  int adjusted_x = table->origin.x;
+  int adjusted_y = table->origin.y;
+  switch (table->origin_pos) {
+  case TABLE_ORIGIN_TOP_LEFT:
+    break;
+  case TABLE_ORIGIN_TOP_RIGHT:
+    adjusted_x -= width;
+    break;
+  case TABLE_ORIGIN_BOTTOM_LEFT:
+    adjusted_y -= height;
+    break;
+  case TABLE_ORIGIN_BOTTOM_RIGHT:
+    adjusted_y -= height;
+    adjusted_x -= width;
+    break;
+  }
+
+  int x_offset = adjusted_x;
+  int y_offset = adjusted_y;
   for (int i = 0; i < rows * columns; i++) {
     table->layout[i].x = x_offset;
     table->layout[i].y = y_offset;
@@ -99,8 +117,8 @@ int plot_table_with_sizes(struct table *table, int rows, int columns,
   for (int i = 0; i < columns; i++)
     table->column_ratios[i] = (float)column_width[i] / width;
 
-  table->box.x = table->origin.x;
-  table->box.y = table->origin.y;
+  table->box.x = adjusted_x;
+  table->box.y = adjusted_y;
   table->box.width = width;
   table->box.height = height;
 
@@ -168,8 +186,8 @@ int table_grow(struct painter *painter, struct table *table, int n) {
   }
 
   for (int i = 0; i < n; i++) {
-    failure_condition(get_new_shape(&painter->shape_buffer,
-                                    &table->textures[table->size]));
+    failure_condition(
+        get_new_shape(&painter->shape_buffer, &table->textures[table->size]));
     table->size += 1;
   }
 

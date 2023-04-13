@@ -4,6 +4,13 @@
 #include "painter.h"
 #include "shape_buffer.h"
 
+enum origin_position {
+  TABLE_ORIGIN_TOP_LEFT,
+  TABLE_ORIGIN_TOP_RIGHT,
+  TABLE_ORIGIN_BOTTOM_LEFT,
+  TABLE_ORIGIN_BOTTOM_RIGHT,
+};
+
 /**
  * This structure assists with forming a layout out of textures and rendering
  * it.
@@ -19,6 +26,7 @@ struct table {
 
   struct box box;
   struct point origin;
+  enum origin_position origin_pos;
   array(float, row_ratios);
   array(float, column_ratios);
 

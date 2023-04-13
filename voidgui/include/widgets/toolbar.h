@@ -7,12 +7,12 @@
 #include "table.h"
 
 #define TOOLBAR_OPTION_COUNT 4
-#define TOOLBAR_OPTIONS                                                         \
+#define TOOLBAR_OPTIONS                                                        \
   { "Table", "Edit", "Tools", "About" }
 
 int init_toolbar(struct painter *painter, struct menu *toolbar);
 int sync_toolbar(struct painter *painter, struct click_sink *sink,
-                 struct menu *toolbar);
+                 struct store *store, struct menu *toolbar);
 int draw_toolbar(struct painter *painter, struct menu *toolbar);
 
 #endif

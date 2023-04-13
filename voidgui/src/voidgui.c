@@ -1,3 +1,4 @@
+#include "draw_queue.h"
 #include "shapes.h"
 #define GLEW_STATIC
 
@@ -48,17 +49,16 @@ int void_gui_exec(struct void_window *window) {
     case SDL_QUIT:
       return 0;
     case SDL_MOUSEBUTTONUP:
-      catch_click(&window->painter, &window->sink, window_event.motion.x,
-                  window_event.motion.y);
+      catch_click(&window->painter, window->queue, &window->store,
+                  &window->sink, window_event.motion.x, window_event.motion.y);
     }
 
-    draw_spreadsheet(&window->painter, &window->ssheet);
-    draw_menu(&window->painter, &window->toolbar);
+    foreach_node(*window->queue, draw_node(&window->painter, node));
     print_gl_error;
 
     SDL_GL_SwapWindow(window->hw_window);
 
-    int rest = SDL_GetTicks() - time - 10;
+    int rest = SDL_GetTicks() - time - 18;
     if (rest > 0)
       SDL_Delay(rest);
   }
