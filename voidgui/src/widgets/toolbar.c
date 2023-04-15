@@ -4,12 +4,12 @@
 #include "macros.h"
 #include <stdlib.h>
 
-void onclick_table(struct funnel_opts *opts) {
+void tb_onclick(struct funnel_opts *opts) {
   int_fast8_t *flags = opts->store->items[STORE_TOOLBAR_DROPDOWNS];
 
   if (*flags & MASK_TOOLBAR_DROPDOWN_TABLE) {
-    *opts->queue =
-        remove_node(opts->painter, *opts->queue, MARKS_TOOLBAR_DROPDOWN_TABLE);
+    opts->queue->head = remove_node(opts->painter, opts->queue->head,
+                                    MARKS_TOOLBAR_DROPDOWN_TABLE);
     *flags ^= MASK_TOOLBAR_DROPDOWN_TABLE;
     return;
   }
@@ -19,14 +19,14 @@ void onclick_table(struct funnel_opts *opts) {
   struct box *box = opts->closure;
   int x = box->x;
   int y = box->y + box->height;
-  struct ui_node *node;
+  struct node *node;
 
   init_menu(opts->painter, 4, x, y, menu, TABLE_ORIGIN_TOP_LEFT);
   sync_menu(opts->painter, label_text, 4, 1, menu);
-  make_node(menu, (int (*)(struct painter *, void *)) & draw_menu,
-            (void (*)(struct painter *, void *)) & free_menu, 0,
+  make_ui_node(menu, true, (int (*)(struct painter *, void *)) & draw_menu,
+            (void (*)(struct painter *, void *)) & free_menu, 5,
             MARKS_TOOLBAR_DROPDOWN_TABLE, &node);
-  *opts->queue = emplace_node(*opts->queue, node);
+  opts->queue->head = emplace_node(opts->queue->head, node);
   *flags |= MASK_TOOLBAR_DROPDOWN_TABLE;
 }
 
@@ -35,7 +35,7 @@ int init_toolbar(struct painter *painter, struct menu *toolbar) {
                    TABLE_ORIGIN_TOP_RIGHT);
 }
 
-int sync_toolbar(struct painter *painter, struct sink *sink,
+int sync_toolbar(struct painter *painter, struct sink *click_sink,
                  struct store *store, struct menu *toolbar) {
   char *label_text[] = TOOLBAR_OPTIONS;
 
@@ -50,13 +50,12 @@ int sync_toolbar(struct painter *painter, struct sink *sink,
       calloc(1, sizeof(struct click_funnel_specs));
   specs->box = toolbar->table.layout[0];
   specs->inverted = false;
-  struct funnel funnel[] = {
-      {&toolbar->table.layout[0], &onclick_table, specs},
-  };
-  register_funnel(sink, &funnel[0]);
-  /* for (int i = 0; i < TOOLBAR_OPTION_COUNT; i++) { */
-  /* register_click_funnel(sink, &funnel[i]); */
-  /* } */
+  struct funnel *funnel = calloc(1, sizeof(struct funnel));
+  funnel->closure = &toolbar->table.layout[0];
+  funnel->callback = &tb_onclick;
+  funnel->specs = specs;
+  funnel->free_closure = false;
+  register_funnel(click_sink, 0, MARKS_TOOLBAR_CLICK_SINK, funnel);
 
   return 0;
 }

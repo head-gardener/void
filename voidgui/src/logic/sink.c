@@ -3,57 +3,58 @@
 #include <stdlib.h>
 #include <string.h>
 
-int catch (struct painter *painter, struct ui_node **queue, struct store *store,
-           struct sink *sink, void *attribs) {
-  for (int i = 0; i < sink->size; i++) {
-    if (sink->check_funnel(&sink->funnels[i], attribs)) {
-      struct funnel_opts opts = {painter, queue, store,
-                                 sink->funnels[i].closure};
-      sink->funnels[i].callback(&opts);
+void snk_free_wrapper(void *, void *obj) {
+  struct funnel *funnel = obj;
+  free(funnel->specs);
+  if (funnel->free_closure)
+    free(funnel->closure);
+  free(funnel);
+}
+
+int catch (struct painter *painter, struct sink *click_sink,
+           struct sink *text_input_sink, struct list *queue,
+           struct store *store, struct sink *sink, void *attribs) {
+  foreach_node(sink->funnels.head, {
+    struct funnel *funnel = node->obj;
+    funnel_callback callback = sink->check_funnel(funnel, attribs);
+    if (callback) {
+      struct funnel_opts opts;
+      opts.painter = painter;
+      opts.queue = queue;
+      opts.store = store;
+      opts.click_sink = click_sink;
+      opts.text_input_sink = text_input_sink;
+      opts.closure = funnel->closure;
+      callback(&opts);
       return 0;
     }
-  }
+  });
 
   return 1;
 }
 
-int register_funnel(struct sink *sink, struct funnel *funnel) {
-  if (sink->size >= sink->capacity) {
-    array_expand(struct funnel, sink->funnels, sink->capacity, 2, goto failed);
-    sink->capacity *= 2;
-  }
+int register_funnel(struct sink *sink, int height, int mark,
+                    struct funnel *funnel) {
+  struct node *node = calloc(1, sizeof(struct node));
+  if (!node)
+    return 2;
 
-  memcpy(&sink->funnels[sink->size], funnel, sizeof(struct funnel));
-  sink->size += 1;
+  node->obj = funnel;
+  node->free = &snk_free_wrapper;
+  node->height = height;
+  node->mark = mark;
+
+  sink->funnels.head = emplace_node(sink->funnels.head, node);
 
   return 0;
-
-failed:
-  return 2;
 }
 
 int init_sink(struct sink *sink,
-              bool (*check_funnel)(struct funnel *funnel, void *attribs)) {
-
-  failure_condition(!(init_array(struct funnel, sink->funnels, 10)));
-
-  sink->size = 0;
-  sink->capacity = 10;
+              funnel_callback (*check_funnel)(struct funnel *funnel,
+                                              void *attribs)) {
   sink->check_funnel = check_funnel;
 
   return 0;
-
-failed:
-  if (sink->funnels)
-    free(sink->funnels);
-
-  return 2;
 }
 
-void free_sink(struct sink *sink) {
-  for (int i = 0; i < sink->size; i++) {
-    free(sink->funnels[i].specs);
-  }
-
-  free(sink->funnels);
-}
+void free_sink(struct sink *sink) { free_list(&sink->funnels); }

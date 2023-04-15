@@ -2,10 +2,11 @@
 #define VOID_GUI_WINDOW
 
 #include "click_sink.h"
+#include "text_input_sink.h"
+#include "draw_queue.h"
 #include "menu.h"
 #include "spreadsheet.h"
 #include "toolbar.h"
-#include "draw_queue.h"
 #include <SDL2/SDL.h>
 
 struct void_window {
@@ -16,8 +17,9 @@ struct void_window {
   struct menu toolbar;
 
   struct painter painter;
-  struct sink sink;
-  struct ui_node **queue;
+  struct sink click_sink;
+  struct sink text_input_sink;
+  struct list draw_queue;
   struct store store;
 };
 

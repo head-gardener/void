@@ -43,6 +43,7 @@ int read_texture(const char *png_path, int *width, int *height,
                  unsigned char **surface_data);
 int render_text(const char *text, int *width, int *height,
                 unsigned char **surface_data);
+int get_text_size(const char *text, int *width, int *height);
 
 void init_shape(struct shape *);
 void free_shape(struct shape *);

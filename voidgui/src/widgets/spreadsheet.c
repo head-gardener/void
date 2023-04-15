@@ -1,10 +1,104 @@
 #include "spreadsheet.h"
+#include "consts.h"
+#include "draw_queue.h"
 #include "macros.h"
+#include "menu.h"
+#include "text_input_sink.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-int init_spreadsheet(struct painter *painter, struct spreadsheet *ssheet, int x,
-                     int y) {
+struct spreadsheet_click_sink_closure {
+  char *cursor;
+  char *text;
+  struct sink *text_input_sink;
+};
+
+void if_ontext(struct funnel_opts *opts) {
+  struct node *node =
+      find_node(opts->queue->head, MARKS_SPREADSHEET_INPUT_FIELD);
+  opts->queue->head =
+      remove_node(opts->painter, opts->queue->head, MARKS_MENU_CURSOR);
+  struct ui_node_obj *obj = node->obj;
+  sync_menu(opts->painter, (char **)&opts->closure, 1, 1, obj->ui_obj);
+}
+
+void if_oncommit(struct funnel_opts *opts) {
+  bool *flag = opts->store->items[STORE_SPREADSHEET_INPUT_FIELD];
+  if (!*flag)
+    return;
+
+  opts->queue->head = remove_node(opts->painter, opts->queue->head,
+                                  MARKS_SPREADSHEET_INPUT_FIELD);
+  opts->queue->head =
+      remove_node(opts->painter, opts->queue->head, MARKS_MENU_CURSOR);
+  opts->text_input_sink->funnels.head = remove_node(
+      0, opts->text_input_sink->funnels.head, MARKS_SPREADSHEET_TEXT_SINK);
+  struct node *node = find_node(opts->queue->head, MARKS_SPREADSHEET);
+  struct ui_node_obj *obj = node->obj;
+  sync_spreadsheet(opts->painter, opts->click_sink, opts->text_input_sink,
+                   obj->ui_obj);
+  *flag = false;
+}
+
+void if_oncancel(struct funnel_opts *opts) {
+  bool *flag = opts->store->items[STORE_SPREADSHEET_INPUT_FIELD];
+  if (!*flag)
+    return;
+
+  opts->queue->head = remove_node(opts->painter, opts->queue->head,
+                                  MARKS_SPREADSHEET_INPUT_FIELD);
+  opts->queue->head =
+      remove_node(opts->painter, opts->queue->head, MARKS_MENU_CURSOR);
+  opts->text_input_sink->funnels.head = remove_node(
+      0, opts->text_input_sink->funnels.head, MARKS_SPREADSHEET_TEXT_SINK);
+  *flag = false;
+}
+
+void ss_onclick(struct funnel_opts *opts) {
+  bool *flags = opts->store->items[STORE_SPREADSHEET_INPUT_FIELD];
+  struct spreadsheet_click_sink_closure *closure = opts->closure;
+
+  if (*flags) {
+    return;
+  }
+
+  struct menu *menu = calloc(1, sizeof(struct menu));
+  char *label_text = closure->cursor;
+  struct node *node;
+
+  struct cursor_extension_closure *cursor_closure =
+      calloc(1, sizeof(struct cursor_extension_closure));
+  cursor_closure->cursor = &closure->cursor;
+  cursor_closure->draw_queue = opts->queue;
+  init_menu(opts->painter, 1, 0, 600, menu, TABLE_ORIGIN_BOTTOM_LEFT);
+  menu->onsync = (menu_extension *)&draw_menu_cursor;
+  menu->closure = cursor_closure;
+  menu->free_closure = true;
+
+  sync_menu(opts->painter, &label_text, 1, 1, menu);
+  make_ui_node(menu, true, (int (*)(struct painter *, void *)) & draw_menu,
+               (void (*)(struct painter *, void *)) & free_menu, 8,
+               MARKS_SPREADSHEET_INPUT_FIELD, &node);
+  opts->queue->head = emplace_node(opts->queue->head, node);
+  *flags = true;
+
+  struct text_funnel_specs *specs = calloc(1, sizeof(struct text_funnel_specs));
+  specs->cursor = &closure->cursor;
+  specs->text = closure->text;
+  specs->oncommit = &if_oncommit;
+  specs->oncancel = &if_oncancel;
+  struct funnel *input_funnel = calloc(1, sizeof(struct funnel));
+  input_funnel->closure = closure->text;
+  input_funnel->callback = &if_ontext;
+  input_funnel->specs = specs;
+  input_funnel->free_closure = false;
+  register_funnel(closure->text_input_sink, 9, MARKS_SPREADSHEET_TEXT_SINK,
+                  input_funnel);
+}
+
+int init_spreadsheet(struct painter *painter, struct store *store,
+                     struct spreadsheet *ssheet, int x, int y) {
   int code = 0;
 
   failure_condition_with_code(
@@ -24,6 +118,9 @@ int init_spreadsheet(struct painter *painter, struct spreadsheet *ssheet, int x,
   ssheet->table.horz_padding = 10;
   ssheet->table.vert_padding = 10;
 
+  store_ensure_fits(store, STORE_SPREADSHEET_INPUT_FIELD);
+  store->items[STORE_SPREADSHEET_INPUT_FIELD] = calloc(1, sizeof(bool));
+
   return 0;
 
 failed:
@@ -36,7 +133,9 @@ failed:
   return code;
 }
 
-int sync_spreadsheet(struct painter *painter, struct spreadsheet *ssheet) {
+int sync_spreadsheet(struct painter *painter, struct sink *click_sink,
+                     struct sink *text_input_sink, struct spreadsheet *ssheet) {
+  // table
   struct size *sizes;
   unsigned char **surfaces;
   int label_count = ssheet->size * DATA_FIELD_COUNT;
@@ -45,12 +144,12 @@ int sync_spreadsheet(struct painter *painter, struct spreadsheet *ssheet) {
   failure_condition(!(surfaces = calloc(label_count, sizeof(void *))));
 
   for (int i = 0, j = 0; j < ssheet->size; i += DATA_FIELD_COUNT, j++) {
-    if (ssheet->dirty[j] & DATA_DIRTY_NAME)
-      failure_condition(render_text(ssheet->data[j].name, &sizes[i].width,
-                                    &sizes[i].height, &surfaces[i]));
-    if (ssheet->dirty[j] & DATA_DIRTY_PHONE)
-      failure_condition(render_text(ssheet->data[j].phone, &sizes[i + 1].width,
-                                    &sizes[i + 1].height, &surfaces[i + 1]));
+    /* if (ssheet->dirty[j] & DATA_DIRTY_NAME) */
+    failure_condition(render_text(ssheet->data[j].name, &sizes[i].width,
+                                  &sizes[i].height, &surfaces[i]));
+    /* if (ssheet->dirty[j] & DATA_DIRTY_PHONE) */
+    failure_condition(render_text(ssheet->data[j].phone, &sizes[i + 1].width,
+                                  &sizes[i + 1].height, &surfaces[i + 1]));
 
     ssheet->dirty[j] = 0;
   }
@@ -65,7 +164,23 @@ int sync_spreadsheet(struct painter *painter, struct spreadsheet *ssheet) {
   free(sizes);
   free(surfaces);
 
-  return 0;
+  // click funnels
+  struct click_funnel_specs *specs =
+      calloc(1, sizeof(struct click_funnel_specs));
+  specs->box = ssheet->table.layout[0];
+  specs->inverted = false;
+  struct spreadsheet_click_sink_closure *closure =
+      calloc(1, sizeof(struct spreadsheet_click_sink_closure));
+  closure->text = ssheet->data[0].name;
+  closure->cursor = closure->text;
+  closure->text_input_sink = text_input_sink;
+  // TODO: write down label number to flag
+  struct funnel *click_funnel = calloc(1, sizeof(struct funnel));
+  click_funnel->closure = closure;
+  click_funnel->callback = &ss_onclick;
+  click_funnel->specs = specs;
+  click_funnel->free_closure = true;
+  register_funnel(click_sink, 0, MARKS_SPREADSHEET_CLICK_SINK, click_funnel);
 
 failed:
   // TODO: clean up

@@ -3,37 +3,45 @@
 
 #include "array.h"
 #include "draw_queue.h"
+#include "list.h"
 #include "painter.h"
 #include "store.h"
 #include <stdbool.h>
 
 struct funnel_opts {
   struct painter *painter;
-  struct ui_node **queue;
+  struct list *queue;
   struct store *store;
+  struct sink *click_sink;
+  struct sink *text_input_sink;
   void *closure;
 };
 
+typedef void (*funnel_callback)(struct funnel_opts *);
+
 struct funnel {
-  void *closure; // doesn't get freed
-  void (*callback)(struct funnel_opts *opts);
-  void *specs;
+  void *closure;            // passed to callback
+  funnel_callback callback; // gets called with closure when
+                            // funnel passes check
+  void *specs;              // passed to checker
+  bool free_closure;        // whether closure needs to be freed
 };
 
 struct sink {
-  // TODO: make this a list idk
-  array(struct funnel, funnels);
+  struct list funnels;
 
-  bool (*check_funnel)(struct funnel *funnel, void *attribs);
-  int size, capacity;
+  funnel_callback (*check_funnel)(struct funnel *funnel, void *attribs);
 };
 
-int catch (struct painter *painter, struct ui_node **queue, struct store *store,
-           struct sink *sink, void *attribs);
-int register_funnel(struct sink *sink, struct funnel *funnel);
+int catch (struct painter *painter, struct sink *click_sink,
+           struct sink *text_input_sink, struct list *queue,
+           struct store *store, struct sink *sink, void *attribs);
+int register_funnel(struct sink *sink, int height, int mark,
+                    struct funnel *funnel);
 
 int init_sink(struct sink *sink,
-              bool (*check_funnel)(struct funnel *funnel, void *attribs));
+              funnel_callback (*check_funnel)(struct funnel *funnel,
+                                              void *attribs));
 void free_sink(struct sink *sink);
 
 #endif

@@ -32,6 +32,8 @@ sources = files(
 
   'src/logic/click_sink.c',
   'src/logic/draw_queue.c',
+  'src/logic/text_input_sink.c',
+  'src/logic/list.c',
   'src/logic/sink.c',
 )
 

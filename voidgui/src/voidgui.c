@@ -50,18 +50,59 @@ int void_gui_exec(struct void_window *window) {
       return 0;
     case SDL_MOUSEBUTTONUP: {
       struct point attribs = {window_event.motion.x, window_event.motion.y};
-      catch (&window->painter, window->queue, &window->store, &window->sink,
+      catch (&window->painter, &window->click_sink, &window->text_input_sink,
+             &window->draw_queue, &window->store, &window->click_sink,
              &attribs);
+      break;
+    }
+    case SDL_KEYDOWN:
+      switch (window_event.key.keysym.scancode) {
+      case (SDL_SCANCODE_RETURN): {
+        struct text_event event = {0, TEXT_EVENT_COMMIT};
+        catch (&window->painter, &window->click_sink, &window->text_input_sink,
+               &window->draw_queue, &window->store, &window->text_input_sink,
+               &event);
+        break;
+      }
+      case (SDL_SCANCODE_ESCAPE): {
+        struct text_event event = {0, TEXT_EVENT_CANCEL};
+        catch (&window->painter, &window->click_sink, &window->text_input_sink,
+               &window->draw_queue, &window->store, &window->text_input_sink,
+               &event);
+        break;
+      }
+      case (SDL_SCANCODE_LEFT): {
+        struct text_event event = {0, TEXT_EVENT_CURSOR_LEFT};
+        catch (&window->painter, &window->click_sink, &window->text_input_sink,
+               &window->draw_queue, &window->store, &window->text_input_sink,
+               &event);
+        break;
+      }
+      case (SDL_SCANCODE_RIGHT): {
+        struct text_event event = {0, TEXT_EVENT_CURSOR_RIGHT};
+        catch (&window->painter, &window->click_sink, &window->text_input_sink,
+               &window->draw_queue, &window->store, &window->text_input_sink,
+               &event);
+        break;
+      }
+      default:;
+      }
+      break;
+    case SDL_TEXTINPUT: {
+      struct text_event event = {window_event.text.text, TEXT_EVENT_INPUT};
+      catch (&window->painter, &window->click_sink, &window->text_input_sink,
+             &window->draw_queue, &window->store, &window->text_input_sink,
+             &event);
       break;
     }
     }
 
-    foreach_node(*window->queue, draw_node(&window->painter, node));
+    foreach_node(window->draw_queue.head, draw_node(&window->painter, node));
     print_gl_error;
 
     SDL_GL_SwapWindow(window->hw_window);
 
-    int rest = SDL_GetTicks() - time - 18;
+    int rest = 18 - (SDL_GetTicks() - time);
     if (rest > 0)
       SDL_Delay(rest);
   }

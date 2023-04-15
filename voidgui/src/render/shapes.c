@@ -259,6 +259,36 @@ int render_text(const char *text, int *width, int *height,
   return 0;
 }
 
+// TODO: refactor this
+int get_text_size(const char *text, int *width, int *height) {
+  cairo_t *layout_context;
+  cairo_surface_t *tmp_surface;
+  PangoFontDescription *desc;
+  PangoLayout *layout;
+
+  tmp_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
+  layout_context = cairo_create(tmp_surface);
+
+  /* Create a PangoLayout, set the font and text */
+  layout = pango_cairo_create_layout(layout_context);
+  pango_layout_set_text(layout, text, -1);
+
+  /* Load the font */
+  desc = pango_font_description_from_string("Sans Bold 17");
+  pango_layout_set_font_description(layout, desc);
+  pango_font_description_free(desc);
+
+  /* Get text dimensions and create a context to render to */
+  pango_layout_get_pixel_size(layout, width, height);
+
+  /* Clean up */
+  g_object_unref(layout);
+  cairo_destroy(layout_context);
+  cairo_surface_destroy(tmp_surface);
+
+  return 0;
+}
+
 void init_shape(struct shape *shape) {
   glGenVertexArrays(1, &shape->vao);
   glGenBuffers(1, &shape->vbo);
