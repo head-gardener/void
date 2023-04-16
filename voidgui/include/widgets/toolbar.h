@@ -8,7 +8,7 @@
 
 #define TOOLBAR_OPTION_COUNT 4
 #define TOOLBAR_OPTIONS                                                        \
-  { "Table", "Edit", "Tools", "About" }
+  { L"Table", L"Edit", L"Tools", L"About" }
 
 int init_toolbar(struct painter *painter, struct menu *toolbar);
 int sync_toolbar(struct painter *painter, struct sink *click_sink,

@@ -217,7 +217,14 @@ int read_texture(const char *png_path, int *width, int *height,
   return 0;
 }
 
-int render_text(const char *text, int *width, int *height,
+void compress(char *dst, const wchar_t *_src, int n) {
+  char *src = (char *)_src;
+  for (int i = 0; i < n; ++i)
+    if (src[i])
+      *(dst++) = src[i];
+}
+
+int render_text(const wchar_t *text, int *width, int *height,
                 unsigned char **surface_data) {
   cairo_t *layout_context;
   cairo_t *render_context;
@@ -231,7 +238,10 @@ int render_text(const char *text, int *width, int *height,
 
   /* Create a PangoLayout, set the font and text */
   layout = pango_cairo_create_layout(layout_context);
-  pango_layout_set_text(layout, text, -1);
+  int len = wcslen(text);
+  char *mbtext = calloc(sizeof(wchar_t) * len, sizeof(char));
+  compress(mbtext, text, sizeof(wchar_t) * len);
+  pango_layout_set_text(layout, mbtext, -1);
 
   /* Load the font */
   desc = pango_font_description_from_string("Sans Bold 17");
@@ -260,7 +270,7 @@ int render_text(const char *text, int *width, int *height,
 }
 
 // TODO: refactor this
-int get_text_size(const char *text, int *width, int *height) {
+int get_text_size(const wchar_t *text, int *width, int *height) {
   cairo_t *layout_context;
   cairo_surface_t *tmp_surface;
   PangoFontDescription *desc;
@@ -271,7 +281,10 @@ int get_text_size(const char *text, int *width, int *height) {
 
   /* Create a PangoLayout, set the font and text */
   layout = pango_cairo_create_layout(layout_context);
-  pango_layout_set_text(layout, text, -1);
+  int len = wcslen(text);
+  char *mbtext = calloc(sizeof(wchar_t) * len, sizeof(char));
+  compress(mbtext, text, sizeof(wchar_t) * len);
+  pango_layout_set_text(layout, mbtext, -1);
 
   /* Load the font */
   desc = pango_font_description_from_string("Sans Bold 17");

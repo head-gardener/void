@@ -4,6 +4,7 @@
 #include "commons.h"
 #include "shaders.h"
 #include <GLES3/gl3.h>
+#include <wchar.h>
 
 struct shape {
   GLuint vao;
@@ -41,9 +42,9 @@ int sync_texture(struct shape *shape, int width, int height,
 
 int read_texture(const char *png_path, int *width, int *height,
                  unsigned char **surface_data);
-int render_text(const char *text, int *width, int *height,
+int render_text(const wchar_t *text, int *width, int *height,
                 unsigned char **surface_data);
-int get_text_size(const char *text, int *width, int *height);
+int get_text_size(const wchar_t *text, int *width, int *height);
 
 void init_shape(struct shape *);
 void free_shape(struct shape *);

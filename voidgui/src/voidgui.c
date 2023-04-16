@@ -81,11 +81,26 @@ int handle_event(struct void_window *window, SDL_Event window_event) {
              &event);
       break;
     }
+    case (SDL_SCANCODE_BACKSPACE): {
+      struct text_event event = {0, TEXT_EVENT_BACKSPACE};
+      catch (&window->painter, &window->click_sink, &window->text_input_sink,
+             &window->draw_queue, &window->store, &window->text_input_sink,
+             &event);
+      break;
+    }
+    case (SDL_SCANCODE_DELETE): {
+      struct text_event event = {0, TEXT_EVENT_DELETE};
+      catch (&window->painter, &window->click_sink, &window->text_input_sink,
+             &window->draw_queue, &window->store, &window->text_input_sink,
+             &event);
+      break;
+    }
     default:;
     }
     break;
   case SDL_TEXTINPUT: {
-    struct text_event event = {window_event.text.text, TEXT_EVENT_INPUT};
+    struct text_event event = {((wchar_t *)window_event.text.text)[0],
+                               TEXT_EVENT_INPUT};
     catch (&window->painter, &window->click_sink, &window->text_input_sink,
            &window->draw_queue, &window->store, &window->text_input_sink,
            &event);

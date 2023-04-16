@@ -15,7 +15,7 @@ void tb_onclick(struct funnel_opts *opts) {
   }
 
   struct menu *menu = calloc(1, sizeof(struct menu));
-  char *label_text[] = TOOLBAR_OPTIONS;
+  wchar_t *label_text[] = TOOLBAR_OPTIONS;
   struct box *box = opts->closure;
   int x = box->x;
   int y = box->y + box->height;
@@ -37,7 +37,7 @@ int init_toolbar(struct painter *painter, struct menu *toolbar) {
 
 int sync_toolbar(struct painter *painter, struct sink *click_sink,
                  struct store *store, struct menu *toolbar) {
-  char *label_text[] = TOOLBAR_OPTIONS;
+  wchar_t *label_text[] = TOOLBAR_OPTIONS;
 
   int code = sync_menu(painter, label_text, 1, TOOLBAR_OPTION_COUNT, toolbar);
   if (code)

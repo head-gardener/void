@@ -2,6 +2,7 @@
 #define VOID_GUI_TEXT_INPUT_SINK
 
 #include "sink.h"
+#include <wchar.h>
 
 enum text_event_type {
   TEXT_EVENT_INPUT,
@@ -14,13 +15,13 @@ enum text_event_type {
 };
 
 struct text_event {
-  char *text;
+  wchar_t text;
   enum text_event_type type;
 };
 
 struct text_funnel_specs {
-  char **cursor;
-  char *text;
+  wchar_t *cursor;
+  wchar_t *text;
   funnel_callback oncommit;
   funnel_callback oncancel;
 };

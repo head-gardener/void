@@ -26,7 +26,7 @@ failed:
   return 1;
 }
 
-int sync_menu(struct painter *painter, char **labels, int rows, int columns,
+int sync_menu(struct painter *painter, wchar_t **labels, int rows, int columns,
               struct menu *menu) {
   struct size sizes[rows * columns];
   unsigned char *surfaces[rows * columns];
@@ -85,7 +85,7 @@ void mc_free_wrapper(struct painter *painter, void *shape) {
 }
 
 void draw_menu_cursor(struct cursor_extension_closure *closure,
-                      struct painter *painter, char **labels,
+                      struct painter *painter, wchar_t **labels,
                       struct table *table) {
   shape_ptr cursor;
   struct box *text = &table->layout[0];

@@ -10,7 +10,7 @@ run: build
 	$(PROJECT_ROOT)/$(BINPATH)/void
 
 debug: build
-	gdb $(PROJECT_ROOT)/$(BINPATH)/void
+	gdb -q $(PROJECT_ROOT)/$(BINPATH)/void
 
 clear: 
 	rm -rf build/*

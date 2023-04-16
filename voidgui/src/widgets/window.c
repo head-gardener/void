@@ -37,14 +37,14 @@ struct void_window *init_void_window(int width, int height) {
       (toolbar_code = init_toolbar(&window->painter, &window->toolbar)),
       "Unable to initialize toolbar. Code: %i\n", toolbar_code);
 
-  struct data data1 = {strdup("IGOR"), strdup("158")};
-  struct data data2 = {strdup("VASYA"), strdup("623")};
-  struct data data3 = {strdup("Charlie"), strdup("293")};
-  struct data data4 = {strdup("Ch"), strdup("2931240")};
-  spreadsheet_put(&window->painter, &window->ssheet, &data1);
-  spreadsheet_put(&window->painter, &window->ssheet, &data2);
-  spreadsheet_put(&window->painter, &window->ssheet, &data3);
-  spreadsheet_put(&window->painter, &window->ssheet, &data4);
+  spreadsheet_put(&window->painter, &window->ssheet, wcsdup(L"IGOR"),
+                  wcsdup(L"158"));
+  spreadsheet_put(&window->painter, &window->ssheet, wcsdup(L"VASYA"),
+                  wcsdup(L"623"));
+  spreadsheet_put(&window->painter, &window->ssheet, wcsdup(L"Charlie"),
+                  wcsdup(L"293"));
+  spreadsheet_put(&window->painter, &window->ssheet, wcsdup(L"Ch"),
+                  wcsdup(L"2931240"));
   sync_spreadsheet(&window->painter, &window->click_sink,
                    &window->text_input_sink, &window->ssheet);
 
