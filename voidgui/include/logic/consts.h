@@ -19,6 +19,9 @@ enum click_sink_marks {
 enum text_sink_marks {
   MARKS_SPREADSHEET_TEXT_SINK = 0,
 };
+enum key_sink_marks {
+  MARKS_TOOLBAR_KEY_SINK = 0,
+};
 
 // Bit masks
 #define MASK_TOOLBAR_DROPDOWN_TABLE 1

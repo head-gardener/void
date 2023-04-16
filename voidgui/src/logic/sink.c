@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-void snk_free_wrapper(void *, void *obj) {
+void snk_free_wrapper(void *closure, void *obj) {
   struct funnel *funnel = obj;
   free(funnel->specs);
   if (funnel->free_closure)
@@ -12,8 +12,9 @@ void snk_free_wrapper(void *, void *obj) {
 }
 
 int catch (struct painter *painter, struct sink *click_sink,
-           struct sink *text_input_sink, struct list *queue,
-           struct store *store, struct sink *sink, void *attribs) {
+           struct sink *text_input_sink, struct sink *key_sink,
+           struct list *queue, struct store *store, struct sink *sink,
+           void *attribs) {
   foreach_node(sink->funnels.head, {
     struct funnel *funnel = node->obj;
     funnel_callback callback = sink->check_funnel(funnel, attribs);
@@ -24,6 +25,7 @@ int catch (struct painter *painter, struct sink *click_sink,
       opts.store = store;
       opts.click_sink = click_sink;
       opts.text_input_sink = text_input_sink;
+      opts.key_sink = key_sink;
       opts.closure = funnel->closure;
       callback(&opts);
       return 0;

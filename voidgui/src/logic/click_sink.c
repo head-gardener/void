@@ -1,4 +1,5 @@
 #include "click_sink.h"
+#include <stdio.h>
 
 funnel_callback check_click_funnel(struct funnel *funnel,
                                    struct point *attribs) {

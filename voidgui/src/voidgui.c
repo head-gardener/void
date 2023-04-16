@@ -41,6 +41,38 @@ struct void_window *void_gui_init(int time) {
   return v_window;
 }
 
+#define _catch_text_event(text, type)                                          \
+  {                                                                            \
+    struct text_event event = {text, type};                                    \
+    catch (&window->painter, &window->click_sink, &window->text_input_sink,    \
+           &window->key_sink, &window->draw_queue, &window->store,             \
+           &window->text_input_sink, &event);                                  \
+  }
+
+void handle_text_event(struct void_window *window, SDL_Scancode code) {
+  switch (code) {
+  case (SDL_SCANCODE_RETURN):
+    _catch_text_event(0, TEXT_EVENT_COMMIT);
+    break;
+  case (SDL_SCANCODE_ESCAPE):
+    _catch_text_event(0, TEXT_EVENT_CANCEL);
+    break;
+  case (SDL_SCANCODE_LEFT):
+    _catch_text_event(0, TEXT_EVENT_CURSOR_LEFT);
+    break;
+  case (SDL_SCANCODE_RIGHT):
+    _catch_text_event(0, TEXT_EVENT_CURSOR_RIGHT);
+    break;
+  case (SDL_SCANCODE_BACKSPACE):
+    _catch_text_event(0, TEXT_EVENT_BACKSPACE);
+    break;
+  case (SDL_SCANCODE_DELETE):
+    _catch_text_event(0, TEXT_EVENT_DELETE);
+    break;
+  default:;
+  }
+}
+
 int handle_event(struct void_window *window, SDL_Event window_event) {
   switch (window_event.type) {
   case SDL_QUIT:
@@ -48,64 +80,19 @@ int handle_event(struct void_window *window, SDL_Event window_event) {
   case SDL_MOUSEBUTTONUP: {
     struct point attribs = {window_event.motion.x, window_event.motion.y};
     catch (&window->painter, &window->click_sink, &window->text_input_sink,
-           &window->draw_queue, &window->store, &window->click_sink, &attribs);
+           &window->key_sink, &window->draw_queue, &window->store,
+           &window->click_sink, &attribs);
     break;
   }
   case SDL_KEYDOWN:
-    switch (window_event.key.keysym.scancode) {
-    case (SDL_SCANCODE_RETURN): {
-      struct text_event event = {0, TEXT_EVENT_COMMIT};
-      catch (&window->painter, &window->click_sink, &window->text_input_sink,
-             &window->draw_queue, &window->store, &window->text_input_sink,
-             &event);
-      break;
-    }
-    case (SDL_SCANCODE_ESCAPE): {
-      struct text_event event = {0, TEXT_EVENT_CANCEL};
-      catch (&window->painter, &window->click_sink, &window->text_input_sink,
-             &window->draw_queue, &window->store, &window->text_input_sink,
-             &event);
-      break;
-    }
-    case (SDL_SCANCODE_LEFT): {
-      struct text_event event = {0, TEXT_EVENT_CURSOR_LEFT};
-      catch (&window->painter, &window->click_sink, &window->text_input_sink,
-             &window->draw_queue, &window->store, &window->text_input_sink,
-             &event);
-      break;
-    }
-    case (SDL_SCANCODE_RIGHT): {
-      struct text_event event = {0, TEXT_EVENT_CURSOR_RIGHT};
-      catch (&window->painter, &window->click_sink, &window->text_input_sink,
-             &window->draw_queue, &window->store, &window->text_input_sink,
-             &event);
-      break;
-    }
-    case (SDL_SCANCODE_BACKSPACE): {
-      struct text_event event = {0, TEXT_EVENT_BACKSPACE};
-      catch (&window->painter, &window->click_sink, &window->text_input_sink,
-             &window->draw_queue, &window->store, &window->text_input_sink,
-             &event);
-      break;
-    }
-    case (SDL_SCANCODE_DELETE): {
-      struct text_event event = {0, TEXT_EVENT_DELETE};
-      catch (&window->painter, &window->click_sink, &window->text_input_sink,
-             &window->draw_queue, &window->store, &window->text_input_sink,
-             &event);
-      break;
-    }
-    default:;
-    }
-    break;
-  case SDL_TEXTINPUT: {
-    struct text_event event = {((wchar_t *)window_event.text.text)[0],
-                               TEXT_EVENT_INPUT};
+    handle_text_event(window, window_event.key.keysym.scancode);
     catch (&window->painter, &window->click_sink, &window->text_input_sink,
-           &window->draw_queue, &window->store, &window->text_input_sink,
-           &event);
+           &window->key_sink, &window->draw_queue, &window->store,
+           &window->key_sink, &window_event.key.keysym.scancode);
     break;
-  }
+  case SDL_TEXTINPUT:
+    _catch_text_event(((wchar_t *)window_event.text.text)[0], TEXT_EVENT_INPUT);
+    break;
   }
 
   return 1;

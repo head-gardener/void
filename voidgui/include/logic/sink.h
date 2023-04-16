@@ -14,6 +14,7 @@ struct funnel_opts {
   struct store *store;
   struct sink *click_sink;
   struct sink *text_input_sink;
+  struct sink *key_sink;
   void *closure;
 };
 
@@ -34,8 +35,9 @@ struct sink {
 };
 
 int catch (struct painter *painter, struct sink *click_sink,
-           struct sink *text_input_sink, struct list *queue,
-           struct store *store, struct sink *sink, void *attribs);
+           struct sink *text_input_sink, struct sink *key_sink,
+           struct list *queue, struct store *store, struct sink *sink,
+           void *attribs);
 int register_funnel(struct sink *sink, int height, int mark,
                     struct funnel *funnel);
 

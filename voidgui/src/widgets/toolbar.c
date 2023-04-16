@@ -1,15 +1,32 @@
 #include "toolbar.h"
 #include "consts.h"
 #include "draw_queue.h"
+#include "key_sink.h"
 #include "macros.h"
 #include <stdlib.h>
+
+void tb_cleanup(struct funnel_opts *opts) {
+  opts->queue->head = remove_node(opts->painter, opts->queue->head,
+                                  MARKS_TOOLBAR_DROPDOWN_TABLE);
+  opts->key_sink->funnels.head = remove_all_nodes(
+      0, opts->key_sink->funnels.head, MARKS_TOOLBAR_KEY_SINK);
+}
+
+void tb_onkey(struct funnel_opts *opts) {
+  int_fast8_t *flags = opts->store->items[STORE_TOOLBAR_DROPDOWNS];
+
+  if (*flags & MASK_TOOLBAR_DROPDOWN_TABLE) {
+    tb_cleanup(opts);
+    *flags = 0;
+    return;
+  }
+}
 
 void tb_onclick(struct funnel_opts *opts) {
   int_fast8_t *flags = opts->store->items[STORE_TOOLBAR_DROPDOWNS];
 
   if (*flags & MASK_TOOLBAR_DROPDOWN_TABLE) {
-    opts->queue->head = remove_node(opts->painter, opts->queue->head,
-                                    MARKS_TOOLBAR_DROPDOWN_TABLE);
+    tb_cleanup(opts);
     *flags ^= MASK_TOOLBAR_DROPDOWN_TABLE;
     return;
   }
@@ -24,9 +41,19 @@ void tb_onclick(struct funnel_opts *opts) {
   init_menu(opts->painter, 4, x, y, menu, TABLE_ORIGIN_TOP_LEFT);
   sync_menu(opts->painter, label_text, 4, 1, menu);
   make_ui_node(menu, true, (int (*)(struct painter *, void *)) & draw_menu,
-            (void (*)(struct painter *, void *)) & free_menu, 5,
-            MARKS_TOOLBAR_DROPDOWN_TABLE, &node);
+               (void (*)(struct painter *, void *)) & free_menu, 5,
+               MARKS_TOOLBAR_DROPDOWN_TABLE, &node);
   opts->queue->head = emplace_node(opts->queue->head, node);
+
+  key_funnel_specs *specs = calloc(1, sizeof(key_funnel_specs));
+  *specs = SDL_SCANCODE_ESCAPE;
+  struct funnel *funnel = calloc(1, sizeof(struct funnel));
+  funnel->closure = 0;
+  funnel->callback = &tb_onkey;
+  funnel->specs = specs;
+  funnel->free_closure = false;
+  register_funnel(opts->key_sink, 0, MARKS_TOOLBAR_KEY_SINK, funnel);
+
   *flags |= MASK_TOOLBAR_DROPDOWN_TABLE;
 }
 
@@ -46,6 +73,8 @@ int sync_toolbar(struct painter *painter, struct sink *click_sink,
   store_ensure_fits(store, STORE_TOOLBAR_DROPDOWNS);
   store->items[STORE_TOOLBAR_DROPDOWNS] = calloc(1, sizeof(int_fast8_t));
 
+  click_sink->funnels.head =
+      remove_all_nodes(0, click_sink->funnels.head, MARKS_TOOLBAR_CLICK_SINK);
   struct click_funnel_specs *specs =
       calloc(1, sizeof(struct click_funnel_specs));
   specs->box = toolbar->table.layout[0];

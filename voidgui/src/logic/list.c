@@ -31,15 +31,27 @@ struct node *find_node(struct node *from, int mark) {
 }
 
 struct node *remove_node(void *closure, struct node *from, int mark) {
-  if (from) {
-    if (from->mark != mark) {
-      from->next = remove_node(closure, from->next, mark);
-      return from;
-    } else {
-      free_node(closure, from);
-      return from->next;
-    }
-  }
+  if (!from)
+    return 0;
 
-  return 0;
+  if (from->mark != mark) {
+    from->next = remove_node(closure, from->next, mark);
+    return from;
+  } else {
+    free_node(closure, from);
+    return from->next;
+  }
+}
+
+struct node *remove_all_nodes(void *closure, struct node *from, int mark) {
+  if (!from)
+    return 0;
+
+  if (from->mark != mark) {
+    from->next = remove_all_nodes(closure, from->next, mark);
+    return from;
+  } else {
+    free_node(closure, from);
+    return remove_all_nodes(closure, from->next, mark);
+  }
 }

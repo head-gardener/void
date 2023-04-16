@@ -8,6 +8,7 @@ struct void_window *init_void_window(int width, int height) {
   struct void_window *window;
   int ssheet_code = 1;
   int click_sink_code = 1;
+  int key_sink_code = 1;
   int ti_sink_code = 1;
   int store_code = 1;
   int painter_code = 1;
@@ -23,6 +24,9 @@ struct void_window *init_void_window(int width, int height) {
   verbose_failure_condition(
       (click_sink_code = init_click_sink(&window->click_sink)),
       "Unable to initialize click sink. Code: %i\n", click_sink_code);
+  verbose_failure_condition(
+      (click_sink_code = init_key_sink(&window->key_sink)),
+      "Unable to initialize key sink. Code: %i\n", key_sink_code);
   verbose_failure_condition(
       (ti_sink_code = init_text_input_sink(&window->text_input_sink)),
       "Unable to initialize text input sink. Code: %i\n", ti_sink_code);
@@ -71,6 +75,8 @@ failed:
     free_menu(&window->painter, &window->toolbar);
   if (!ti_sink_code)
     free_sink(&window->text_input_sink);
+  if (!key_sink_code)
+    free_sink(&window->key_sink);
   if (!click_sink_code)
     free_sink(&window->click_sink);
   if (!store_code)
@@ -89,6 +95,7 @@ void free_void_window(struct void_window *window) {
   free_list(&window->draw_queue);
   free_sink(&window->text_input_sink);
   free_sink(&window->click_sink);
+  free_sink(&window->key_sink);
   free_painter(&window->painter);
   free(window);
 }

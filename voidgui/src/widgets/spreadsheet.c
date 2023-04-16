@@ -91,7 +91,8 @@ void ss_onclick(struct funnel_opts *opts) {
       calloc(1, sizeof(struct cursor_extension_closure));
   cursor_closure->cursor = &specs->cursor;
   cursor_closure->draw_queue = opts->queue;
-  init_menu(opts->painter, 1, 0, opts->painter->window_box.height, menu, TABLE_ORIGIN_BOTTOM_LEFT);
+  init_menu(opts->painter, 1, 0, opts->painter->window_box.height, menu,
+            TABLE_ORIGIN_BOTTOM_LEFT);
   menu->onsync = (menu_extension *)&draw_menu_cursor;
   menu->closure = cursor_closure;
   menu->free_closure = true;
@@ -168,6 +169,9 @@ int sync_spreadsheet(struct painter *painter, struct sink *click_sink,
 
   free(sizes);
   free(surfaces);
+
+  click_sink->funnels.head = remove_all_nodes(0, click_sink->funnels.head,
+                                              MARKS_SPREADSHEET_CLICK_SINK);
 
   // click funnels
   for (int i = 0; i < ssheet->size; ++i) {

@@ -22,6 +22,7 @@ void free_list(struct list *list);
 struct node *emplace_node(struct node *to, struct node *node);
 struct node *find_node(struct node *from, int mark);
 struct node *remove_node(void *closure, struct node *from, int mark);
+struct node *remove_all_nodes(void *closure, struct node *from, int mark);
 
 #define foreach_node(_node, body)                                              \
   {                                                                            \

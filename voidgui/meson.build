@@ -35,6 +35,7 @@ sources = files(
   'src/logic/text_input_sink.c',
   'src/logic/list.c',
   'src/logic/sink.c',
+  'src/logic/key_sink.c',
 )
 
 include = [
