@@ -1,19 +1,17 @@
 module Main where
 
-import Foreign.C.String
 import Foreign.C.Types
-import Foreign.Ptr
-import Foreign.Storable
 import GUI
 import Text.Printf
 
 main :: IO ()
-main = exec window 1
+main = exec newWindow
   where
-    window = void_gui_init 1000
+    exec :: Maybe VoidWindow -> IO ()
+    exec Nothing = printf "Initialization failure\n"
+    exec (Just window) = do_exec window 0
 
-    exec :: VoidWindow -> CInt -> IO ()
-    -- TODO: exec nullWindow code = print "Window freed unexpectedly"
-    exec window 0 = print $ void_gui_finish window
-    exec window 1 = exec window $ void_gui_exec window
-    exec window code = printf "undexpected code %s" $ show code
+    do_exec :: VoidWindow -> CInt -> IO ()
+    do_exec window 0 = do_exec window $ void_gui_exec window
+    do_exec window 1 = print $ void_gui_finish window
+    do_exec window code = printf "Undexpected code %s" $ show code

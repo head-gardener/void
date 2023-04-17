@@ -9,33 +9,33 @@
 #include "text_input_sink.h"
 #include <stdbool.h>
 
-// PERF: better storage scheme?
 #ifndef SPREADSHEET_INNITIAL_CAPACITY
 #define SPREADSHEET_INNITIAL_CAPACITY 10
 #endif
 
 #define DATA_FIELD_COUNT 2
 
-struct data {
-  char *name;
-  char *phone;
-};
+struct state;
 
 struct spreadsheet {
   struct table table;
 
   array(wchar_t *, data);
+  array(struct size, sizes);
   array(bool, dirty);
   int size;
   int capacity;
+
+  struct point origin;
 };
 
-int init_spreadsheet(struct painter *painter, struct store *store,
-                     struct spreadsheet *ssheet, int x, int y);
-int sync_spreadsheet(struct painter *painter, struct sink *click_sink,
-                     struct sink *text_input_sink, struct spreadsheet *ssheet);
-int draw_spreadsheet(struct painter *painter, struct spreadsheet *ssheet);
-void free_spreadsheet(struct painter *painter, struct spreadsheet *ssheet);
+int init_spreadsheet(struct state *state, struct spreadsheet *ssheet, int x,
+                     int y);
+int sync_spreadsheet(struct state *state, struct spreadsheet *ssheet);
+
+void plot_spreadsheet(struct state *state, struct spreadsheet *ssheet);
+void draw_spreadsheet(struct state *state, struct spreadsheet *ssheet);
+void free_spreadsheet(struct state *state, struct spreadsheet *ssheet);
 
 int spreadsheet_put(struct painter *painter, struct spreadsheet *ssheet,
                     wchar_t *name, wchar_t *phone);

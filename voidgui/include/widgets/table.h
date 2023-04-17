@@ -20,37 +20,38 @@ struct table {
   shape_ptr grid;
   shape_ptr bg;
 
+  // textures
   array(struct box, layout);
   array(shape_ptr, textures);
   int size;
   int capacity;
 
-  struct box box;
-  struct point origin;
+  // position
   enum origin_position origin_pos;
+  struct box box;
+
+  // dimensions
   array(float, row_ratios);
   array(float, column_ratios);
+  array(int, row_height);
+  array(int, column_width);
 
   int vert_padding;
   int horz_padding;
 };
 
 int init_table(struct painter *painter, struct table *table,
-               int initial_capacity, int x, int y);
+               int initial_capacity);
 /**
- * Fill `table->layout`, ratios and `table->box` according to `sizes`. The later
- * should store `rows * columns` of `struct sizes` for table contents.
+ * Recalculate dimensions and bind textures.
  */
-int plot_table_with_sizes(struct table *table, int rows, int columns,
-                          struct size *sizes);
+int sync_table(struct painter *painter, struct table *table, int rows,
+               int columns, struct size *sizes, unsigned char **surfaces);
 /**
- * Generate and upload GL buffers necessary for drawing a grid according to
- * `table->layout` and `table->box`, sync all the textures sourcing the from
- * `surfaces`
+ * Generate and map layout to verticies, used for drawing.
  */
-int sync_table(struct painter *painter, struct table *table,
-               unsigned char **surfaces, struct size *sizes, int rows,
-               int columns);
+int plot_table(struct painter *painter, struct table *table, struct size *sizes,
+               int x, int y, int rows, int columns);
 /**
  * Pull enough `shape_ptr` to accomodate `n` new textures.
  */

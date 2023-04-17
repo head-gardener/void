@@ -187,7 +187,7 @@ int plot_texture(struct shaders *shaders, struct commons *common,
   return 0;
 }
 
-int sync_texture(struct shape *shape, int width, int height,
+int bind_texture(struct shape *shape, int width, int height,
                  unsigned char *surface_data) {
   glBindVertexArray(shape->vao);
 
@@ -232,7 +232,6 @@ int render_text(const wchar_t *text, int *width, int *height,
   cairo_surface_t *out_surface;
   PangoFontDescription *desc;
   PangoLayout *layout;
-
   tmp_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
   layout_context = cairo_create(tmp_surface);
 

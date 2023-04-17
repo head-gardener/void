@@ -5,6 +5,7 @@
 
 #include "macros.h"
 #include "painter.h"
+#include "state.h"
 #include "voidgui.h"
 #include "window.h"
 #include <SDL2/SDL.h>
@@ -12,7 +13,7 @@
 #define PROJECT_NAME "voidgui"
 #define VOID_SANER
 
-struct void_window *void_gui_init(int time) {
+struct void_window *void_gui_init(void) {
   setbuf(stdout, NULL);
 
   SDL_Init(SDL_INIT_EVERYTHING);
@@ -22,13 +23,19 @@ struct void_window *void_gui_init(int time) {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
   SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 
+  /* SDL_Window *window = SDL_CreateWindow( */
+  /*     "Void", 100, 100, 800, 600, */
+  /*     SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL); */
   SDL_Window *window =
       SDL_CreateWindow("Void", 100, 100, 800, 600, SDL_WINDOW_OPENGL);
 
   SDL_GLContext context = SDL_GL_CreateContext(window);
   SDL_GL_MakeCurrent(window, context);
 
-  struct void_window *v_window = init_void_window(800, 600);
+  int w;
+  int h;
+  SDL_GetWindowSize(window, &w, &h);
+  struct void_window *v_window = init_void_window(w, h);
   if (!v_window) {
     printf("Unable to initialize window\n");
     return 0;
@@ -44,9 +51,7 @@ struct void_window *void_gui_init(int time) {
 #define _catch_text_event(text, type)                                          \
   {                                                                            \
     struct text_event event = {text, type};                                    \
-    catch (&window->painter, &window->click_sink, &window->text_input_sink,    \
-           &window->key_sink, &window->draw_queue, &window->store,             \
-           &window->text_input_sink, &event);                                  \
+    catch (window->state, &window->state->text_input_sink, &event);            \
   }
 
 void handle_text_event(struct void_window *window, SDL_Scancode code) {
@@ -76,26 +81,36 @@ void handle_text_event(struct void_window *window, SDL_Scancode code) {
 int handle_event(struct void_window *window, SDL_Event window_event) {
   switch (window_event.type) {
   case SDL_QUIT:
-    return 0;
+    return VOID_RETURN_EXIT;
+  case SDL_WINDOWEVENT:
+    if (window_event.window.event == SDL_WINDOWEVENT_CLOSE)
+      return VOID_RETURN_EXIT;
+    if (window_event.window.event == SDL_WINDOWEVENT_RESIZED) {
+      int x = window_event.window.data1;
+      int y = window_event.window.data2;
+      window->state->painter.window_box.width = x;
+      window->state->painter.window_box.height = y;
+      glViewport(0, 0, x, y);
+      foreach_node(window->state->queue.head, request_plotting(node));
+    }
+    break;
   case SDL_MOUSEBUTTONUP: {
     struct point attribs = {window_event.motion.x, window_event.motion.y};
-    catch (&window->painter, &window->click_sink, &window->text_input_sink,
-           &window->key_sink, &window->draw_queue, &window->store,
-           &window->click_sink, &attribs);
+    catch (window->state, &window->state->click_sink, &attribs);
     break;
   }
   case SDL_KEYDOWN:
     handle_text_event(window, window_event.key.keysym.scancode);
-    catch (&window->painter, &window->click_sink, &window->text_input_sink,
-           &window->key_sink, &window->draw_queue, &window->store,
-           &window->key_sink, &window_event.key.keysym.scancode);
+    catch (window->state, &window->state->key_sink,
+           &window_event.key.keysym.scancode);
     break;
   case SDL_TEXTINPUT:
     _catch_text_event(((wchar_t *)window_event.text.text)[0], TEXT_EVENT_INPUT);
     break;
+  default:;
   }
 
-  return 1;
+  return VOID_RETURN_CONTINUE;
 }
 
 int void_gui_exec(struct void_window *window) {
@@ -103,15 +118,16 @@ int void_gui_exec(struct void_window *window) {
   while (true) {
     Uint32 time = SDL_GetTicks();
 
-    clear(&window->painter);
+    clear(&window->state->painter);
 
     while (SDL_PollEvent(&window_event)) {
       int code = handle_event(window, window_event);
-      if (code != 1)
+      if (code != VOID_RETURN_CONTINUE)
         return code;
     }
 
-    foreach_node(window->draw_queue.head, draw_node(&window->painter, node));
+    foreach_node(window->state->queue.head,
+                 display_ui_node(window->state, node));
     print_gl_error;
 
     SDL_GL_SwapWindow(window->hw_window);
@@ -121,7 +137,7 @@ int void_gui_exec(struct void_window *window) {
       SDL_Delay(rest);
   }
 
-  return 1;
+  return VOID_RETURN_CONTINUE;
 }
 
 int void_gui_finish(struct void_window *window) {

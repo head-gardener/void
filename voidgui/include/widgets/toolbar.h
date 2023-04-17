@@ -10,9 +10,10 @@
 #define TOOLBAR_OPTIONS                                                        \
   { L"Table", L"Edit", L"Tools", L"About" }
 
+struct store;
+
 int init_toolbar(struct painter *painter, struct menu *toolbar);
-int sync_toolbar(struct painter *painter, struct sink *click_sink,
-                 struct store *store, struct menu *toolbar);
-int draw_toolbar(struct painter *painter, struct menu *toolbar);
+void sync_toolbar(struct state *state, struct menu *toolbar);
+void plot_toolbar(struct state *state, struct menu *toolbar);
 
 #endif

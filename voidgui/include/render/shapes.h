@@ -37,7 +37,7 @@ int plot_grid(struct shaders *shaders, struct shape *shape, struct box *box,
 int plot_texture(struct shaders *shaders, struct commons *common,
                  struct shape *shape, struct box *box, struct box *window);
 
-int sync_texture(struct shape *shape, int width, int height,
+int bind_texture(struct shape *shape, int width, int height,
                    unsigned char *surface_data);
 
 int read_texture(const char *png_path, int *width, int *height,

@@ -10,6 +10,8 @@
 #include "toolbar.h"
 #include <SDL2/SDL.h>
 
+struct state;
+
 struct void_window {
   SDL_Window *hw_window;
   SDL_GLContext context;
@@ -17,13 +19,7 @@ struct void_window {
   struct spreadsheet ssheet;
   struct menu toolbar;
 
-  struct painter painter;
-  struct list draw_queue;
-  struct store store;
-
-  struct sink click_sink;
-  struct sink text_input_sink;
-  struct sink key_sink;
+  struct state *state;
 };
 
 struct void_window *init_void_window(int width, int height);
