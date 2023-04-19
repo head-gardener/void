@@ -42,14 +42,6 @@ struct void_window *init_void_window(int width, int height) {
       (toolbar_code = init_toolbar(&window->state->painter, &window->toolbar)),
       "Unable to initialize toolbar. Code: %i\n", toolbar_code);
 
-  spreadsheet_put(&window->state->painter, &window->ssheet, wcsdup(L"IGOR"),
-                  wcsdup(L"158"));
-  spreadsheet_put(&window->state->painter, &window->ssheet, wcsdup(L"VASYA"),
-                  wcsdup(L"623"));
-  spreadsheet_put(&window->state->painter, &window->ssheet, wcsdup(L"Charlie"),
-                  wcsdup(L"293"));
-  spreadsheet_put(&window->state->painter, &window->ssheet, wcsdup(L"Ch"),
-                  wcsdup(L"2931240"));
   sync_spreadsheet(window->state, &window->ssheet);
 
   sync_toolbar(window->state, &window->toolbar);

@@ -15,6 +15,7 @@
 
 struct void_window *void_gui_init(void) {
   setbuf(stdout, NULL);
+  printf("starting...\n");
 
   SDL_Init(SDL_INIT_EVERYTHING);
 
@@ -145,4 +146,11 @@ int void_gui_finish(struct void_window *window) {
   SDL_Quit();
   free_void_window(window);
   return 0;
+}
+
+int void_gui_add(wchar_t *name, wchar_t *phone, struct void_window *window) {
+  int code = spreadsheet_put(&window->state->painter, &window->ssheet,
+                             wcsdup(name), wcsdup(phone));
+  sync_spreadsheet(window->state, &window->ssheet);
+  return code;
 }
