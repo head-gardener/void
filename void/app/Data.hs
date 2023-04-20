@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Data where
+module Data (Entry (..)) where
 
 import Database.PostgreSQL.Simple as PG
 import GHC.Generics

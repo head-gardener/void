@@ -132,6 +132,8 @@ int init_spreadsheet(struct state *state, struct spreadsheet *ssheet, int x,
   store_ensure_fits(&state->store, STORE_SPREADSHEET_INPUT_FIELD);
   state->store.items[STORE_SPREADSHEET_INPUT_FIELD] = calloc(1, sizeof(bool));
 
+  spreadsheet_put(&state->painter, ssheet, wcsdup(L"Name"), wcsdup(L"Phone"));
+
   return 0;
 
 failed:
@@ -236,4 +238,11 @@ int spreadsheet_put(struct painter *painter, struct spreadsheet *ssheet,
 
 failed:
   return 2;
+}
+
+void spreadsheet_drop(struct spreadsheet *ssheet) {
+  for (int i = 2; i < ssheet->size; i++) {
+    free(ssheet->data[i]);
+  }
+  ssheet->size = 2;
 }

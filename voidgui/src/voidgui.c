@@ -80,6 +80,8 @@ void handle_text_event(struct void_window *window, SDL_Scancode code) {
 }
 
 int handle_event(struct void_window *window, SDL_Event window_event) {
+  window->state->return_code = 0;
+
   switch (window_event.type) {
   case SDL_QUIT:
     return VOID_RETURN_EXIT;
@@ -111,7 +113,8 @@ int handle_event(struct void_window *window, SDL_Event window_event) {
   default:;
   }
 
-  return VOID_RETURN_CONTINUE;
+  return window->state->return_code ? window->state->return_code
+                                    : VOID_RETURN_CONTINUE;
 }
 
 int void_gui_exec(struct void_window *window) {
@@ -153,4 +156,9 @@ int void_gui_add(wchar_t *name, wchar_t *phone, struct void_window *window) {
                              wcsdup(name), wcsdup(phone));
   sync_spreadsheet(window->state, &window->ssheet);
   return code;
+}
+
+int void_gui_drop(struct void_window *window) {
+  spreadsheet_drop(&window->ssheet);
+  return 0;
 }

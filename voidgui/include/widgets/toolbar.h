@@ -9,6 +9,8 @@
 #define TOOLBAR_OPTION_COUNT 4
 #define TOOLBAR_OPTIONS                                                        \
   { L"Table", L"Edit", L"Tools", L"About" }
+#define TOOLBAR_TABLE_OPTIONS                                                  \
+  { L"Pull", L"Push", L"Restore", L"Server..." }
 
 struct store;
 

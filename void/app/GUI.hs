@@ -1,6 +1,6 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 
-module GUI (addToWindow, withNewWindow, waitWindow, VoidWindow) where
+module GUI (push, GUI.drop, withNewWindow, wait, VoidWindow) where
 
 import Data
 import Foreign
@@ -19,20 +19,22 @@ foreign import ccall "voidgui.h void_gui_finish"
 foreign import ccall "voidgui.h void_gui_add"
   void_gui_add :: Ptr CWchar -> Ptr CWchar -> VoidWindow -> CInt
 
+foreign import ccall "voidgui.h void_gui_drop"
+  void_gui_drop :: VoidWindow -> CInt
+
 newtype VoidWindow = VoidWindow (Ptr VoidWindow) deriving (Eq)
 
 nullWindow :: VoidWindow
 nullWindow = VoidWindow nullPtr
 
 withNewWindow :: (VoidWindow -> IO ()) -> IO ()
-withNewWindow f = 
-  let 
-    exec (Just w) = do 
-      f w
-      void_gui_finish w `seq` return ()
-    exec Nothing = putStrLn "Initialization failure"
-  in do 
-    exec newWindow
+withNewWindow f =
+  let exec (Just w) = do
+        f w
+        void_gui_finish w `seq` return ()
+      exec Nothing = putStrLn "Initialization failure"
+   in do
+        exec newWindow
 
 newWindow :: Maybe VoidWindow
 newWindow = void_gui_init `seq` checkWindow void_gui_init
@@ -42,15 +44,18 @@ newWindow = void_gui_init `seq` checkWindow void_gui_init
       | x == nullWindow = Nothing
       | otherwise = Just x
 
-waitWindow :: VoidWindow -> CInt
-waitWindow = void_gui_exec
+wait :: VoidWindow -> CInt
+wait = void_gui_exec
 
 -- not super efficient cause of marshalling and all.
-addToWindow :: [Entry] -> VoidWindow -> IO ()
-addToWindow (e : es) window =
+push :: VoidWindow -> [Entry] -> IO ()
+push window (e : es) =
   withCWString (name e) $ \cn ->
     withCWString (phone e) $ \ct -> do
       let code = void_gui_add cn ct window
-      code `seq` addToWindow es window
-addToWindow [] window =
+      code `seq` push window es
+push window [] =
   return ()
+
+drop :: VoidWindow -> CInt
+drop = void_gui_drop

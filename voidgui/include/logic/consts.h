@@ -14,6 +14,7 @@ enum draw_queue_marks {
 };
 enum click_sink_marks {
   MARKS_TOOLBAR_CLICK_SINK = 0,
+  MARKS_TOOLBAR_TEMP_CLICK_SINK,
   MARKS_SPREADSHEET_CLICK_SINK,
 };
 enum text_sink_marks {

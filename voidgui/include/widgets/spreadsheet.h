@@ -39,5 +39,6 @@ void free_spreadsheet(struct state *state, struct spreadsheet *ssheet);
 
 int spreadsheet_put(struct painter *painter, struct spreadsheet *ssheet,
                     wchar_t *name, wchar_t *phone);
+void spreadsheet_drop(struct spreadsheet *ssheet);
 
 #endif

@@ -3,32 +3,35 @@ module Main where
 import Data
 import Database.Interface as DB
 import Foreign.C.Types
-import GUI
+import qualified GUI as G
 import Text.Printf
 
 main :: IO ()
 main =
-  do
-    e <- pull
-    withNewWindow $ \w -> do
-      addToWindow e w
-      exec w
+  G.withNewWindow $ \w -> do
+    exec w
   where
-    pull :: IO [Entry]
-    pull =
-      let x = do
+    pull :: G.VoidWindow -> IO ()
+    pull w =
+      let d = do
             conn <- DB.connection
             DB.pull conn
 
-          unwrap :: Maybe (IO [Entry]) -> IO [Entry]
-          unwrap (Just x) = x
-          unwrap Nothing = error "Pull failure"
-       in unwrap x
+          update (Just x) = do
+            e <- x
+            G.drop w `seq` G.push w e
+          update Nothing = putStrLn "Pull failure"
+       in update d
 
-    exec :: VoidWindow -> IO ()
+    exec :: G.VoidWindow -> IO ()
     exec window = do_exec window 0
 
-    do_exec :: VoidWindow -> CInt -> IO ()
-    do_exec window 0 = do_exec window $ waitWindow window
-    do_exec window 1 = print $ waitWindow window
-    do_exec window code = putStrLn $ "Unexpected code" ++ show code
+    do_exec :: G.VoidWindow -> CInt -> IO ()
+    do_exec w 0 = do_exec w $ G.wait w
+    do_exec w 2 = do
+      pull w
+      do_exec w 0
+    do_exec w 1 = return ()
+    do_exec w code = do
+      putStrLn $ "Unexpected code " ++ show code
+      do_exec w 0

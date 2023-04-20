@@ -14,6 +14,8 @@ struct state {
   struct sink click_sink;
   struct sink text_input_sink;
   struct sink key_sink;
+
+  int return_code;
 };
 
 #endif
