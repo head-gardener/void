@@ -1,6 +1,7 @@
-use super::{painter::Painter, shaders::Shader};
-
-pub type Color = (f32, f32, f32, f32);
+use crate::render::painter::Painter;
+use crate::render::shaders::Shader;
+use crate::render::{shapes::*, Color};
+use crate::Area;
 
 pub struct Rectangle {
   color: Color,
@@ -13,9 +14,10 @@ impl Rectangle {
     Self { color, res }
   }
 
-  pub fn plot(&self, painter: &Painter) -> () {
+  pub fn plot(&self, painter: &Painter, area: &Area) -> () {
     self.res.bind_buffers();
-    let vertices: Vec<f32> = vec![-0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, -0.5];
+    let norm = boxes_to_normalized(area, painter.window_area());
+    let vertices = normalized_to_coords(norm);
 
     unsafe {
       gl::BufferData(
@@ -50,45 +52,6 @@ impl Rectangle {
     self.res.bind();
     unsafe {
       gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, std::ptr::null());
-    }
-  }
-}
-
-struct CommonRes {
-  vao: gl::types::GLuint,
-  vbo: gl::types::GLuint,
-}
-
-impl CommonRes {
-  pub fn allocate() -> Self {
-    let mut vao: gl::types::GLuint = 0;
-    let mut vbo: gl::types::GLuint = 0;
-    unsafe {
-      gl::GenVertexArrays(1, &mut vao);
-      gl::GenBuffers(1, &mut vbo);
-    }
-    Self { vao, vbo }
-  }
-
-  pub fn bind(&self) -> () {
-    unsafe {
-      gl::BindVertexArray(self.vao);
-    }
-  }
-
-  pub fn bind_buffers(&self) -> () {
-    unsafe {
-      gl::BindVertexArray(self.vao);
-      gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo);
-    }
-  }
-}
-
-impl Drop for CommonRes {
-  fn drop(&mut self) {
-    unsafe {
-      gl::DeleteVertexArrays(1, &self.vao);
-      gl::DeleteBuffers(1, &self.vbo);
     }
   }
 }

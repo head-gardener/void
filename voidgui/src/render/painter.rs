@@ -1,17 +1,24 @@
-use super::shaders::Shaders;
+use super::{shaders::Shaders, super::Area};
 
 pub struct Painter {
   shaders: Shaders,
   common: CommonResources,
+  window_area: Area,
 }
 
 impl Painter {
   /// Creates a new [`Painter`].
-  pub fn new() -> Self {
-    let shaders = Shaders::new();
+  pub fn new(window_width: u16, window_height: u16) -> Self {
+    let window_box = Area {
+      x: 0,
+      y: 0,
+      width: window_width,
+      height: window_height,
+    };
     Self {
-      shaders,
+      shaders: Shaders::new(),
       common: CommonResources::allocate(),
+      window_area: window_box,
     }
   }
 
@@ -22,6 +29,19 @@ impl Painter {
 
   pub fn common(&self) -> &CommonResources {
     &self.common
+  }
+
+  pub fn update_window_area(&mut self, width: u16, height: u16) -> () {
+    self.window_area_mut().width = width;
+    self.window_area_mut().height = height;
+  }
+
+  pub fn window_area(&self) -> &Area {
+    &self.window_area
+  }
+
+  fn window_area_mut(&mut self) -> &mut Area {
+    &mut self.window_area
   }
 }
 

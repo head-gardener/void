@@ -7,9 +7,10 @@ pub struct VoidWindow {
 
 impl VoidWindow {
   pub fn new(hw_window: sdl2::video::Window) -> Self {
+    let (width, height) = hw_window.size();
     Self {
       hw_window,
-      painter: Painter::new(),
+      painter: Painter::new(width as u16, height as u16),
     }
   }
 

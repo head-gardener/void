@@ -1,7 +1,10 @@
 extern crate gl;
 extern crate sdl2;
 
-use render::{shaders::Shader, shapes::Rectangle};
+use render::{
+  shapes::{Grid, Rectangle},
+  Area,
+};
 use widgets::window::*;
 
 mod render;
@@ -33,8 +36,18 @@ pub extern "C" fn void_gui_init() -> u64 {
     gl::ClearColor(0.9, 0.9, 0.9, 1.0);
   }
 
-  let rect = Rectangle::new((1.0, 0.0, 0.0, 1.0));
-  rect.plot(w.painter());
+  let rect = Rectangle::new((0.0, 0.0, 0.0, 1.0));
+  rect.plot(w.painter(), &Area::new(100, 100, 200, 400));
+
+  let grid = Grid::new((0.7, 0.7, 0.7, 1.0));
+  grid.plot(
+    w.painter(),
+    2,
+    2,
+    &vec![0.3, 0.7],
+    &vec![0.5, 0.5],
+    &Area::new(110, 110, 180, 380),
+  );
 
   let mut event_pump = sdl.event_pump().unwrap();
   'main: loop {
@@ -50,6 +63,7 @@ pub extern "C" fn void_gui_init() -> u64 {
     }
 
     rect.draw(w.painter());
+    grid.draw(w.painter());
     render::painter::pop_gl_error();
 
     w.swap();

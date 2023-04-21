@@ -1,6 +1,6 @@
 use std::ffi::{CStr, CString};
 
-use super::shapes::Color;
+use super::Color;
 
 pub struct Shaders {
   common: CommonShader,
