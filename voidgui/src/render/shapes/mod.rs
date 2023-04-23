@@ -2,9 +2,11 @@ use super::Area;
 
 mod grid;
 mod rectangle;
+mod texture;
 
 pub use grid::Grid;
 pub use rectangle::Rectangle;
+pub use texture::Texture;
 
 struct NormalizedArea {
   pub a_x: f32,
@@ -56,33 +58,31 @@ fn normalized_to_coords(norm: NormalizedArea) -> Vec<f32> {
   ]
 }
 
+fn tex_vertices() -> Vec<f32> {
+  vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0]
+}
+
 struct CommonRes {
   vao: gl::types::GLuint,
   vbo: gl::types::GLuint,
 }
 
 impl CommonRes {
-  pub fn allocate() -> Self {
+  pub unsafe fn allocate() -> Self {
     let mut vao: gl::types::GLuint = 0;
     let mut vbo: gl::types::GLuint = 0;
-    unsafe {
-      gl::GenVertexArrays(1, &mut vao);
-      gl::GenBuffers(1, &mut vbo);
-    }
+    gl::GenVertexArrays(1, &mut vao);
+    gl::GenBuffers(1, &mut vbo);
     Self { vao, vbo }
   }
 
-  pub fn bind(&self) -> () {
-    unsafe {
-      gl::BindVertexArray(self.vao);
-    }
+  pub unsafe fn bind(&self) -> () {
+    gl::BindVertexArray(self.vao);
   }
 
-  pub fn bind_buffers(&self) -> () {
-    unsafe {
-      gl::BindVertexArray(self.vao);
-      gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo);
-    }
+  pub unsafe fn bind_buffers(&self) -> () {
+    gl::BindVertexArray(self.vao);
+    gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo);
   }
 }
 

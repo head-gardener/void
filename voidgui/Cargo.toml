@@ -9,5 +9,6 @@ path = "src/lib.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-sdl2 = ">=0.35.0"
 gl = ">=0.14.0"
+sdl2 = ">=0.35.0"
+pangocairo = ">=0.17.0"

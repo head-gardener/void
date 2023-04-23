@@ -2,7 +2,7 @@ extern crate gl;
 extern crate sdl2;
 
 use render::{
-  shapes::{Grid, Rectangle},
+  shapes::{Grid, Rectangle, Texture},
   Area,
 };
 use widgets::window::*;
@@ -16,7 +16,7 @@ pub extern "C" fn void_gui_init() -> u64 {
   let video_subsystem = sdl.video().unwrap();
   let gl_attr = video_subsystem.gl_attr();
   gl_attr.set_context_profile(sdl2::video::GLProfile::Core);
-  gl_attr.set_context_version(3, 3);
+  gl_attr.set_context_version(1, 0);
   let window = video_subsystem
     .window("Void", 800, 600)
     .opengl()
@@ -28,26 +28,39 @@ pub extern "C" fn void_gui_init() -> u64 {
   let _gl = gl::load_with(|s| {
     video_subsystem.gl_get_proc_address(s) as *const std::os::raw::c_void
   });
-  let w = VoidWindow::new(window);
 
-  unsafe {
-    let (h, w) = w.size();
-    gl::Viewport(0, 0, h as i32, w as i32);
-    gl::ClearColor(0.9, 0.9, 0.9, 1.0);
-  }
+  let (w, rect, grid, texture) = unsafe {
+    let w = VoidWindow::new(window);
 
-  let rect = Rectangle::new((0.0, 0.0, 0.0, 1.0));
-  rect.plot(w.painter(), &Area::new(100, 100, 200, 400));
+    {
+      let (h, w) = w.size();
+      gl::Viewport(0, 0, h as i32, w as i32);
+      gl::ClearColor(0.9, 0.9, 0.9, 1.0);
+    }
 
-  let grid = Grid::new((0.7, 0.7, 0.7, 1.0));
-  grid.plot(
-    w.painter(),
-    2,
-    2,
-    &vec![0.3, 0.7],
-    &vec![0.5, 0.5],
-    &Area::new(110, 110, 180, 380),
-  );
+    let rect = Rectangle::new((0.0, 0.0, 0.0, 1.0));
+    rect
+      .plot(w.painter(), &Area::new(100, 100, 200, 400))
+      .unwrap();
+
+    let grid = Grid::new((0.7, 0.7, 0.7, 1.0));
+    grid
+      .plot(
+        w.painter(),
+        2,
+        2,
+        &vec![0.3, 0.7],
+        &vec![0.5, 0.5],
+        &Area::new(110, 110, 180, 380),
+      )
+      .unwrap();
+
+    let mut texture = Texture::new();
+    texture.bind_text(w.painter(), "hello world").unwrap();
+    texture.plot(w.painter(), &Area::new(400, 100, 200, 100));
+
+    (w, rect, grid, texture)
+  };
 
   let mut event_pump = sdl.event_pump().unwrap();
   'main: loop {
@@ -60,10 +73,11 @@ pub extern "C" fn void_gui_init() -> u64 {
 
     unsafe {
       gl::Clear(gl::COLOR_BUFFER_BIT);
+      rect.draw(w.painter());
+      grid.draw(w.painter());
+      texture.draw(w.painter());
     }
 
-    rect.draw(w.painter());
-    grid.draw(w.painter());
     render::painter::pop_gl_error();
 
     w.swap();

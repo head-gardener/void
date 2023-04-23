@@ -82,10 +82,8 @@ impl Shader for CommonShader {
     &self.prog
   }
 
-  fn foreach_attrib(&self, f: unsafe fn(gl::types::GLuint) -> ()) -> () {
-    unsafe {
-      f(self.pos.id as u32);
-    }
+  fn attribs(&self) -> Vec<i32> {
+    vec![self.pos.id()]
   }
 }
 
@@ -102,18 +100,15 @@ impl Shader for TexShader {
     &self.prog
   }
 
-  fn foreach_attrib(&self, f: unsafe fn(gl::types::GLuint) -> ()) -> () {
-    unsafe {
-      f(self.tex.id as u32);
-      f(self.pos.id as u32);
-    }
+  fn attribs(&self) -> Vec<i32> {
+    vec![self.pos.id(), self.tex.id()]
   }
 }
 
 pub trait Shader {
   fn new(prog: Program) -> Self;
   fn prog(&self) -> &Program;
-  fn foreach_attrib(&self, f: unsafe fn(gl::types::GLuint) -> ()) -> ();
+  fn attribs(&self) -> Vec<i32>;
 
   fn set_used(&self) -> () {
     unsafe {
@@ -122,7 +117,10 @@ pub trait Shader {
   }
 
   fn enable_attribs(&self) -> () {
-    self.foreach_attrib(gl::EnableVertexAttribArray);
+    self
+      .attribs()
+      .iter()
+      .for_each(|a| unsafe { gl::EnableVertexAttribArray(*a as u32) });
   }
 }
 

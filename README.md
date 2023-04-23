@@ -1,3 +1,4 @@
 # Deps
 - haskell stuff
-- SDL
+- SDL2
+- SDL2_TTF
