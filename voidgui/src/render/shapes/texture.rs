@@ -1,12 +1,14 @@
 use pangocairo::cairo::ffi::cairo_image_surface_create;
 use pangocairo::cairo::Format::ARgb32;
 
+use crate::render::Size;
 use crate::render::{painter::Painter, shaders::Shader, shapes::*};
 use crate::Area;
 
 pub struct Texture {
   res: CommonRes,
   texture: Option<gl::types::GLuint>,
+  size: Size,
 }
 
 impl Texture {
@@ -15,41 +17,11 @@ impl Texture {
     Self {
       res,
       texture: Option::None,
+      size: Size::new(0, 0),
     }
   }
 
-  pub unsafe fn bind_text(
-    &mut self,
-    _painter: &Painter,
-    text: &str,
-  ) -> Result<(), String> {
-    let tmp_surface = pangocairo::cairo::Surface::from_raw_full(
-      cairo_image_surface_create(i32::from(ARgb32), 0, 0),
-    )
-    .map_err(|e| e.to_string())?;
-    let layout_context = pangocairo::cairo::Context::new(tmp_surface)
-      .map_err(|e| e.to_string())?;
-
-    let desc = pangocairo::pango::FontDescription::from_string("Sans Bold 30");
-    let layout = pangocairo::create_layout(&layout_context);
-    layout.set_text(text);
-    layout.set_font_description(Some(&desc));
-    let (w, h) = layout.pixel_size();
-
-    let mut data: Vec<u8> = Vec::with_capacity((w * h * 4) as usize);
-    let out_surface = pangocairo::cairo::ImageSurface::create_for_data_unsafe(
-      data.as_mut_ptr(),
-      ARgb32,
-      w,
-      h,
-      4 * w,
-    )
-    .map_err(|e| e.to_string())?;
-    let render_context = pangocairo::cairo::Context::new(out_surface)
-      .map_err(|e| e.to_string())?;
-    render_context.set_source_rgba(0.3, 0.3, 0.3, 1.0);
-    pangocairo::show_layout(&render_context, &layout);
-
+  unsafe fn write_texture(&mut self, w: i32, h: i32, data: *const u8) {
     self.texture.map(|s| gl::DeleteTextures(1, &s));
     let mut t: gl::types::GLuint = 0;
     gl::GenTextures(1, &mut t);
@@ -76,14 +48,56 @@ impl Texture {
       0,
       gl::BGRA,
       gl::UNSIGNED_BYTE,
-      data.as_mut_ptr() as *const gl::types::GLvoid,
+      data as *const gl::types::GLvoid,
     );
     gl::BindVertexArray(0);
+  }
+
+  pub unsafe fn bind_text(
+    &mut self,
+    _painter: &Painter,
+    text: &str,
+  ) -> Result<(), String> {
+    let tmp_surface = pangocairo::cairo::Surface::from_raw_full(
+      cairo_image_surface_create(i32::from(ARgb32), 0, 0),
+    )
+    .map_err(|e| e.to_string())?;
+    let layout_context = pangocairo::cairo::Context::new(tmp_surface)
+      .map_err(|e| e.to_string())?;
+
+    let desc = pangocairo::pango::FontDescription::from_string("Sans Bold 24");
+    let layout = pangocairo::create_layout(&layout_context);
+    layout.set_text(text);
+    layout.set_font_description(Some(&desc));
+    let (w, h) = layout.pixel_size();
+
+    let mut data: Vec<u8> = vec!(0; (w * h * 4) as usize);
+    let out_surface = pangocairo::cairo::ImageSurface::create_for_data_unsafe(
+      data.as_mut_ptr(),
+      ARgb32,
+      w,
+      h,
+      4 * w,
+    )
+    .map_err(|e| e.to_string())?;
+    let render_context = pangocairo::cairo::Context::new(out_surface)
+      .map_err(|e| e.to_string())?;
+    render_context.set_source_rgba(0.3, 0.3, 0.3, 1.0);
+    pangocairo::show_layout(&render_context, &layout);
+
+    self.size.width = w as u16;
+    self.size.height = h as u16;
+
+    self.write_texture(w, h, data.as_ptr());
 
     Ok(())
   }
 
-  pub unsafe fn plot(&self, painter: &Painter, area: &Area) -> () {
+  pub unsafe fn plot(
+    &self,
+    painter: &Painter,
+    area: &Area,
+  ) -> Result<(), String> {
     let norm = boxes_to_normalized(area, painter.window_area());
     let vertices = tex_vertices(&norm);
 
@@ -114,16 +128,29 @@ impl Texture {
       (2 * std::mem::size_of::<f32>()) as *const gl::types::GLvoid,
     );
     gl::BindVertexArray(0);
+
+    Ok(())
   }
 
-  pub unsafe fn draw(&self, painter: &Painter) -> () {
+  pub unsafe fn draw(&self, painter: &Painter) -> Result<(), String> {
+    let t = self
+      .texture
+      .ok_or("Attempted to draw a texture without binding anything to it")?;
+
     painter.shaders().tex().set_used();
     self.res.bind();
+    gl::BindTexture(gl::TEXTURE_2D, t);
     gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, std::ptr::null());
+
+    Ok(())
   }
 
   pub fn texture(&self) -> Option<u32> {
     self.texture
+  }
+
+  pub fn size(&self) -> &Size {
+    &self.size
   }
 }
 

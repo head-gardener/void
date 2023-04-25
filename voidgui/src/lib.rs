@@ -1,10 +1,9 @@
 extern crate gl;
 extern crate sdl2;
 
-use render::{
-  shapes::{Grid, Rectangle, Texture},
-  Area,
-};
+use std::time::Instant;
+
+use render::{shapes::Texture, Area, Point, TextTable};
 use widgets::window::*;
 
 mod render;
@@ -29,7 +28,7 @@ pub extern "C" fn void_gui_init() -> u64 {
     video_subsystem.gl_get_proc_address(s) as *const std::os::raw::c_void
   });
 
-  let (w, rect, grid, texture) = unsafe {
+  let (w, table) = unsafe {
     let w = VoidWindow::new(window);
 
     {
@@ -38,28 +37,34 @@ pub extern "C" fn void_gui_init() -> u64 {
       gl::ClearColor(0.9, 0.9, 0.9, 1.0);
     }
 
-    let rect = Rectangle::new((0.0, 0.0, 0.0, 1.0));
-    rect
-      .plot(w.painter(), &Area::new(100, 100, 200, 400))
-      .unwrap();
+    let mut table = TextTable::from_text(
+      w.painter(),
+      2,
+      2,
+      vec!["A1", "B", "C", "D"].as_slice(),
+    )
+    .unwrap();
+    table.set_origin(Point::new(100, 100));
+    // table.plot(w.painter()).unwrap();
 
-    let grid = Grid::new((0.7, 0.7, 0.7, 1.0));
-    grid
-      .plot(
-        w.painter(),
-        2,
-        2,
-        &vec![0.3, 0.7],
-        &vec![0.5, 0.5],
-        &Area::new(110, 110, 180, 380),
-      )
-      .unwrap();
+    //     let rect = Rectangle::new((0.0, 0.0, 0.0, 1.0));
+    //     rect
+    //       .plot(w.painter(), &Area::new(100, 100, 200, 400))
+    //       .unwrap();
 
-    let mut texture = Texture::new();
-    texture.bind_text(w.painter(), "hello world").unwrap();
-    texture.plot(w.painter(), &Area::new(400, 100, 200, 100));
+    //     let grid = Grid::new((0.7, 0.7, 0.7, 1.0));
+    //     grid
+    //       .plot(
+    //         w.painter(),
+    //         2,
+    //         2,
+    //         &vec![0.3, 0.7],
+    //         &vec![0.5, 0.5],
+    //         &Area::new(110, 110, 180, 380),
+    //       )
+    //       .unwrap();
 
-    (w, rect, grid, texture)
+    (w, table)
   };
 
   let mut event_pump = sdl.event_pump().unwrap();
@@ -73,9 +78,7 @@ pub extern "C" fn void_gui_init() -> u64 {
 
     unsafe {
       gl::Clear(gl::COLOR_BUFFER_BIT);
-      rect.draw(w.painter());
-      grid.draw(w.painter());
-      texture.draw(w.painter());
+      table.draw(w.painter()).unwrap();
     }
 
     render::painter::pop_gl_error();

@@ -58,10 +58,6 @@ fn normalized_to_coords(norm: NormalizedArea) -> Vec<f32> {
   ]
 }
 
-fn tex_vertices() -> Vec<f32> {
-  vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0]
-}
-
 struct CommonRes {
   vao: gl::types::GLuint,
   vbo: gl::types::GLuint,

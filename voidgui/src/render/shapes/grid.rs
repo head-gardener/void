@@ -67,10 +67,12 @@ impl Grid {
     Ok(())
   }
 
-  pub unsafe fn draw(&self, painter: &Painter) -> () {
+  pub unsafe fn draw(&self, painter: &Painter) -> Result<(), String> {
     painter.shaders().common().set_used();
     painter.shaders().common().set_color(&self.color);
     self.res.bind();
     gl::DrawArrays(gl::LINES, 0, 16);
+
+    Ok(())
   }
 }
