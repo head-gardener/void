@@ -55,7 +55,7 @@ impl Texture {
 
   pub unsafe fn bind_text(
     &mut self,
-    _painter: &Painter,
+    painter: &dyn Painter,
     text: &str,
   ) -> Result<(), String> {
     let tmp_surface = pangocairo::cairo::Surface::from_raw_full(
@@ -65,10 +65,10 @@ impl Texture {
     let layout_context = pangocairo::cairo::Context::new(tmp_surface)
       .map_err(|e| e.to_string())?;
 
-    let desc = pangocairo::pango::FontDescription::from_string("Sans Bold 24");
+    let font = painter.font();
     let layout = pangocairo::create_layout(&layout_context);
     layout.set_text(text);
-    layout.set_font_description(Some(&desc));
+    layout.set_font_description(Some(&font));
     let (w, h) = layout.pixel_size();
 
     let mut data: Vec<u8> = vec!(0; (w * h * 4) as usize);
@@ -95,7 +95,7 @@ impl Texture {
 
   pub unsafe fn plot(
     &self,
-    painter: &Painter,
+    painter: &dyn Painter,
     area: &Area,
   ) -> Result<(), String> {
     let norm = boxes_to_normalized(area, painter.window_area());
@@ -132,7 +132,7 @@ impl Texture {
     Ok(())
   }
 
-  pub unsafe fn draw(&self, painter: &Painter) -> Result<(), String> {
+  pub unsafe fn draw(&self, painter: &dyn Painter) -> Result<(), String> {
     let t = self
       .texture
       .ok_or("Attempted to draw a texture without binding anything to it")?;

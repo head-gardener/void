@@ -1,8 +1,10 @@
 use crate::render::painter::Painter;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum WidgetError {
   Unspecified(String),
+  Uninitialized(String),
+  Unplotted(String),
 }
 
 impl std::fmt::Display for WidgetError {
@@ -11,6 +13,12 @@ impl std::fmt::Display for WidgetError {
       WidgetError::Unspecified(cause) => {
         write!(f, "Unspecified error caused by: {}", cause)
       }
+      WidgetError::Uninitialized(param) => {
+        write!(f, "Field '{}' uninitialized", param)
+      }
+      WidgetError::Unplotted(widget) => {
+        write!(f, "Widget '{}' drawn before being plotted", widget)
+      }
     }
   }
 }
@@ -18,7 +26,8 @@ impl std::fmt::Display for WidgetError {
 impl std::error::Error for WidgetError {}
 
 pub trait Widget {
-  unsafe fn plot(&self, painter: &Painter) -> Result<(), WidgetError>;
-  unsafe fn draw(&self, painter: &Painter);
+  unsafe fn plot(&mut self, painter: &dyn Painter) -> Result<(), WidgetError>;
+  fn draw(&self, painter: &dyn Painter) -> Result<(), WidgetError>;
+  fn plotted(&self) -> bool;
   fn catch(&self) -> bool;
 }

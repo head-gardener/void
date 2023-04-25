@@ -14,11 +14,12 @@ run: build
 debug: build
 	$(GDB) $(PROJECT_ROOT)/$(BINPATH)/void
 
+test: build
+	cd voidgui && cargo test
+	cd void && cabal test
+
 clear: 
 	rm -rf build/*
-
-configure: 
-	cd voidgui && meson setup ../build
 
 build: build/voidgui build/void
 
@@ -37,3 +38,6 @@ install:
 
 uninstall:
 	rm -f /usr/lib/libvoidgui.so
+
+# configure: 
+# 	cd voidgui && meson setup ../build

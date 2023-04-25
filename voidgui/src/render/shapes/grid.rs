@@ -14,7 +14,7 @@ impl Grid {
 
   pub unsafe fn plot(
     &self,
-    painter: &Painter,
+    painter: &dyn Painter,
     rows: usize,
     columns: usize,
     row_ratio: &[f32],
@@ -67,7 +67,7 @@ impl Grid {
     Ok(())
   }
 
-  pub unsafe fn draw(&self, painter: &Painter) -> Result<(), String> {
+  pub unsafe fn draw(&self, painter: &dyn Painter) -> Result<(), String> {
     painter.shaders().common().set_used();
     painter.shaders().common().set_color(&self.color);
     self.res.bind();

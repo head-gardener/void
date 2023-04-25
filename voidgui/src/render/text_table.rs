@@ -17,6 +17,7 @@ pub struct TextTable {
   textures: Vec<Texture>,
   texture_sizes: Vec<Size>,
   origin: Option<Point>,
+  plotted: bool,
 }
 
 static BG_COLOR: Color = (0.7, 0.7, 0.75, 1.0);
@@ -24,10 +25,10 @@ static GRID_COLOR: Color = (0.6, 0.6, 0.6, 1.0);
 
 impl TextTable {
   pub unsafe fn from_text(
-    painter: &Painter,
+    painter: &dyn Painter,
     rows: usize,
     columns: usize,
-    text: &[&str],
+    text: &[Box<String>],
   ) -> Result<Self, WidgetError> {
     let textures: Vec<Texture> = text
       .iter()
@@ -66,13 +67,14 @@ impl TextTable {
       textures,
       texture_sizes: sizes,
       origin: None,
+      plotted: false,
     })
   }
 
-  pub unsafe fn plot(&self, painter: &Painter) -> Result<(), WidgetError> {
-    let origin = self.origin.ok_or(WidgetError::Unspecified(
-      "Origin should be set before plotting".to_owned(),
-    ))?;
+  pub unsafe fn plot(&mut self, painter: &dyn Painter) -> Result<(), WidgetError> {
+    let origin = self
+      .origin
+      .ok_or(WidgetError::Uninitialized("origin".to_owned()))?;
 
     self
       .grid
@@ -112,27 +114,41 @@ impl TextTable {
       .collect::<Result<(), String>>()
       .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
 
+    self.plotted = true;
     Ok(())
   }
 
-  pub unsafe fn draw(&self, painter: &Painter) -> Result<(), WidgetError> {
-    self
-      .bg
-      .iter()
-      .map(|r| r.draw(painter))
-      .collect::<Result<(), String>>()
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
-    self.grid.draw(painter)
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
-    self
-      .textures
-      .iter()
-      .map(|t| t.draw(painter))
-      .collect::<Result<(), String>>()
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))
+  pub fn draw(&self, painter: &dyn Painter) -> Result<(), WidgetError> {
+    if !self.plotted {
+      return Err(WidgetError::Unplotted("spreadsheet".to_owned()));
+    }
+
+    unsafe {
+      self
+        .bg
+        .iter()
+        .map(|r| r.draw(painter))
+        .collect::<Result<(), String>>()
+        .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
+      self
+        .grid
+        .draw(painter)
+        .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
+      self
+        .textures
+        .iter()
+        .map(|t| t.draw(painter))
+        .collect::<Result<(), String>>()
+        .map_err(|e| WidgetError::Unspecified(e.to_owned()))
+    }
   }
 
   pub fn set_origin(&mut self, origin: Point) {
     self.origin = Some(origin);
+    self.plotted = false;
+  }
+
+  pub fn plotted(&self) -> bool {
+    self.plotted
   }
 }

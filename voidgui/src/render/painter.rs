@@ -1,12 +1,23 @@
+use pangocairo::pango::FontDescription;
+
 use super::{super::Area, shaders::Shaders};
 
-pub struct Painter {
+pub struct SPainter {
   shaders: Shaders,
   common: CommonResources,
   window_area: Area,
+  font: FontDescription,
 }
 
-impl Painter {
+pub trait Painter {
+  fn shaders(&self) -> &Shaders;
+  fn common(&self) -> &CommonResources;
+  fn update_window_area(&mut self, width: u16, height: u16) -> ();
+  fn window_area(&self) -> &Area;
+  fn font(&self) -> &FontDescription;
+}
+
+impl SPainter {
   /// Creates a new [`Painter`].
   pub unsafe fn new(window_width: u16, window_height: u16) -> Self {
     let window_box = Area {
@@ -23,29 +34,67 @@ impl Painter {
       shaders: Shaders::new(),
       common: CommonResources::allocate(),
       window_area: window_box,
+      font: FontDescription::from_string("Sans 18"),
     }
   }
+}
+
+impl Painter for SPainter {
+  /// Creates a new [`Painter`].
 
   /// Returns a reference to the shaders of this [`Painter`].
-  pub fn shaders(&self) -> &Shaders {
+  fn shaders(&self) -> &Shaders {
     &self.shaders
   }
 
-  pub fn common(&self) -> &CommonResources {
+  fn common(&self) -> &CommonResources {
     &self.common
   }
 
-  pub fn update_window_area(&mut self, width: u16, height: u16) -> () {
-    self.window_area_mut().width = width;
-    self.window_area_mut().height = height;
+  fn update_window_area(&mut self, width: u16, height: u16) -> () {
+    self.window_area.width = width;
+    self.window_area.height = height;
   }
 
-  pub fn window_area(&self) -> &Area {
+  fn window_area(&self) -> &Area {
     &self.window_area
   }
 
-  fn window_area_mut(&mut self) -> &mut Area {
-    &mut self.window_area
+  fn font(&self) -> &FontDescription {
+    &self.font
+  }
+}
+
+#[cfg(test)]
+pub struct MockPainter {}
+
+#[cfg(test)]
+impl MockPainter {
+  pub fn new() -> Self {
+    Self {}
+  }
+}
+
+#[cfg(test)]
+impl Painter for MockPainter {
+  fn shaders(&self) -> &Shaders {
+    todo!()
+  }
+
+  fn common(&self) -> &CommonResources {
+    todo!()
+  }
+
+  fn update_window_area(&mut self, width: u16, height: u16) -> () {
+    todo!()
+  }
+
+  fn window_area(&self) -> &Area {
+    todo!()
+  }
+
+  fn font(&self) -> &FontDescription {
+    todo!()
   }
 }
 
@@ -70,6 +119,10 @@ impl CommonResources {
 
   pub unsafe fn bind_rect_ebo(&self) -> () {
     gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.rect_ebo);
+  }
+
+  fn mock() -> CommonResources {
+    todo!()
   }
 }
 

@@ -1,13 +1,13 @@
 extern crate gl;
 extern crate sdl2;
 
-use std::time::Instant;
+use render::Area;
+use window::*;
 
-use render::{shapes::Texture, Area, Point, TextTable};
-use widgets::window::*;
-
+mod logic;
 mod render;
 mod widgets;
+mod window;
 
 #[no_mangle]
 pub extern "C" fn void_gui_init() -> u64 {
@@ -28,7 +28,7 @@ pub extern "C" fn void_gui_init() -> u64 {
     video_subsystem.gl_get_proc_address(s) as *const std::os::raw::c_void
   });
 
-  let (w, table) = unsafe {
+  let mut w = unsafe {
     let w = VoidWindow::new(window);
 
     {
@@ -37,34 +37,7 @@ pub extern "C" fn void_gui_init() -> u64 {
       gl::ClearColor(0.9, 0.9, 0.9, 1.0);
     }
 
-    let mut table = TextTable::from_text(
-      w.painter(),
-      2,
-      2,
-      vec!["A1", "B", "C", "D"].as_slice(),
-    )
-    .unwrap();
-    table.set_origin(Point::new(100, 100));
-    // table.plot(w.painter()).unwrap();
-
-    //     let rect = Rectangle::new((0.0, 0.0, 0.0, 1.0));
-    //     rect
-    //       .plot(w.painter(), &Area::new(100, 100, 200, 400))
-    //       .unwrap();
-
-    //     let grid = Grid::new((0.7, 0.7, 0.7, 1.0));
-    //     grid
-    //       .plot(
-    //         w.painter(),
-    //         2,
-    //         2,
-    //         &vec![0.3, 0.7],
-    //         &vec![0.5, 0.5],
-    //         &Area::new(110, 110, 180, 380),
-    //       )
-    //       .unwrap();
-
-    (w, table)
+    w
   };
 
   let mut event_pump = sdl.event_pump().unwrap();
@@ -78,8 +51,8 @@ pub extern "C" fn void_gui_init() -> u64 {
 
     unsafe {
       gl::Clear(gl::COLOR_BUFFER_BIT);
-      table.draw(w.painter()).unwrap();
     }
+    w.draw();
 
     render::painter::pop_gl_error();
 
