@@ -1,5 +1,4 @@
 use crate::render::{painter::Painter, shaders::Shader, shapes::*, Color};
-use crate::Area;
 
 pub struct Rectangle {
   color: Color,

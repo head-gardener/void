@@ -3,7 +3,6 @@ use pangocairo::cairo::Format::ARgb32;
 
 use crate::render::Size;
 use crate::render::{painter::Painter, shaders::Shader, shapes::*};
-use crate::Area;
 
 pub struct Texture {
   res: CommonRes,
@@ -71,7 +70,7 @@ impl Texture {
     layout.set_font_description(Some(&font));
     let (w, h) = layout.pixel_size();
 
-    let mut data: Vec<u8> = vec!(0; (w * h * 4) as usize);
+    let mut data: Vec<u8> = vec![0; (w * h * 4) as usize];
     let out_surface = pangocairo::cairo::ImageSurface::create_for_data_unsafe(
       data.as_mut_ptr(),
       ARgb32,

@@ -7,7 +7,19 @@ import qualified GUI as G
 import Text.Printf
 
 main :: IO ()
-main = print G.void_gui_init
+main =
+  G.withNewWindow $ \w -> do
+    exec w
+  where
+    exec :: G.VoidWindow -> IO ()
+    exec window = do_exec window 0
+
+    do_exec :: G.VoidWindow -> CInt -> IO ()
+    do_exec w 0 = do_exec w $ G.wait w
+    do_exec w 1 = return ()
+    do_exec w code = do
+      putStrLn $ "Unexpected code " ++ show code
+      do_exec w 0
 
 -- main1 :: IO ()
 -- main1 =

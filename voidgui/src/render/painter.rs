@@ -1,6 +1,6 @@
 use pangocairo::pango::FontDescription;
 
-use super::{super::Area, shaders::Shaders};
+use super::{shaders::Shaders, Area};
 
 pub struct SPainter {
   shaders: Shaders,
@@ -26,9 +26,6 @@ impl SPainter {
       width: window_width,
       height: window_height,
     };
-
-    gl::Enable(gl::BLEND);
-    gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
 
     Self {
       shaders: Shaders::new(),

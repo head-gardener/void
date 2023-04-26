@@ -10,5 +10,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 gl = ">=0.14.0"
-sdl2 = ">=0.35.0"
+glfw = ">=0.51.0"
 pangocairo = ">=0.17.0"

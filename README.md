@@ -1,4 +1,5 @@
 # Deps
 - haskell stuff
 - SDL2
-- SDL2_TTF
+- pangocairo
+- GLES 3.2
