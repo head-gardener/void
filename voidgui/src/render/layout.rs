@@ -1,5 +1,14 @@
 use super::{Area, Point, Size};
 
+/// Given a bunch of sizes this structure conatins information necessary for
+/// putting them in a grid. This is achieved in two stages:
+/// - Generating a layout fills in position independent fields like sizes and
+/// ratios. Done by `from_sizes`.
+/// - Plotting a layout maps the data to actual coordinates using an origin
+/// point. Done by `plot`.
+///
+/// A laoyout can be plotted multiple times but can't be updated, only
+/// regenerated from scratch.
 pub struct Layout {
   row_ratio: Vec<f32>,
   column_ratio: Vec<f32>,
@@ -10,6 +19,7 @@ pub struct Layout {
 }
 
 impl Layout {
+  /// Generate an unplotted layout from sizes.
   pub fn from_sizes(r: usize, c: usize, sizes: &[Size]) -> Self {
     let rows: Vec<u16> = sizes
       .chunks(c)
@@ -47,6 +57,7 @@ impl Layout {
     }
   }
 
+  /// Generate areas from a layout and an origin point.
   pub fn plot(&self, origin: &Point) -> Vec<Area> {
     let mut y = Box::new(origin.y);
     self

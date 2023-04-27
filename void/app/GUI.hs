@@ -17,6 +17,9 @@ foreign import ccall "voidgui.h void_gui_exec"
 foreign import ccall "voidgui.h void_gui_finish"
   void_gui_finish :: VoidWindow -> CInt
 
+foreign import ccall "voidgui.h void_gui_add"
+  void_gui_add :: VoidWindow -> CInt
+
 -- foreign import ccall "voidgui.h void_gui_add"
 --   void_gui_add :: Ptr CWchar -> Ptr CWchar -> VoidWindow -> CInt
 
@@ -49,6 +52,9 @@ newWindow = void_gui_init `seq` checkWindow void_gui_init
 
 wait :: VoidWindow -> CInt
 wait = void_gui_exec
+
+add :: VoidWindow -> CInt
+add = void_gui_add
 
 -- -- not super efficient cause of marshalling and all.
 -- push :: VoidWindow -> [Entry] -> IO ()

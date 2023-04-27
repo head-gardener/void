@@ -9,7 +9,7 @@ import Text.Printf
 main :: IO ()
 main =
   G.withNewWindow $ \w -> do
-    exec w
+    G.add w `seq` exec w
   where
     exec :: G.VoidWindow -> IO ()
     exec window = do_exec window 0

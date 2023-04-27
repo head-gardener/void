@@ -1,3 +1,5 @@
+use downcast_rs::{Downcast, impl_downcast};
+
 use crate::render::painter::Painter;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -25,9 +27,17 @@ impl std::fmt::Display for WidgetError {
 
 impl std::error::Error for WidgetError {}
 
-pub trait Widget {
+pub trait Widget: Downcast {
   unsafe fn plot(&mut self, painter: &dyn Painter) -> Result<(), WidgetError>;
   fn draw(&self, painter: &dyn Painter) -> Result<(), WidgetError>;
   fn plotted(&self) -> bool;
   fn catch(&self) -> bool;
+}
+impl_downcast!(Widget);
+
+
+impl std::fmt::Debug for dyn Widget {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "widget")
+    }
 }

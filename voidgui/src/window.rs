@@ -14,17 +14,13 @@ impl VoidWindow {
   pub unsafe fn new(w: u16, h: u16) -> Self {
     let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
 
-    glfw.window_hint(glfw::WindowHint::ClientApi(glfw::ClientApiHint::OpenGlEs));
+    glfw
+      .window_hint(glfw::WindowHint::ClientApi(glfw::ClientApiHint::OpenGlEs));
     glfw.window_hint(glfw::WindowHint::ContextVersion(3, 2));
     glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
 
     let (mut window, events) = glfw
-      .create_window(
-        w as u32,
-        h as u32,
-        "Void",
-        glfw::WindowMode::Windowed,
-      )
+      .create_window(w as u32, h as u32, "Void", glfw::WindowMode::Windowed)
       .expect("Failed to create GLFW window.");
 
     window.make_current();
@@ -37,7 +33,9 @@ impl VoidWindow {
     gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
 
     let painter = SPainter::new(w, h);
+
     let ssheet = Box::new(Spreadsheet::new(&painter).unwrap());
+
     let mut ring = Ring::new();
     ring.push(ssheet, crate::logic::ring::Mark::Spreadsheet);
 
@@ -50,8 +48,21 @@ impl VoidWindow {
     }
   }
 
+  pub fn ssheet_mut(&mut self) -> &mut Spreadsheet {
+    self
+      .ring
+      .pull_mut(crate::logic::ring::Mark::Spreadsheet)
+      .expect("Spreadsheet should always be on the ring")
+      .downcast_mut()
+      .expect("Only spreadsheet should be marked as spreadsheet in the ring")
+  }
+
   pub fn draw(&mut self) {
-    self.ring.draw(&(self.painter));
+    self
+      .ring
+      .draw(&(self.painter))
+      .iter()
+      .for_each(|e| println!("{}", e));
   }
 
   pub fn painter(&self) -> &SPainter {

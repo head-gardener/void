@@ -9,11 +9,62 @@ pub struct Spreadsheet {
 
 impl Spreadsheet {
   pub unsafe fn new(painter: &dyn Painter) -> Result<Self, WidgetError> {
-    let records =
-      vec![Box::new("Name".to_owned()), Box::new("Phone".to_owned())];
-    let mut table = TextTable::from_text(painter, 1, 2, records.as_slice())?;
+    let n = "Name".to_owned();
+    let p = "Phone".to_owned();
+
+    let mut table = TextTable::new(0, 2);
+    table.add_row(
+      painter,
+      [&n, &p].iter(),
+      crate::render::text_table::CellColor::Darker,
+    )?;
+
     table.set_origin(Point::new(30, 30));
-    Ok(Self { table, records })
+    table.commit();
+    Ok(Self {
+      table,
+      records: vec![Box::new(n), Box::new(p)],
+    })
+  }
+
+  fn push(
+    &mut self,
+    painter: &dyn Painter,
+    name: &str,
+    phone: &str,
+  ) -> Result<(), WidgetError> {
+    let n = name.to_owned();
+    let p = phone.to_owned();
+
+    unsafe {
+      self.table.add_row(
+        painter,
+        [&n, &p].iter(),
+        crate::render::text_table::CellColor::Normal,
+      )?;
+    };
+
+    self.records.push(Box::new(n));
+    self.records.push(Box::new(p));
+
+    Ok(())
+  }
+
+  pub fn transaction<F>(&mut self, f: F) -> Result<(), WidgetError>
+  where
+    F: std::ops::Fn(
+      &mut Self,
+      for<'r, 's, 't0> fn(
+        &'r mut Spreadsheet,
+        painter: &dyn Painter,
+        &'s str,
+        &'t0 str,
+      ) -> Result<(), WidgetError>,
+    ) -> Result<(), WidgetError>,
+  {
+    f(self, Spreadsheet::push)?;
+    self.table.commit();
+    Ok(())
   }
 }
 

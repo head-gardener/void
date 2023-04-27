@@ -1,4 +1,4 @@
-use glfw::{Action, Key, WindowEvent};
+use glfw::{Action, Key, Modifiers, WindowEvent};
 
 use crate::window::*;
 
@@ -21,6 +21,11 @@ pub extern "C" fn void_gui_exec(w: &mut VoidWindow) -> u64 {
         WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
           return 1;
         }
+        WindowEvent::Key(Key::P, _, Action::Press, m)
+          if m == Modifiers::Control | Modifiers::Shift =>
+        {
+          return 2;
+        }
         _ => {}
       }
     }
@@ -39,4 +44,17 @@ pub extern "C" fn void_gui_exec(w: &mut VoidWindow) -> u64 {
 pub extern "C" fn void_gui_finish(_: Box<VoidWindow>) {}
 
 #[no_mangle]
-pub extern "C" fn void_gui_add() {}
+pub extern "C" fn void_gui_add(w: &mut VoidWindow) -> u64 {
+  // pointer magic to escape borrow checker
+  let p = w.painter() as *const crate::render::painter::SPainter;
+  let ssheet = w.ssheet_mut();
+
+  ssheet
+    .transaction(|s, push| {
+      push(s, unsafe { p.as_ref().unwrap() }, "Bitya", "123")?;
+      Ok(())
+    })
+    .unwrap();
+
+  1
+}

@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use crate::{
   render::painter::Painter,
   widgets::{widget::WidgetError, Widget},
@@ -9,6 +11,7 @@ pub enum Mark {
   Spreadsheet,
 }
 
+// TODO: add pull cache?
 pub struct Ring {
   widgets: Vec<(Box<dyn Widget>, Mark)>,
 }
@@ -20,6 +23,14 @@ impl Ring {
 
   pub fn push(&mut self, w: Box<dyn Widget>, m: Mark) {
     self.widgets.push((w, m));
+  }
+
+  pub fn pull_mut(&mut self, mark: Mark) -> Option<&mut dyn Widget> {
+    self
+      .widgets
+      .iter()
+      .position(|(_, m)| *m == mark)
+      .map(|i| self.widgets.get_mut(i).unwrap().0.as_mut())
   }
 
   pub fn delete(&mut self, m: Mark) -> bool {
@@ -52,7 +63,7 @@ impl Ring {
 #[cfg(test)]
 mod tests {
   use crate::{
-    render::painter::{Painter, MockPainter},
+    render::painter::{MockPainter, Painter},
     widgets::{widget::WidgetError, Widget},
   };
 
@@ -76,7 +87,7 @@ mod tests {
 
   impl Widget for W {
     unsafe fn plot(&mut self, _: &dyn Painter) -> Result<(), WidgetError> {
-      if self.fail_plot { 
+      if self.fail_plot {
         Err(WidgetError::Unspecified("plot failed".to_owned()))
       } else {
         Ok(())
@@ -84,7 +95,7 @@ mod tests {
     }
 
     fn draw(&self, _: &dyn Painter) -> Result<(), WidgetError> {
-      if self.fail_draw { 
+      if self.fail_draw {
         Err(WidgetError::Unspecified("draw failed".to_owned()))
       } else {
         Ok(())
@@ -125,7 +136,10 @@ mod tests {
     r.push(fail_draw, super::Mark::Test);
     let errors = r.draw(&p);
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0], WidgetError::Unspecified("draw failed".to_owned()));
+    assert_eq!(
+      errors[0],
+      WidgetError::Unspecified("draw failed".to_owned())
+    );
 
     // drawing doesn't fail fast
     let fail_draw = Box::new(W::new(false, true, false));
@@ -138,7 +152,10 @@ mod tests {
     r.push(fail_plot, super::Mark::Test);
     let errors = r.draw(&p);
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0], WidgetError::Unspecified("plot failed".to_owned()));
+    assert_eq!(
+      errors[0],
+      WidgetError::Unspecified("plot failed".to_owned())
+    );
 
     // plotting fails fast
     let fail_plot = Box::new(W::new(true, false, false));
