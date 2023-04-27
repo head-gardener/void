@@ -117,10 +117,6 @@ impl CommonResources {
   pub unsafe fn bind_rect_ebo(&self) -> () {
     gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.rect_ebo);
   }
-
-  fn mock() -> CommonResources {
-    todo!()
-  }
 }
 
 impl Drop for CommonResources {

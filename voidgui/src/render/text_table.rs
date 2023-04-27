@@ -77,7 +77,7 @@ impl TextTable {
     columns: usize,
     text: &[Box<String>],
   ) -> Result<Self, WidgetError> {
-    let textures: Vec<Texture> = text
+    let textures = text
       .iter()
       .map(|s| {
         let mut t = Texture::new();
@@ -158,6 +158,18 @@ impl TextTable {
       self.columns,
       self.cell_sizes.as_slice(),
     ));
+
+    self.plotted = false;
+  }
+
+  pub fn truncate(&mut self, len: usize) {
+    self.textures.truncate(len);
+    self.bg.truncate(len);
+    self.texture_sizes.truncate(len);
+    self.cell_sizes.truncate(len);
+
+    self.layout = None;
+    self.rows = len / self.columns;
   }
 
   pub unsafe fn plot(

@@ -1,3 +1,5 @@
+use std::ffi::{c_char, CStr};
+
 use glfw::{Action, Key, Modifiers, WindowEvent};
 
 use crate::window::*;
@@ -34,6 +36,7 @@ pub extern "C" fn void_gui_exec(w: &mut VoidWindow) -> u64 {
       gl::Clear(gl::COLOR_BUFFER_BIT);
     }
 
+    crate::render::painter::pop_gl_error();
     w.draw();
     crate::render::painter::pop_gl_error();
     w.swap_buffers();
@@ -44,17 +47,37 @@ pub extern "C" fn void_gui_exec(w: &mut VoidWindow) -> u64 {
 pub extern "C" fn void_gui_finish(_: Box<VoidWindow>) {}
 
 #[no_mangle]
-pub extern "C" fn void_gui_add(w: &mut VoidWindow) -> u64 {
+pub extern "C" fn void_gui_add(
+  name: *const c_char,
+  phone: *const c_char,
+  w: &mut VoidWindow,
+) -> u64 {
   // pointer magic to escape borrow checker
   let p = w.painter() as *const crate::render::painter::SPainter;
   let ssheet = w.ssheet_mut();
 
+  let na = unsafe { CStr::from_ptr(name) }.to_string_lossy();
+  let ph = unsafe { CStr::from_ptr(phone) }.to_string_lossy();
+
   ssheet
     .transaction(|s, push| {
-      push(s, unsafe { p.as_ref().unwrap() }, "Bitya", "123")?;
+      push(s, unsafe { p.as_ref().unwrap() }, &na, &ph)?;
       Ok(())
     })
     .unwrap();
+
+  1
+}
+
+#[no_mangle]
+pub extern "C" fn void_gui_drop(
+  w: &mut VoidWindow,
+) -> u64 {
+  // pointer magic to escape borrow checker
+  let p = w.painter() as *const crate::render::painter::SPainter;
+  let ssheet = w.ssheet_mut();
+
+  ssheet.drop();
 
   1
 }

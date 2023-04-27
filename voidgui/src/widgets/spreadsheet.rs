@@ -66,6 +66,13 @@ impl Spreadsheet {
     self.table.commit();
     Ok(())
   }
+
+  pub fn drop(&mut self) {
+    self.records.clear();
+
+    self.table.truncate(2);
+    self.table.commit();
+  }
 }
 
 impl Widget for Spreadsheet {

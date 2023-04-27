@@ -4,16 +4,17 @@ use crate::render::{painter::Painter, shaders::Shader, Area, Color};
 pub struct Grid {
   color: Color,
   res: CommonRes,
+  vertices: i32,
 }
 
 impl Grid {
   pub unsafe fn new(color: Color) -> Self {
     let res = CommonRes::allocate();
-    Self { color, res }
+    Self { color, res, vertices: 0 }
   }
 
   pub unsafe fn plot(
-    &self,
+    &mut self,
     painter: &dyn Painter,
     rows: usize,
     columns: usize,
@@ -26,7 +27,7 @@ impl Grid {
     let horiz_points = section(norm.a_x, norm.b_x, columns + 1, column_ratio);
 
     let mut vertices = vec![];
-    for i in 0..rows + 1 {
+    for i in 0..=rows {
       vertices.append(&mut vec![
         horiz_points[0],
         vert_points[i],
@@ -34,7 +35,7 @@ impl Grid {
         vert_points[i],
       ]);
     }
-    for i in 0..columns + 1 {
+    for i in 0..=columns {
       vertices.append(&mut vec![
         horiz_points[i],
         vert_points[0],
@@ -42,6 +43,8 @@ impl Grid {
         vert_points[rows],
       ]);
     }
+
+    self.vertices = vertices.len() as i32;
 
     self.res.bind();
     self.res.bind_buffers();
@@ -71,7 +74,7 @@ impl Grid {
     painter.shaders().common().set_used();
     painter.shaders().common().set_color(&self.color);
     self.res.bind();
-    gl::DrawArrays(gl::LINES, 0, 16);
+    gl::DrawArrays(gl::LINES, 0, self.vertices);
 
     Ok(())
   }
