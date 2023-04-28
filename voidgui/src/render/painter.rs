@@ -20,7 +20,7 @@ pub trait Painter {
 impl SPainter {
   /// Creates a new [`Painter`].
   pub unsafe fn new(window_width: u16, window_height: u16) -> Self {
-    let window_box = Area {
+    let window_area = Area {
       x: 0,
       y: 0,
       width: window_width,
@@ -30,9 +30,14 @@ impl SPainter {
     Self {
       shaders: Shaders::new(),
       common: CommonResources::allocate(),
-      window_area: window_box,
+      window_area,
       font: FontDescription::from_string("Sans 18"),
     }
+  }
+
+  pub fn resize(&mut self, w: u16, h: u16) {
+    self.window_area.width = w;
+    self.window_area.height = h;
   }
 }
 

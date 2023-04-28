@@ -10,15 +10,17 @@ pub extern "C" fn void_gui_init() -> Box<VoidWindow> {
 }
 
 #[no_mangle]
-pub extern "C" fn void_gui_exec(w: &mut VoidWindow) -> u64 {
+pub extern "C" fn void_gui_exec(win: &mut VoidWindow) -> u64 {
+  let win_cpy = win as *mut VoidWindow;
+  
   loop {
-    if w.should_close() {
+    if win.should_close() {
       return 1;
     }
 
-    w.poll_events();
-    for (_, event) in glfw::flush_messages(&w.events()) {
-      // println!("{:?}", event);
+    win.poll_events();
+    for (_, event) in glfw::flush_messages(&win.events()) {
+      println!("{:?}", event);
       match event {
         WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
           return 1;
@@ -27,6 +29,10 @@ pub extern "C" fn void_gui_exec(w: &mut VoidWindow) -> u64 {
           if m == Modifiers::Control | Modifiers::Shift =>
         {
           return 2;
+        }
+        
+        WindowEvent::Size(w, h) => {
+          unsafe { win_cpy.as_mut().unwrap().on_resize(w,h) };
         }
         _ => {}
       }
@@ -37,9 +43,9 @@ pub extern "C" fn void_gui_exec(w: &mut VoidWindow) -> u64 {
     }
 
     crate::render::painter::pop_gl_error();
-    w.draw();
+    win.draw();
     crate::render::painter::pop_gl_error();
-    w.swap_buffers();
+    win.swap_buffers();
   }
 }
 
@@ -52,7 +58,6 @@ pub extern "C" fn void_gui_add(
   phone: *const c_char,
   w: &mut VoidWindow,
 ) -> u64 {
-  // pointer magic to escape borrow checker
   let p = w.painter() as *const crate::render::painter::SPainter;
   let ssheet = w.ssheet_mut();
 
@@ -73,11 +78,7 @@ pub extern "C" fn void_gui_add(
 pub extern "C" fn void_gui_drop(
   w: &mut VoidWindow,
 ) -> u64 {
-  // pointer magic to escape borrow checker
-  let p = w.painter() as *const crate::render::painter::SPainter;
-  let ssheet = w.ssheet_mut();
-
-  ssheet.drop();
+  w.ssheet_mut().drop();
 
   1
 }

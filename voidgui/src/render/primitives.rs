@@ -1,6 +1,6 @@
 pub type Color = (f32, f32, f32, f32);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Point {
   pub x: u16,
   pub y: u16,

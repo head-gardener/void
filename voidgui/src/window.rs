@@ -1,6 +1,6 @@
 use glfw::Context;
 
-use crate::{logic::Ring, render::painter::SPainter, widgets::Spreadsheet};
+use crate::{logic::Ring, render::painter::SPainter, widgets::{Spreadsheet, Toolbar}};
 
 pub struct VoidWindow {
   painter: SPainter,
@@ -25,6 +25,7 @@ impl VoidWindow {
 
     window.make_current();
     window.set_key_polling(true);
+    window.set_size_polling(true);
     let _gl = gl::load_with(|s| glfw.get_proc_address_raw(s));
 
     gl::Viewport(0, 0, w as i32, h as i32);
@@ -35,9 +36,11 @@ impl VoidWindow {
     let painter = SPainter::new(w, h);
 
     let ssheet = Box::new(Spreadsheet::new(&painter).unwrap());
+    let toolbar = Box::new(Toolbar::new(&painter).unwrap());
 
     let mut ring = Ring::new();
     ring.push(ssheet, crate::logic::ring::Mark::Spreadsheet);
+    ring.push(toolbar, crate::logic::ring::Mark::Toolbar);
 
     Self {
       hw_window: window,
@@ -83,5 +86,11 @@ impl VoidWindow {
 
   pub fn events(&self) -> &std::sync::mpsc::Receiver<(f64, glfw::WindowEvent)> {
     &self.events
+  }
+
+  pub unsafe fn on_resize(&mut self, w: i32, h: i32) {
+    self.painter.resize(w as u16, h as u16);
+    self.ring.for_each(|w| w.request_plot());
+    gl::Viewport(0, 0, w, h);
   }
 }

@@ -1,6 +1,6 @@
 use crate::{
+  logic::Layout,
   render::{
-    layout::Layout,
     painter::Painter,
     shapes::{Grid, Rectangle, Texture},
     Size,
@@ -44,6 +44,7 @@ pub struct TextTable {
 
   texture_sizes: Vec<Size>,
   cell_sizes: Vec<Size>,
+  constr: Size,
 
   origin: Option<Point>,
 }
@@ -66,6 +67,7 @@ impl TextTable {
       textures: vec![],
       texture_sizes: vec![],
       cell_sizes: vec![],
+      constr: Size::new(0, 0),
       origin: None,
       plotted: false,
     }
@@ -108,7 +110,6 @@ impl TextTable {
       .collect();
 
     Ok(Self {
-      layout: Some(layout),
       grid: Grid::new(GRID_COLOR),
       rows,
       columns,
@@ -116,6 +117,8 @@ impl TextTable {
       textures,
       texture_sizes: sizes,
       cell_sizes: padded,
+      constr: layout.size(),
+      layout: Some(layout),
       origin: None,
       plotted: false,
     })
@@ -183,6 +186,7 @@ impl TextTable {
       self.layout.as_ref().ok_or(WidgetError::Unspecified(
         "Plottig a text table with outdated layout".to_owned(),
       ))?;
+
     self
       .grid
       .plot(
@@ -251,11 +255,23 @@ impl TextTable {
   }
 
   pub fn set_origin(&mut self, origin: Point) {
+    if self.origin.map_or(false, |p| p == origin) {
+      return
+    }
+
     self.origin = Some(origin);
     self.plotted = false;
   }
 
   pub fn plotted(&self) -> bool {
     self.plotted
+  }
+
+  pub fn request_plot(&mut self) {
+    self.plotted = false;
+  }
+
+  pub fn constr(&self) -> Size {
+    self.constr
   }
 }

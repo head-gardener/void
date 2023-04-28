@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use crate::{
   render::painter::Painter,
   widgets::{widget::WidgetError, Widget},
@@ -9,6 +7,7 @@ use crate::{
 pub enum Mark {
   Test,
   Spreadsheet,
+  Toolbar,
 }
 
 // TODO: add pull cache?
@@ -31,6 +30,15 @@ impl Ring {
       .iter()
       .position(|(_, m)| *m == mark)
       .map(|i| self.widgets.get_mut(i).unwrap().0.as_mut())
+  }
+
+  pub fn for_each<F>(&mut self, mut f: F)
+  where
+    F: FnMut(&mut dyn Widget) -> (),
+  {
+    for (w, _) in self.widgets.iter_mut() {
+      f(w.as_mut());
+    }
   }
 
   pub fn delete(&mut self, m: Mark) -> bool {
@@ -102,11 +110,19 @@ mod tests {
       }
     }
 
+    fn catch(&self) -> bool {
+      todo!()
+    }
+
     fn plotted(&self) -> bool {
       self.plotted
     }
 
-    fn catch(&self) -> bool {
+    fn set_origin(&mut self, _: &crate::render::Point) {
+      todo!()
+    }
+
+    fn request_plot(&mut self) {
       todo!()
     }
   }

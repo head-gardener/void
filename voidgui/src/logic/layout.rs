@@ -1,4 +1,5 @@
-use super::{Area, Point, Size};
+use crate::render::{Size, Point, Area};
+
 
 /// Given a bunch of sizes this structure conatins information necessary for
 /// putting them in a grid. This is achieved in two stages:
@@ -21,6 +22,8 @@ pub struct Layout {
 impl Layout {
   /// Generate an unplotted layout from sizes.
   pub fn from_sizes(r: usize, c: usize, sizes: &[Size]) -> Self {
+    assert_eq!(sizes.len(), r*c);
+
     let rows: Vec<u16> = sizes
       .chunks(c)
       .map(|ss| ss.iter().map(|s| s.height).max().unwrap_or(0))

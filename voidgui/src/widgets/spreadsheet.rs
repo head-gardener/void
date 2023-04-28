@@ -84,11 +84,19 @@ impl Widget for Spreadsheet {
     self.table.draw(painter)
   }
 
+  fn catch(&self) -> bool {
+    todo!()
+  }
+
   fn plotted(&self) -> bool {
     self.table.plotted()
   }
 
-  fn catch(&self) -> bool {
-    todo!()
+  fn set_origin(&mut self, origin: &Point) {
+    self.table.set_origin(origin.clone());
+  }
+
+  fn request_plot(&mut self) {
+    self.table.request_plot();
   }
 }
