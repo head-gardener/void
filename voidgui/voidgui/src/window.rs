@@ -1,9 +1,13 @@
 use glfw::Context;
 
-use crate::{logic::Ring, render::painter::SPainter, widgets::{Spreadsheet, Toolbar}};
+use crate::{
+  logic::Ring,
+  render::painter::Painter,
+  widgets::{toolbar::{self, Toolbar}, Spreadsheet},
+};
 
 pub struct VoidWindow {
-  painter: SPainter,
+  painter: Painter,
   ring: Ring,
   events: std::sync::mpsc::Receiver<(f64, glfw::WindowEvent)>,
   hw_window: glfw::Window,
@@ -33,14 +37,14 @@ impl VoidWindow {
     gl::Enable(gl::BLEND);
     gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
 
-    let painter = SPainter::new(w, h);
+    let painter = Painter::new(w, h);
 
-    let ssheet = Box::new(Spreadsheet::new(&painter).unwrap());
-    let toolbar = Box::new(Toolbar::new(&painter).unwrap());
+    let ssheet = Spreadsheet::new(&painter).unwrap();
+    let toolbar = Toolbar::new(&painter).unwrap();
 
     let mut ring = Ring::new();
-    ring.push(ssheet, crate::logic::ring::Mark::Spreadsheet);
-    ring.push(toolbar, crate::logic::ring::Mark::Toolbar);
+    ssheet.push_to_ring(&mut ring);
+    toolbar.push_to_ring(&mut ring);
 
     Self {
       hw_window: window,
@@ -51,13 +55,17 @@ impl VoidWindow {
     }
   }
 
-  pub fn ssheet_mut(&mut self) -> &mut Spreadsheet {
-    self
+  pub fn with_ssheet_mut<F>(&mut self, f: F)
+  where
+    F: Fn(&mut Spreadsheet),
+  {
+    f(self
       .ring
-      .pull_mut(crate::logic::ring::Mark::Spreadsheet)
+      .pull(crate::logic::ring::Mark::Spreadsheet)
       .expect("Spreadsheet should always be on the ring")
+      .borrow_mut()
       .downcast_mut()
-      .expect("Only spreadsheet should be marked as spreadsheet in the ring")
+      .expect("Only spreadsheet should be marked as spreadsheet in the ring"))
   }
 
   pub fn draw(&mut self) {
@@ -68,7 +76,7 @@ impl VoidWindow {
       .for_each(|e| println!("{}", e));
   }
 
-  pub fn painter(&self) -> &SPainter {
+  pub fn painter(&self) -> &Painter {
     &self.painter
   }
 
@@ -90,7 +98,7 @@ impl VoidWindow {
 
   pub unsafe fn on_resize(&mut self, w: i32, h: i32) {
     self.painter.resize(w as u16, h as u16);
-    self.ring.for_each(|w| w.request_plot());
+    self.ring.for_each(|mut w| w.request_plot());
     gl::Viewport(0, 0, w, h);
   }
 }

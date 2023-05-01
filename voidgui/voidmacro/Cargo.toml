@@ -1,0 +1,12 @@
+[lib]
+proc-macro = true
+path = "src/lib.rs"
+
+[package]
+name = "voidmacro"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+syn = "0.15"
+quote = "0.6"

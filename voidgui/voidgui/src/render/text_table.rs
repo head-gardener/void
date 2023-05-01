@@ -5,7 +5,7 @@ use crate::{
     shapes::{Grid, Rectangle, Texture},
     Size,
   },
-  widgets::widget::WidgetError,
+  widgets::traits::widget::WidgetError,
 };
 
 use super::{Area, Color, Point};
@@ -74,7 +74,7 @@ impl TextTable {
   }
 
   pub unsafe fn from_text(
-    painter: &dyn Painter,
+    painter: &Painter,
     rows: usize,
     columns: usize,
     text: &[Box<String>],
@@ -126,7 +126,7 @@ impl TextTable {
 
   pub unsafe fn add_row<'a, I>(
     &mut self,
-    painter: &dyn Painter,
+    painter: &Painter,
     mut data: I,
     color: CellColor,
   ) -> Result<(), WidgetError>
@@ -177,7 +177,7 @@ impl TextTable {
 
   pub unsafe fn plot(
     &mut self,
-    painter: &dyn Painter,
+    painter: &Painter,
   ) -> Result<(), WidgetError> {
     let origin = self
       .origin
@@ -229,7 +229,7 @@ impl TextTable {
     Ok(())
   }
 
-  pub fn draw(&self, painter: &dyn Painter) -> Result<(), WidgetError> {
+  pub fn draw(&self, painter: &Painter) -> Result<(), WidgetError> {
     if !self.plotted {
       return Err(WidgetError::Unplotted("spreadsheet".to_owned()));
     }
@@ -256,7 +256,7 @@ impl TextTable {
 
   pub fn set_origin(&mut self, origin: Point) {
     if self.origin.map_or(false, |p| p == origin) {
-      return
+      return;
     }
 
     self.origin = Some(origin);
@@ -273,5 +273,10 @@ impl TextTable {
 
   pub fn constr(&self) -> Size {
     self.constr
+  }
+
+  pub fn area(&self) -> Option<Area> {
+    let s = (&self.layout).as_ref().map(|s| s.size().clone())?;
+    self.origin.map(|o| Area::from_prim(o.clone(), s))
   }
 }

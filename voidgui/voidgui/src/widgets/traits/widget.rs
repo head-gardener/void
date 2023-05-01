@@ -38,16 +38,14 @@ pub trait Widget: Downcast {
   ///
   /// Since this function calls GL functions, there is a risk of an
   /// unexpected exit.
-  unsafe fn plot(&mut self, painter: &dyn Painter) -> Result<(), WidgetError>;
+  unsafe fn plot(&mut self, painter: &Painter) -> Result<(), WidgetError>;
 
   /// 
   ///
   /// # Errors
   ///
   /// This function will return an error if .
-  fn draw(&self, painter: &dyn Painter) -> Result<(), WidgetError>;
-
-  fn catch(&self) -> bool;
+  fn draw(&self, painter: &Painter) -> Result<(), WidgetError>;
 
   /// Whether widget was plotted. This value should be reset to false to
   /// trigger plotting after any changes.

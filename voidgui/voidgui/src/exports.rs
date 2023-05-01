@@ -12,7 +12,7 @@ pub extern "C" fn void_gui_init() -> Box<VoidWindow> {
 #[no_mangle]
 pub extern "C" fn void_gui_exec(win: &mut VoidWindow) -> u64 {
   let win_cpy = win as *mut VoidWindow;
-  
+
   loop {
     if win.should_close() {
       return 1;
@@ -30,9 +30,9 @@ pub extern "C" fn void_gui_exec(win: &mut VoidWindow) -> u64 {
         {
           return 2;
         }
-        
+
         WindowEvent::Size(w, h) => {
-          unsafe { win_cpy.as_mut().unwrap().on_resize(w,h) };
+          unsafe { win_cpy.as_mut().unwrap().on_resize(w, h) };
         }
         _ => {}
       }
@@ -58,27 +58,25 @@ pub extern "C" fn void_gui_add(
   phone: *const c_char,
   w: &mut VoidWindow,
 ) -> u64 {
-  let p = w.painter() as *const crate::render::painter::SPainter;
-  let ssheet = w.ssheet_mut();
-
+  let p = w.painter() as *const crate::render::painter::Painter;
   let na = unsafe { CStr::from_ptr(name) }.to_string_lossy();
   let ph = unsafe { CStr::from_ptr(phone) }.to_string_lossy();
 
-  ssheet
-    .transaction(|s, push| {
-      push(s, unsafe { p.as_ref().unwrap() }, &na, &ph)?;
-      Ok(())
-    })
-    .unwrap();
+  w.with_ssheet_mut(|ssheet| {
+    ssheet
+      .transaction(|s, push| {
+        push(s, unsafe { p.as_ref().unwrap() }, &na, &ph)?;
+        Ok(())
+      })
+      .unwrap()
+  });
 
   1
 }
 
 #[no_mangle]
-pub extern "C" fn void_gui_drop(
-  w: &mut VoidWindow,
-) -> u64 {
-  w.ssheet_mut().drop();
+pub extern "C" fn void_gui_drop(w: &mut VoidWindow) -> u64 {
+  w.with_ssheet_mut(|s| s.drop());
 
   1
 }

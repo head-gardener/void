@@ -1,6 +1,8 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::render::{painter::Painter, Point, TextTable};
 
-use super::{widget::WidgetError, Widget};
+use super::traits::{widget::WidgetError, Clickable, ClickableWidget, Widget};
 
 pub struct Spreadsheet {
   table: TextTable,
@@ -8,7 +10,7 @@ pub struct Spreadsheet {
 }
 
 impl Spreadsheet {
-  pub unsafe fn new(painter: &dyn Painter) -> Result<Self, WidgetError> {
+  pub unsafe fn new(painter: &Painter) -> Result<Self, WidgetError> {
     let n = "Name".to_owned();
     let p = "Phone".to_owned();
 
@@ -29,7 +31,7 @@ impl Spreadsheet {
 
   fn push(
     &mut self,
-    painter: &dyn Painter,
+    painter: &Painter,
     name: &str,
     phone: &str,
   ) -> Result<(), WidgetError> {
@@ -56,7 +58,7 @@ impl Spreadsheet {
       &mut Self,
       for<'r, 's, 't0> fn(
         &'r mut Spreadsheet,
-        painter: &dyn Painter,
+        painter: &Painter,
         &'s str,
         &'t0 str,
       ) -> Result<(), WidgetError>,
@@ -73,19 +75,21 @@ impl Spreadsheet {
     self.table.truncate(2);
     self.table.commit();
   }
+
+  pub fn push_to_ring(self, ring: &mut crate::logic::Ring) {
+    let rc = Rc::new(RefCell::new(self));
+    ring.push_clickable(rc.clone(), crate::logic::ring::Mark::Spreadsheet);
+    ring.push(rc, crate::logic::ring::Mark::Spreadsheet);
+  }
 }
 
 impl Widget for Spreadsheet {
-  unsafe fn plot(&mut self, painter: &dyn Painter) -> Result<(), WidgetError> {
+  unsafe fn plot(&mut self, painter: &Painter) -> Result<(), WidgetError> {
     self.table.plot(painter)
   }
 
-  fn draw(&self, painter: &dyn Painter) -> Result<(), WidgetError> {
+  fn draw(&self, painter: &Painter) -> Result<(), WidgetError> {
     self.table.draw(painter)
-  }
-
-  fn catch(&self) -> bool {
-    todo!()
   }
 
   fn plotted(&self) -> bool {
@@ -100,3 +104,11 @@ impl Widget for Spreadsheet {
     self.table.request_plot();
   }
 }
+
+impl Clickable for Spreadsheet {
+  fn click_area(&self) -> Option<crate::render::Area> {
+    self.table.area()
+  }
+}
+
+impl ClickableWidget for Spreadsheet {}

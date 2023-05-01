@@ -52,4 +52,13 @@ impl Area {
       height,
     }
   }
+
+  pub fn from_prim(p: Point, s: Size) -> Self {
+    Self {
+      x: p.x,
+      y: p.y,
+      width: s.width,
+      height: s.height,
+    }
+  }
 }

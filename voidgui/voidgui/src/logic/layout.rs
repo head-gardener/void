@@ -1,6 +1,5 @@
 use crate::render::{Size, Point, Area};
 
-
 /// Given a bunch of sizes this structure conatins information necessary for
 /// putting them in a grid. This is achieved in two stages:
 /// - Generating a layout fills in position independent fields like sizes and

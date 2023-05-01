@@ -2,22 +2,16 @@ use pangocairo::pango::FontDescription;
 
 use super::{shaders::Shaders, Area};
 
-pub struct SPainter {
+#[cfg(any(not(test), rust_analyzer))]
+pub struct Painter {
   shaders: Shaders,
   common: CommonResources,
   window_area: Area,
   font: FontDescription,
 }
 
-pub trait Painter {
-  fn shaders(&self) -> &Shaders;
-  fn common(&self) -> &CommonResources;
-  fn update_window_area(&mut self, width: u16, height: u16) -> ();
-  fn window_area(&self) -> &Area;
-  fn font(&self) -> &FontDescription;
-}
-
-impl SPainter {
+#[cfg(any(not(test), rust_analyzer))]
+impl Painter {
   /// Creates a new [`Painter`].
   pub unsafe fn new(window_width: u16, window_height: u16) -> Self {
     let window_area = Area {
@@ -39,64 +33,37 @@ impl SPainter {
     self.window_area.width = w;
     self.window_area.height = h;
   }
-}
-
-impl Painter for SPainter {
-  /// Creates a new [`Painter`].
 
   /// Returns a reference to the shaders of this [`Painter`].
-  fn shaders(&self) -> &Shaders {
+  pub fn shaders(&self) -> &Shaders {
     &self.shaders
   }
 
-  fn common(&self) -> &CommonResources {
+  pub fn common(&self) -> &CommonResources {
     &self.common
   }
 
-  fn update_window_area(&mut self, width: u16, height: u16) -> () {
+  pub fn update_window_area(&mut self, width: u16, height: u16) -> () {
     self.window_area.width = width;
     self.window_area.height = height;
   }
 
-  fn window_area(&self) -> &Area {
+  pub fn window_area(&self) -> &Area {
     &self.window_area
   }
 
-  fn font(&self) -> &FontDescription {
+  pub fn font(&self) -> &FontDescription {
     &self.font
   }
 }
 
-#[cfg(test)]
-pub struct MockPainter {}
+#[cfg(all(test, not(rust_analyzer)))]
+pub struct Painter {}
 
-#[cfg(test)]
-impl MockPainter {
+#[cfg(all(test, not(rust_analyzer)))]
+impl Painter {
   pub fn new() -> Self {
     Self {}
-  }
-}
-
-#[cfg(test)]
-impl Painter for MockPainter {
-  fn shaders(&self) -> &Shaders {
-    todo!()
-  }
-
-  fn common(&self) -> &CommonResources {
-    todo!()
-  }
-
-  fn update_window_area(&mut self, width: u16, height: u16) -> () {
-    todo!()
-  }
-
-  fn window_area(&self) -> &Area {
-    todo!()
-  }
-
-  fn font(&self) -> &FontDescription {
-    todo!()
   }
 }
 

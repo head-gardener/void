@@ -13,7 +13,7 @@ impl Rectangle {
 
   pub unsafe fn plot(
     &self,
-    painter: &dyn Painter,
+    painter: &Painter,
     area: &Area,
   ) -> Result<(), String> {
     let norm = boxes_to_normalized(area, painter.window_area());
@@ -44,7 +44,7 @@ impl Rectangle {
     Ok(())
   }
 
-  pub unsafe fn draw(&self, painter: &dyn Painter) -> Result<(), String> {
+  pub unsafe fn draw(&self, painter: &Painter) -> Result<(), String> {
     painter.shaders().common().set_used();
     painter.shaders().common().set_color(&self.color);
     self.res.bind();

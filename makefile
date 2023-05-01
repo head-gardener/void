@@ -4,9 +4,9 @@ GDB = rust-gdb -q
 
 # C_SOURCES = $(wildcard voidgui/src/**/*.c) $(wildcard voidgui/src/*.c)
 # C_HEADERS = $(wildcard voidgui/include/**/*.h) $(wildcard voidgui/include/*.h)
-GLSL_SOURCES = $(wildcard voidgui/src/render/shaders/*)
+GLSL_SOURCES = $(wildcard voidgui/voidgui/src/render/shaders/*)
 HASKELL_SOURCES = $(wildcard void/app/**/*.hs) $(wildcard void/app/*.hs)
-RUST_SOURCES = $(wildcard voidgui/app/**/*.rs) $(wildcard voidgui/app/*.rs)
+RUST_SOURCES = $(wildcard voidgui/**/Cargo.toml) $(wildcard voidgui/**/src/**/*.rs) $(wildcard voidgui/**/src/*.rs)
 
 run: build
 	$(PROJECT_ROOT)/$(BINPATH)/void
@@ -23,7 +23,7 @@ clear:
 
 build: build/voidgui build/void
 
-build/voidgui: voidgui/Cargo.toml $(RUST_SOURCES) $(GLSL_SOURCES)
+build/voidgui: $(RUST_SOURCES) $(GLSL_SOURCES)
 	cd voidgui && cargo build
 
 build/void: void/void.cabal $(HASKELL_SOURCES)
