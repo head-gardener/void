@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-  render::painter::Painter,
+  render::{painter::Painter, Point},
   widgets::traits::{ClickableWidget, Widget, WidgetError},
 };
 
@@ -93,9 +93,11 @@ impl Ring {
       .collect()
   }
 
-  //   pub fn catch_click(&mut self, p: Point) {
-  //     self.clickable.
-  //   }
+    pub fn catch_click(&mut self, p: Point) {
+      self.clickable.iter().for_each(|(w, _)| {
+        w.borrow().handle_click(p);
+      })
+    }
 }
 
 #[cfg(test)]
@@ -172,7 +174,7 @@ mod tests {
 
   #[test]
   fn error_handling() {
-    let p = Painter::new();
+    let p = Painter::new(0, 0);
     let mut r = Ring::new();
 
     // all good
@@ -216,7 +218,7 @@ mod tests {
 
   #[test]
   fn checks_for_plotting() {
-    let p = Painter::new();
+    let p = Painter::new(0, 0);
     let mut r = Ring::new();
     let norm = W::new(false, false, false);
     let plotted = W::new(true, false, true);

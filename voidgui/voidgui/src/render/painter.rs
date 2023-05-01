@@ -2,7 +2,7 @@ use pangocairo::pango::FontDescription;
 
 use super::{shaders::Shaders, Area};
 
-#[cfg(any(not(test), rust_analyzer))]
+#[cfg(not(test))]
 pub struct Painter {
   shaders: Shaders,
   common: CommonResources,
@@ -10,7 +10,7 @@ pub struct Painter {
   font: FontDescription,
 }
 
-#[cfg(any(not(test), rust_analyzer))]
+#[cfg(not(test))]
 impl Painter {
   /// Creates a new [`Painter`].
   pub unsafe fn new(window_width: u16, window_height: u16) -> Self {
@@ -57,13 +57,38 @@ impl Painter {
   }
 }
 
-#[cfg(all(test, not(rust_analyzer)))]
+#[cfg(test)]
 pub struct Painter {}
 
-#[cfg(all(test, not(rust_analyzer)))]
+#[cfg(test)]
 impl Painter {
-  pub fn new() -> Self {
+  pub fn new(_: u16, _: u16) -> Self {
     Self {}
+  }
+
+  pub fn resize(&mut self, w: u16, h: u16) {
+    todo!();
+  }
+
+  /// Returns a reference to the shaders of this [`Painter`].
+  pub fn shaders(&self) -> &Shaders {
+    todo!();
+  }
+
+  pub fn common(&self) -> &CommonResources {
+    todo!();
+  }
+
+  pub fn update_window_area(&mut self, width: u16, height: u16) -> () {
+    todo!();
+  }
+
+  pub fn window_area(&self) -> &Area {
+    todo!();
+  }
+
+  pub fn font(&self) -> &FontDescription {
+    todo!();
   }
 }
 

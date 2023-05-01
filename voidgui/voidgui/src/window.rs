@@ -1,9 +1,9 @@
-use glfw::Context;
+use glfw::{Action, Context, Key, Modifiers, MouseButton, WindowEvent};
 
 use crate::{
   logic::Ring,
-  render::painter::Painter,
-  widgets::{toolbar::{self, Toolbar}, Spreadsheet},
+  render::{painter::Painter, Point},
+  widgets::{toolbar::Toolbar, Spreadsheet},
 };
 
 pub struct VoidWindow {
@@ -12,6 +12,7 @@ pub struct VoidWindow {
   events: std::sync::mpsc::Receiver<(f64, glfw::WindowEvent)>,
   hw_window: glfw::Window,
   glfw: glfw::Glfw,
+  cursor: Point,
 }
 
 impl VoidWindow {
@@ -30,6 +31,9 @@ impl VoidWindow {
     window.make_current();
     window.set_key_polling(true);
     window.set_size_polling(true);
+    window.set_char_polling(true);
+    window.set_mouse_button_polling(true);
+    window.set_cursor_pos_polling(true);
     let _gl = gl::load_with(|s| glfw.get_proc_address_raw(s));
 
     gl::Viewport(0, 0, w as i32, h as i32);
@@ -52,6 +56,57 @@ impl VoidWindow {
       ring,
       events,
       glfw,
+      cursor: Point::new(0, 0),
+    }
+  }
+
+  pub unsafe fn on_exec(&mut self) -> u64 {
+    loop {
+      if self.should_close() {
+        return 1;
+      }
+
+      self.poll_events();
+      let events = glfw::flush_messages(&self.events);
+      for (_, event) in events {
+        match event {
+          WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
+            return 1;
+          }
+          WindowEvent::Key(Key::P, _, Action::Press, m)
+            if m == Modifiers::Control | Modifiers::Shift =>
+          {
+            return 2;
+          }
+
+          WindowEvent::Size(w, h) => {
+            self.painter.resize(w as u16, h as u16);
+            self.ring.for_each(|mut w| w.request_plot());
+            gl::Viewport(0, 0, w, h);
+          }
+
+          WindowEvent::CursorPos(x, y) => {
+            self.cursor = Point::new(x as u16, y as u16);
+          }
+
+          WindowEvent::MouseButton(
+            MouseButton::Button1,
+            Action::Press,
+            _mods,
+          ) => {
+            self.ring.catch_click(self.cursor);
+          }
+          _ => {
+            println!("{:?}", event);
+          }
+        }
+      }
+
+      gl::Clear(gl::COLOR_BUFFER_BIT);
+
+      self.draw();
+      crate::render::painter::pop_gl_error();
+      self.swap_buffers();
     }
   }
 
@@ -94,11 +149,5 @@ impl VoidWindow {
 
   pub fn events(&self) -> &std::sync::mpsc::Receiver<(f64, glfw::WindowEvent)> {
     &self.events
-  }
-
-  pub unsafe fn on_resize(&mut self, w: i32, h: i32) {
-    self.painter.resize(w as u16, h as u16);
-    self.ring.for_each(|mut w| w.request_plot());
-    gl::Viewport(0, 0, w, h);
   }
 }

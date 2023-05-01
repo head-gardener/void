@@ -1,7 +1,5 @@
 use std::ffi::{c_char, CStr};
 
-use glfw::{Action, Key, Modifiers, WindowEvent};
-
 use crate::window::*;
 
 #[no_mangle]
@@ -10,43 +8,8 @@ pub extern "C" fn void_gui_init() -> Box<VoidWindow> {
 }
 
 #[no_mangle]
-pub extern "C" fn void_gui_exec(win: &mut VoidWindow) -> u64 {
-  let win_cpy = win as *mut VoidWindow;
-
-  loop {
-    if win.should_close() {
-      return 1;
-    }
-
-    win.poll_events();
-    for (_, event) in glfw::flush_messages(&win.events()) {
-      println!("{:?}", event);
-      match event {
-        WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
-          return 1;
-        }
-        WindowEvent::Key(Key::P, _, Action::Press, m)
-          if m == Modifiers::Control | Modifiers::Shift =>
-        {
-          return 2;
-        }
-
-        WindowEvent::Size(w, h) => {
-          unsafe { win_cpy.as_mut().unwrap().on_resize(w, h) };
-        }
-        _ => {}
-      }
-    }
-
-    unsafe {
-      gl::Clear(gl::COLOR_BUFFER_BIT);
-    }
-
-    crate::render::painter::pop_gl_error();
-    win.draw();
-    crate::render::painter::pop_gl_error();
-    win.swap_buffers();
-  }
+pub unsafe extern "C" fn void_gui_exec(win: &mut VoidWindow) -> u64 {
+  win.on_exec()
 }
 
 #[no_mangle]

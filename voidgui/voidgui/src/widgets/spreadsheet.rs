@@ -111,4 +111,8 @@ impl Clickable for Spreadsheet {
   }
 }
 
-impl ClickableWidget for Spreadsheet {}
+impl ClickableWidget for Spreadsheet {
+  fn onclick(&self, p: Point) {
+    println!("clickY!")
+  }
+}

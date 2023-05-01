@@ -22,6 +22,11 @@ pub enum CellColor {
   Lighter,
 }
 
+pub enum Orientation {
+  Vertical,
+  Horizontal,
+}
+
 impl Into<Color> for CellColor {
   fn into(self) -> Color {
     match self {
@@ -44,12 +49,30 @@ pub struct TextTable {
 
   texture_sizes: Vec<Size>,
   cell_sizes: Vec<Size>,
+  cells: Option<Vec<Area>>,
   constr: Size,
 
   origin: Option<Point>,
 }
 
 impl TextTable {
+  /// Generate a text table of static layout.
+  pub unsafe fn make_static(
+    painter: &Painter,
+    or: Orientation,
+    items: &[&str],
+  ) -> Result<Self, WidgetError> {
+    let (r, c) = match or {
+      Orientation::Vertical => (1, items.len()),
+      Orientation::Horizontal => (items.len(), 1),
+    };
+
+    let mut table = TextTable::from_text(painter, r, c, &items)?;
+    table.commit();
+
+    Ok(table)
+  }
+
   pub unsafe fn new(rows: usize, columns: usize) -> Self {
     if rows != 0 && columns != 0 {
       panic!(
@@ -69,21 +92,25 @@ impl TextTable {
       cell_sizes: vec![],
       constr: Size::new(0, 0),
       origin: None,
+      cells: None,
       plotted: false,
     }
   }
 
-  pub unsafe fn from_text(
+  pub unsafe fn from_text<R>(
     painter: &Painter,
     rows: usize,
     columns: usize,
-    text: &[Box<String>],
-  ) -> Result<Self, WidgetError> {
+    text: &[R],
+  ) -> Result<Self, WidgetError>
+  where
+    R: AsRef<str>,
+  {
     let textures = text
       .iter()
       .map(|s| {
         let mut t = Texture::new();
-        t.bind_text(painter, s)?;
+        t.bind_text(painter, s.as_ref())?;
         Ok(t)
       })
       .collect::<Result<Vec<Texture>, String>>()
@@ -96,11 +123,7 @@ impl TextTable {
 
     let padded = sizes
       .iter()
-      .map(|t| {
-        let mut x = t.to_owned();
-        x.expand(10, 10);
-        x
-      })
+      .map(|t| t.expand(10, 10))
       .collect::<Vec<Size>>();
 
     let layout = Layout::from_sizes(rows, columns, padded.as_slice());
@@ -120,6 +143,7 @@ impl TextTable {
       constr: layout.size(),
       layout: Some(layout),
       origin: None,
+      cells: None,
       plotted: false,
     })
   }
@@ -138,10 +162,9 @@ impl TextTable {
         let mut t = Texture::new();
         t.bind_text(painter, s)?;
 
-        let mut size = t.size().to_owned();
+        let size = t.size();
         self.texture_sizes.push(size.clone());
-        size.expand(10, 10);
-        self.cell_sizes.push(size);
+        self.cell_sizes.push(size.expand(10, 10));
 
         self.textures.push(t);
         self.bg.push(Rectangle::new(color.into()));
@@ -150,6 +173,7 @@ impl TextTable {
       .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
 
     self.layout = None;
+    self.cells = None;
     self.rows += 1;
 
     Ok(())
@@ -163,6 +187,7 @@ impl TextTable {
     ));
 
     self.plotted = false;
+    self.cells = None;
   }
 
   pub fn truncate(&mut self, len: usize) {
@@ -172,13 +197,11 @@ impl TextTable {
     self.cell_sizes.truncate(len);
 
     self.layout = None;
+    self.cells = None;
     self.rows = len / self.columns;
   }
 
-  pub unsafe fn plot(
-    &mut self,
-    painter: &Painter,
-  ) -> Result<(), WidgetError> {
+  pub unsafe fn plot(&mut self, painter: &Painter) -> Result<(), WidgetError> {
     let origin = self
       .origin
       .ok_or(WidgetError::Uninitialized("origin".to_owned()))?;
@@ -226,6 +249,7 @@ impl TextTable {
       .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
 
     self.plotted = true;
+    self.cells = Some(layout);
     Ok(())
   }
 
@@ -254,6 +278,18 @@ impl TextTable {
     }
   }
 
+  pub fn catch_point(&self, p: &Point) -> Option<usize> {
+    let cells = self.cells.as_ref()?;
+
+    for (i, c) in cells.iter().enumerate() {
+      if p.contained(c) {
+        return Some(i)
+      }
+    }
+
+    return None;
+  }
+
   pub fn set_origin(&mut self, origin: Point) {
     if self.origin.map_or(false, |p| p == origin) {
       return;
@@ -261,6 +297,7 @@ impl TextTable {
 
     self.origin = Some(origin);
     self.plotted = false;
+    self.cells = None;
   }
 
   pub fn plotted(&self) -> bool {
@@ -269,6 +306,7 @@ impl TextTable {
 
   pub fn request_plot(&mut self) {
     self.plotted = false;
+    self.cells = None;
   }
 
   pub fn constr(&self) -> Size {
@@ -280,3 +318,13 @@ impl TextTable {
     self.origin.map(|o| Area::from_prim(o.clone(), s))
   }
 }
+
+// #[cfg(test)]
+// mod test {
+//   use super::*;
+
+//   #[test]
+//   fn state_changes() {
+//     let mut t = unsafe { TextTable::new(0, 3) };
+//   }
+// }
