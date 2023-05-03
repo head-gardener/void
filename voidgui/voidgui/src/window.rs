@@ -3,7 +3,7 @@ use glfw::{Action, Context, Key, Modifiers, MouseButton, WindowEvent};
 use crate::{
   logic::Ring,
   render::{painter::Painter, Point},
-  widgets::{toolbar::Toolbar, Spreadsheet},
+  widgets::{toolbar::Toolbar, Spreadsheet, Window},
 };
 
 pub struct VoidWindow {
@@ -43,10 +43,12 @@ impl VoidWindow {
 
     let painter = Painter::new(w, h);
 
+    let win = Window::new(&painter);
     let ssheet = Spreadsheet::new(&painter).unwrap();
     let toolbar = Toolbar::new(&painter).unwrap();
 
     let mut ring = Ring::new();
+    win.push_to_ring(&mut ring);
     ssheet.push_to_ring(&mut ring);
     toolbar.push_to_ring(&mut ring);
 
@@ -94,7 +96,7 @@ impl VoidWindow {
             Action::Press,
             _mods,
           ) => {
-            self.ring.catch_click(self.cursor);
+            self.ring.catch_click(&self.painter, self.cursor);
           }
           _ => {
             println!("{:?}", event);
@@ -116,7 +118,7 @@ impl VoidWindow {
   {
     f(self
       .ring
-      .pull(crate::logic::ring::Mark::Spreadsheet)
+      .pull(&crate::logic::ring::Mark::Spreadsheet)
       .expect("Spreadsheet should always be on the ring")
       .borrow_mut()
       .downcast_mut()
@@ -145,9 +147,5 @@ impl VoidWindow {
 
   pub fn poll_events(&mut self) {
     self.glfw.poll_events()
-  }
-
-  pub fn events(&self) -> &std::sync::mpsc::Receiver<(f64, glfw::WindowEvent)> {
-    &self.events
   }
 }

@@ -1,4 +1,4 @@
-use crate::render::{Size, Point, Area};
+use crate::render::{Area, Point, Size};
 
 /// Given a bunch of sizes this structure conatins information necessary for
 /// putting them in a grid. This is achieved in two stages:
@@ -21,7 +21,7 @@ pub struct Layout {
 impl Layout {
   /// Generate an unplotted layout from sizes.
   pub fn from_sizes(r: usize, c: usize, sizes: &[Size]) -> Self {
-    assert_eq!(sizes.len(), r*c);
+    assert_eq!(sizes.len(), r * c);
 
     let rows: Vec<u16> = sizes
       .chunks(c)
@@ -30,8 +30,8 @@ impl Layout {
     let columns: Vec<u16> = (0..c)
       .map(|rem| {
         let (_, xs) = sizes.split_at(rem);
-        xs.chunks(r)
-          .map(|c| c.first().map_or(0, |s| s.width))
+        xs.chunks(c)
+          .map(|c| c.first().unwrap().width)
           .max()
           .unwrap_or(0)
       })
@@ -101,8 +101,63 @@ impl Layout {
   pub fn size(&self) -> Size {
     self.size
   }
+}
 
-  pub fn layout(&self) -> &[Size] {
-    self.layout.as_ref()
+#[cfg(test)]
+mod test {
+  use super::*;
+
+  #[test]
+  fn horizontal_menu() {
+    let a = vec![Size::new(100, 40), Size::new(200, 30), Size::new(50, 50)];
+    let b = vec![
+      Area::new(0, 0, 100, 50),
+      Area::new(100, 0, 200, 50),
+      Area::new(300, 0, 50, 50),
+    ];
+
+    let l = Layout::from_sizes(1, 3, a.as_slice());
+    assert_eq!(l.plot(&Point::new(0, 0)), b);
+  }
+
+  #[test]
+  fn vertical_menu() {
+    let a = vec![Size::new(100, 40), Size::new(200, 30), Size::new(50, 50)];
+    let b = vec![
+      Area::new(0, 0, 200, 40),
+      Area::new(0, 40, 200, 30),
+      Area::new(0, 70, 200, 50),
+    ];
+
+    let l = Layout::from_sizes(3, 1, a.as_slice());
+    assert_eq!(l.plot(&Point::new(0, 0)), b);
+  }
+
+  #[test]
+  fn square_menu() {
+    let a = vec![
+      Size::new(100, 40),
+      Size::new(200, 30),
+      Size::new(50, 50),
+      Size::new(150, 60),
+    ];
+    let b = vec![
+      Area::new(0, 0, 100, 40),
+      Area::new(100, 0, 200, 40),
+      Area::new(0, 40, 100, 60),
+      Area::new(100, 40, 200, 60),
+    ];
+
+    let l = Layout::from_sizes(2, 2, a.as_slice());
+    assert_eq!(l.plot(&Point::new(0, 0)), b);
+  }
+
+  #[test]
+  fn offset() {
+    let a = vec![Size::new(100, 40), Size::new(200, 30)];
+    let b = vec![Area::new(100, 50, 100, 40), Area::new(200, 50, 200, 40)];
+
+    let l = Layout::from_sizes(1, 2, a.as_slice());
+    assert_eq!(l.plot(&Point::new(100, 50)), b);
   }
 }

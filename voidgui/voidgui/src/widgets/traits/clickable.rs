@@ -1,22 +1,21 @@
-use crate::render::{Area, Point};
+use crate::render::{Area, Point, painter::Painter};
 
-use super::Widget;
+use super::CallbackResult;
 
 pub trait Clickable {
   fn click_area(&self) -> Option<Area>;
 }
 
-pub trait ClickableWidget: Widget + Clickable {
-  fn onclick(&self, p: Point);
+pub trait ClickSink: Clickable {
+  fn onclick(&self, painter: &Painter, p: Point) -> CallbackResult;
 
-  fn handle_click(&self, p: Point) -> bool {
-    self.click_area().map_or(false, |a| {
+  fn handle_click(&self, painter: &Painter, p: Point) -> CallbackResult {
+    self.click_area().map_or(CallbackResult::Skip, |a| {
       if p.contained(&a) {
-        self.onclick(p);
-        return true;
+        self.onclick(painter, p)
+      } else {
+        CallbackResult::Skip
       }
-
-      return false;
     })
   }
 }

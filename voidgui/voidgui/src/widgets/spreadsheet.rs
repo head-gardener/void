@@ -1,8 +1,10 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::render::{painter::Painter, Point, TextTable};
+use crate::render::{painter::Painter, Point, TextTable, Origin};
 
-use super::traits::{widget::WidgetError, Clickable, ClickableWidget, Widget};
+use super::traits::{
+  widget::WidgetError, CallbackResult, Clickable, ClickSink, Widget,
+};
 
 pub struct Spreadsheet {
   table: TextTable,
@@ -21,7 +23,6 @@ impl Spreadsheet {
       crate::render::text_table::CellColor::Darker,
     )?;
 
-    table.set_origin(Point::new(30, 30));
     table.commit();
     Ok(Self {
       table,
@@ -79,7 +80,12 @@ impl Spreadsheet {
   pub fn push_to_ring(self, ring: &mut crate::logic::Ring) {
     let rc = Rc::new(RefCell::new(self));
     ring.push_clickable(rc.clone(), crate::logic::ring::Mark::Spreadsheet);
-    ring.push(rc, crate::logic::ring::Mark::Spreadsheet);
+    ring.push(
+      rc,
+      crate::logic::ring::Mark::Spreadsheet,
+      crate::logic::ring::Mark::Window,
+      0,
+    );
   }
 }
 
@@ -96,7 +102,7 @@ impl Widget for Spreadsheet {
     self.table.plotted()
   }
 
-  fn set_origin(&mut self, origin: &Point) {
+  fn set_origin(&mut self, origin: &Origin) {
     self.table.set_origin(origin.clone());
   }
 
@@ -111,8 +117,22 @@ impl Clickable for Spreadsheet {
   }
 }
 
-impl ClickableWidget for Spreadsheet {
-  fn onclick(&self, p: Point) {
-    println!("clickY!")
+impl ClickSink for Spreadsheet {
+  fn onclick(&self, painter: &Painter, p: Point) -> CallbackResult {
+    let i = self.table.catch_point(&p).unwrap();
+    match i {
+      0 => {
+        println!("name");
+        CallbackResult::Skip
+      }
+      1 => {
+        println!("phone");
+        CallbackResult::Skip
+      }
+      _ => {
+        println!("{}", self.records.get(i - 2).unwrap());
+        CallbackResult::Skip
+      }
+    }
   }
 }

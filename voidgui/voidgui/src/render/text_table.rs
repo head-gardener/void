@@ -8,7 +8,7 @@ use crate::{
   widgets::traits::widget::WidgetError,
 };
 
-use super::{Area, Color, Point};
+use super::{Area, Color, Origin, Point};
 
 static BG_COLOR_NORM: Color = (0.7, 0.7, 0.75, 1.0);
 static BG_COLOR_DARK: Color = (0.6, 0.6, 0.7, 1.0);
@@ -52,7 +52,7 @@ pub struct TextTable {
   cells: Option<Vec<Area>>,
   constr: Size,
 
-  origin: Option<Point>,
+  origin: Option<Origin>,
 }
 
 impl TextTable {
@@ -63,8 +63,8 @@ impl TextTable {
     items: &[&str],
   ) -> Result<Self, WidgetError> {
     let (r, c) = match or {
-      Orientation::Vertical => (1, items.len()),
-      Orientation::Horizontal => (items.len(), 1),
+      Orientation::Vertical => (items.len(), 1),
+      Orientation::Horizontal => (1, items.len()),
     };
 
     let mut table = TextTable::from_text(painter, r, c, &items)?;
@@ -202,13 +202,14 @@ impl TextTable {
   }
 
   pub unsafe fn plot(&mut self, painter: &Painter) -> Result<(), WidgetError> {
-    let origin = self
-      .origin
-      .ok_or(WidgetError::Uninitialized("origin".to_owned()))?;
     let layout: &Layout =
       self.layout.as_ref().ok_or(WidgetError::Unspecified(
         "Plottig a text table with outdated layout".to_owned(),
       ))?;
+    let origin = self
+      .origin
+      .ok_or(WidgetError::Uninitialized("origin"))?
+      .to_point(&layout.size());
 
     self
       .grid
@@ -255,7 +256,7 @@ impl TextTable {
 
   pub fn draw(&self, painter: &Painter) -> Result<(), WidgetError> {
     if !self.plotted {
-      return Err(WidgetError::Unplotted("spreadsheet".to_owned()));
+      return Err(WidgetError::Unplotted("spreadsheet"));
     }
 
     unsafe {
@@ -279,18 +280,10 @@ impl TextTable {
   }
 
   pub fn catch_point(&self, p: &Point) -> Option<usize> {
-    let cells = self.cells.as_ref()?;
-
-    for (i, c) in cells.iter().enumerate() {
-      if p.contained(c) {
-        return Some(i)
-      }
-    }
-
-    return None;
+    self.cells.as_ref()?.iter().position(|c| p.contained(c))
   }
 
-  pub fn set_origin(&mut self, origin: Point) {
+  pub fn set_origin(&mut self, origin: Origin) {
     if self.origin.map_or(false, |p| p == origin) {
       return;
     }
@@ -315,7 +308,11 @@ impl TextTable {
 
   pub fn area(&self) -> Option<Area> {
     let s = (&self.layout).as_ref().map(|s| s.size().clone())?;
-    self.origin.map(|o| Area::from_prim(o.clone(), s))
+    self.origin.map(|o| Area::from_prim(o.to_point(&s), s))
+  }
+
+  pub fn cells(&self) -> Option<&Vec<Area>> {
+    self.cells.as_ref()
   }
 }
 

@@ -1,6 +1,46 @@
 pub type Color = (f32, f32, f32, f32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OriginPole {
+  TopLeft,
+  TopRight,
+  BottomLeft,
+  BottomRight,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Origin {
+  pub x: u16,
+  pub y: u16,
+  pub pole: OriginPole,
+}
+
+impl Origin {
+  pub fn new(x: u16, y: u16, pole: OriginPole) -> Self {
+    Self { x, y, pole }
+  }
+
+  pub fn from_point(p: Point, pole: OriginPole) -> Self {
+    Self {
+      x: p.x,
+      y: p.y,
+      pole,
+    }
+  }
+
+  pub fn to_point(&self, a: &Size) -> Point {
+    match self.pole {
+      OriginPole::TopLeft => Point::new(self.x, self.y),
+      OriginPole::TopRight => Point::new(self.x - a.width, self.y),
+      OriginPole::BottomLeft => Point::new(self.x, self.y - a.height),
+      OriginPole::BottomRight => {
+        Point::new(self.x - a.width, self.y - a.height)
+      }
+    }
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Point {
   pub x: u16,
   pub y: u16,
@@ -112,5 +152,21 @@ mod test {
     let s = Size::new(100, 60);
     assert_eq!(Area::from_prim(p, s), a);
     assert_eq!(a.to_prim(), (p, s));
+  }
+
+  #[test]
+  fn origin() {
+    let s = Size::new(100, 60);
+    let p = Point::new(200, 100);
+
+    let tl = Origin::from_point(p, OriginPole::TopLeft);
+    let tr = Origin::from_point(p, OriginPole::TopRight);
+    let bl = Origin::from_point(p, OriginPole::BottomLeft);
+    let br = Origin::from_point(p, OriginPole::BottomRight);
+
+    assert_eq!(tl.to_point(&s), Point::new(200, 100));
+    assert_eq!(tr.to_point(&s), Point::new(100, 100));
+    assert_eq!(bl.to_point(&s), Point::new(200, 40));
+    assert_eq!(br.to_point(&s), Point::new(100, 40));
   }
 }

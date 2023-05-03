@@ -5,25 +5,29 @@ use std::{
 
 use crate::{
   render::{painter::Painter, Point},
-  widgets::traits::{ClickableWidget, Widget, WidgetError},
+  widgets::traits::{CallbackResult, ClickSink, Parent, Widget, WidgetError},
 };
 
 #[derive(PartialEq, Eq)]
 pub enum Mark {
   #[cfg(test)]
   Test,
+  None,
+  Window,
   Spreadsheet,
   Toolbar,
+  ToolbarDropdown,
 }
 
 pub trait RingMember {
-  fn push_to_ring(self, ring: &mut Ring);
+  fn push_to_ring(&self, ring: &mut Ring);
 }
 
 // TODO: add pull cache?
 pub struct Ring {
-  widgets: Vec<(Rc<RefCell<dyn Widget>>, Mark)>,
-  clickable: Vec<(Rc<RefCell<dyn ClickableWidget>>, Mark)>,
+  widgets: Vec<(Rc<RefCell<dyn Widget>>, Mark, Mark, usize)>,
+  clickable: Vec<(Rc<RefCell<dyn ClickSink>>, Mark)>,
+  parents: Vec<(Rc<RefCell<dyn Parent>>, Mark)>,
 }
 
 impl Ring {
@@ -31,48 +35,77 @@ impl Ring {
     Self {
       widgets: vec![],
       clickable: vec![],
+      parents: vec![],
     }
   }
 
-  pub fn push(&mut self, w: Rc<RefCell<dyn Widget>>, m: Mark) {
-    self.widgets.push((w, m));
+  pub fn push(
+    &mut self,
+    w: Rc<RefCell<dyn Widget>>,
+    m: Mark,
+    parent: Mark,
+    n: usize,
+  ) {
+    assert!(m != parent);
+    self.widgets.push((w, m, parent, n));
   }
 
-  pub fn push_clickable(
-    &mut self,
-    w: Rc<RefCell<dyn ClickableWidget>>,
-    m: Mark,
-  ) {
+  pub fn push_clickable(&mut self, w: Rc<RefCell<dyn ClickSink>>, m: Mark) {
     self.clickable.push((w, m));
   }
 
-  pub fn pull(&mut self, mark: Mark) -> Option<Rc<RefCell<dyn Widget>>> {
+  pub fn push_parent(&mut self, w: Rc<RefCell<dyn Parent>>, m: Mark) {
+    self.parents.push((w, m));
+  }
+
+  pub fn pull(&self, mark: &Mark) -> Option<Rc<RefCell<dyn Widget>>> {
     self
       .widgets
       .iter()
-      .position(|(_, m)| *m == mark)
-      .map(|i| self.widgets.get_mut(i).unwrap().0.clone())
+      .position(|(_, m, _, _)| *m == *mark)
+      .map(|i| self.widgets.get(i).unwrap().0.clone())
+  }
+
+  pub fn pull_parent(&self, mark: &Mark) -> Option<Rc<RefCell<dyn Parent>>> {
+    self
+      .parents
+      .iter()
+      .position(|(_, m)| *m == *mark)
+      .map(|i| self.parents.get(i).unwrap().0.clone())
   }
 
   pub fn for_each<F>(&mut self, mut f: F)
   where
     F: FnMut(RefMut<dyn Widget>) -> (),
   {
-    for (w, _) in self.widgets.iter_mut() {
+    for (w, _, _, _) in self.widgets.iter_mut() {
       f(w.borrow_mut());
     }
   }
 
   pub fn delete(&mut self, m: Mark) -> bool {
     let len = self.widgets.len();
-    self.widgets.retain(|(_, _m)| *_m != m);
+    self.widgets.retain(|(_, _m, _, _)| *_m != m);
+    self.clickable.retain(|(_, _m)| *_m != m);
     len != self.widgets.len()
   }
 
   pub fn draw(&mut self, painter: &Painter) -> Vec<WidgetError> {
-    let p = self.widgets.iter_mut().try_for_each(|(w, _)| {
+    let p = self.widgets.iter().try_for_each(|(w, _, p, n)| {
       let mut w = w.borrow_mut();
       if !w.plotted() {
+        if *p != Mark::None {
+          let o = self
+            .pull_parent(p)
+            .ok_or(WidgetError::Unspecified("Invalid parent mark".to_owned()))?
+            .borrow()
+            .nth_child(*n)
+            .ok_or(WidgetError::Unspecified(format!(
+              "Child out of bounds: {}",
+              n
+            )))?;
+          w.set_origin(&o);
+        }
         unsafe { w.plot(painter) }
       } else {
         Ok(())
@@ -85,7 +118,7 @@ impl Ring {
     self
       .widgets
       .iter()
-      .map(|(w, _)| {
+      .map(|(w, _, _, _)| {
         let w = w.borrow_mut();
         w.draw(painter)
       })
@@ -93,11 +126,30 @@ impl Ring {
       .collect()
   }
 
-    pub fn catch_click(&mut self, p: Point) {
-      self.clickable.iter().for_each(|(w, _)| {
-        w.borrow().handle_click(p);
-      })
+  pub fn catch_click(&mut self, painter: &Painter, p: Point) {
+    let mut r = CallbackResult::Skip;
+
+    for (w, _) in self.clickable.iter() {
+      match w.borrow().handle_click(painter, p) {
+        CallbackResult::Skip => continue,
+        res => {
+          r = res;
+          break;
+        }
+      }
     }
+
+    match r {
+      CallbackResult::Skip => {}
+      CallbackResult::None => {}
+
+      CallbackResult::Error(e) => {
+        println!("Callback failed: {}", e);
+      }
+      CallbackResult::Push(x) => x.push_to_ring(self),
+      CallbackResult::Modify(_, _) => todo!(),
+    }
+  }
 }
 
 #[cfg(test)]
@@ -128,7 +180,12 @@ mod tests {
 
     pub fn push_to_ring(self, ring: &mut crate::logic::Ring) {
       let rc = Rc::new(RefCell::new(self));
-      ring.push(rc, crate::logic::ring::Mark::Test);
+      ring.push(
+        rc,
+        crate::logic::ring::Mark::Test,
+        crate::logic::ring::Mark::None,
+        0,
+      );
     }
   }
 
@@ -153,7 +210,7 @@ mod tests {
       self.plotted
     }
 
-    fn set_origin(&mut self, _: &crate::render::Point) {
+    fn set_origin(&mut self, _: &crate::render::Origin) {
       todo!()
     }
 
