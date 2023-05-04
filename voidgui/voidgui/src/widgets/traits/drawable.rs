@@ -4,6 +4,7 @@ use crate::render::painter::Painter;
 
 use super::{Widget, WidgetError};
 
+/// `Drawable` is an object, capable of being drawn.
 pub trait Drawable: Widget + Downcast {
   /// Map widget's layout to normalized coordinates according to origin.
   /// Must be called before drawing.

@@ -10,9 +10,10 @@ use syn::DeriveInput;
 pub fn derive_menu(input: TokenStream) -> TokenStream {
   let input = parse_macro_input!(input as DeriveInput);
   let name = input.ident;
+  let gen = input.generics;
 
   let expanded = quote! {
-    impl Widget for #name {
+    impl #gen Widget for #name #gen {
       fn plotted(&self) -> bool {
         self.table.plotted()
       }

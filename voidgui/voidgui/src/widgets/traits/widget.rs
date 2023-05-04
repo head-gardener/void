@@ -1,7 +1,11 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{
   logic::ring::{Mark, RingMember},
-  render::Origin,
+  render::{Origin, painter::Painter},
 };
+
+use super::Drawable;
 
 pub enum CallbackResult {
   /// Event was dropped.
@@ -13,7 +17,17 @@ pub enum CallbackResult {
   /// Push a widget to the ring.
   Push(Box<dyn RingMember>),
   /// Modify a widget by mark.
-  Modify(Mark, fn(&mut dyn Widget)),
+  Modify(Mark, Box<dyn FnOnce(Option<Rc<RefCell<dyn Drawable>>>, &Painter)>),
+}
+
+impl CallbackResult {
+  /// Returns `true` if the callback result is [`Skip`].
+  ///
+  /// [`Skip`]: CallbackResult::Skip
+  #[must_use]
+  pub fn is_skip(&self) -> bool {
+    matches!(self, Self::Skip)
+  }
 }
 
 #[derive(Debug, PartialEq, Eq)]

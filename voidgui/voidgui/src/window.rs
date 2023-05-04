@@ -73,6 +73,10 @@ impl VoidWindow {
       self.poll_events();
       let events = glfw::flush_messages(&self.events);
       for (_, event) in events {
+        if self.ring.handle_transient_control_event(&self.painter, &event) {
+          continue;
+        }
+
         match event {
           // Hotkeys
           WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
@@ -166,6 +170,16 @@ impl VoidWindow {
             self
               .ring
               .catch_input_event(&self.painter, InputEvent::End);
+          }
+          WindowEvent::Key(
+            Key::Enter,
+            _,
+            Action::Press | Action::Repeat,
+            Modifiers::Control,
+          ) => {
+            self
+              .ring
+              .catch_input_event(&self.painter, InputEvent::Newline);
           }
 
           _ => {

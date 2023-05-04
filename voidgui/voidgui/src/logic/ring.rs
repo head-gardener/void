@@ -3,10 +3,13 @@ use std::{
   rc::Rc,
 };
 
+use glfw::{Action, Key, Modifiers, WindowEvent};
+
 use crate::{
   render::{painter::Painter, Point},
   widgets::traits::{
-    CallbackResult, ClickSink, InputSink, Parent, Widget, WidgetError, InputEvent, Drawable,
+    CallbackResult, ClickSink, Drawable, InputEvent, InputSink, Parent,
+    Transient, WidgetError,
   },
 };
 
@@ -34,6 +37,7 @@ pub struct Ring {
   parents: Vec<(Wrap<dyn Parent>, Mark)>,
   click_sinks: Vec<(Wrap<dyn ClickSink>, Mark)>,
   input_sinks: Vec<(Wrap<dyn InputSink>, Mark)>,
+  transient: Option<(Wrap<dyn Transient>, Mark)>,
 }
 
 impl Ring {
@@ -43,10 +47,17 @@ impl Ring {
       click_sinks: vec![],
       parents: vec![],
       input_sinks: vec![],
+      transient: None,
     }
   }
 
-  pub fn push(&mut self, w: Wrap<dyn Drawable>, m: Mark, parent: Mark, n: usize) {
+  pub fn push(
+    &mut self,
+    w: Wrap<dyn Drawable>,
+    m: Mark,
+    parent: Mark,
+    n: usize,
+  ) {
     assert!(m != parent);
     self.widgets.push((w, m, parent, n));
   }
@@ -61,6 +72,10 @@ impl Ring {
 
   pub fn push_input_sink(&mut self, w: Wrap<dyn InputSink>, m: Mark) {
     self.input_sinks.push((w, m));
+  }
+
+  pub fn replace_transient(&mut self, w: Wrap<dyn Transient>, m: Mark) {
+    self.transient = Some((w, m));
   }
 
   pub fn pull(&self, mark: &Mark) -> Option<Wrap<dyn Drawable>> {
@@ -95,6 +110,11 @@ impl Ring {
     self.parents.retain(|(_, _m)| *_m != m);
     self.click_sinks.retain(|(_, _m)| *_m != m);
     self.input_sinks.retain(|(_, _m)| *_m != m);
+    if let Some((_, _m)) = &self.transient {
+      if *_m == m {
+        self.transient = None;
+      }
+    }
 
     len != self.widgets.len()
   }
@@ -140,27 +160,48 @@ impl Ring {
   /// handles it.
   pub fn catch_click(&mut self, painter: &Painter, p: Point) {
     let mut r = CallbackResult::Skip;
+    let mut m = Mark::None;
 
-    for (w, _) in self.click_sinks.iter().rev() {
+    for (w, _m) in self.click_sinks.iter().rev() {
       match w.borrow().handle_click(painter, p) {
         CallbackResult::Skip => continue,
         res => {
           r = res;
+          m = *_m;
           break;
         }
       }
     }
 
-    match r {
-      CallbackResult::Skip => {}
-      CallbackResult::None => {}
+    self.hanle_callback_result(painter, r, "Click", m);
+  }
 
+  /// Act on callback result.
+  /// Returns `false` if `r` is [CallbackResult::Skip], `true otherwise`.
+  /// `what` and `who` are used to describe callback in case of error:
+  /// `what` describes the type of callback, `who` - marked object, sourcing
+  /// the callback.
+  fn hanle_callback_result(
+    &mut self,
+    p: &Painter,
+    r: CallbackResult,
+    what: &str,
+    who: Mark,
+  ) -> bool {
+    if r.is_skip() {
+      return false;
+    }
+
+    match r {
       CallbackResult::Error(e) => {
-        println!("Click callback failed: {}", e);
+        println!("{} callback for {:?} failed: {}", what, who, e);
       }
       CallbackResult::Push(x) => x.push_to_ring(self),
-      CallbackResult::Modify(_, _) => todo!(),
+      CallbackResult::Modify(m, f) => f(self.pull(&m), p),
+
+      _ => {}
     }
+    return true;
   }
 
   /// Push char to last input sink.
@@ -174,6 +215,40 @@ impl Ring {
       }
     });
   }
+
+  /// Checks event for being a control event: `cancel` (Esc, click off, etc.)
+  /// or `accept` (Enter, "ok" button, etc.) and passes it to last transient
+  /// if it is.
+  /// Returns `true` if event was consumed, `false` otherwise.
+  pub fn handle_transient_control_event(
+    &mut self,
+    p: &Painter,
+    e: &WindowEvent,
+  ) -> bool {
+    if !self.transient.is_some() {
+      return false;
+    }
+    let (t, m) = self.transient.as_ref().unwrap();
+    let m = m.clone();
+
+    match e {
+      WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
+        let r = t.borrow().handle_cancel(p);
+        self.delete(m);
+        self.hanle_callback_result(p, r, "Cancel", m);
+        true
+      }
+      WindowEvent::Key(Key::Enter | Key::KpEnter, _, Action::Press, mods)
+        if !mods.contains(Modifiers::Control) =>
+      {
+        let r = t.borrow().handle_accept(p);
+        self.delete(m);
+        self.hanle_callback_result(p, r, "Accept", m);
+        true
+      }
+      _ => false,
+    }
+  }
 }
 
 #[cfg(test)]
@@ -182,7 +257,7 @@ mod tests {
 
   use crate::{
     render::painter::Painter,
-    widgets::traits::{widget::WidgetError, Widget, Drawable},
+    widgets::traits::{widget::WidgetError, Drawable, Widget},
   };
 
   use super::Ring;

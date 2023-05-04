@@ -1,6 +1,6 @@
 use crate::{
   colorscheme::CURSOR_COLOR,
-  logic::ring::{Mark, RingMember},
+  logic::ring::Mark,
   render::{
     painter::Painter,
     shapes::{texture::get_text_size, Rectangle},
@@ -18,14 +18,19 @@ use super::traits::{
 use voidmacro::Menu;
 
 #[derive(Menu)]
-pub struct InputField {
+pub struct InputField<T> {
   table: TextTable,
   cursor: Rectangle,
   state: State,
+  closure: T,
 }
 
-impl InputField {
-  pub unsafe fn new(painter: &Painter, s: &str) -> Result<Self, WidgetError> {
+impl<T> InputField<T> {
+  pub unsafe fn new(
+    painter: &Painter,
+    s: &str,
+    closure: T,
+  ) -> Result<Self, WidgetError> {
     let mut table =
       TextTable::make_static(painter, Orientation::Vertical, &[&s])?;
     table
@@ -35,27 +40,19 @@ impl InputField {
       table,
       cursor: Rectangle::new(CURSOR_COLOR),
       state: s.into(),
+      closure,
     })
   }
 
-  pub fn wrap(
-    self,
-    mark: Mark,
-    parent: Mark,
-    child_n: usize,
-  ) -> InputFieldWrapper {
-    InputFieldWrapper {
-      field: Rc::new(RefCell::new(self)),
-      mark,
-      parent,
-      child_n,
-    }
+  pub fn closure(&self) -> &T {
+    &self.closure
   }
 }
 
-impl InputSink for InputField {
+impl<T> InputSink for InputField<T> {
   fn handle_event(&mut self, p: &Painter, e: &InputEvent) -> CallbackResult {
     self.state.dispatch(e);
+    println!("self.state.to_string() = {:?}", self.state.to_string());
     match self.table.update_cell(p, 0, &self.state.to_string()) {
       Ok(()) => CallbackResult::None,
       Err(e) => CallbackResult::Error(e),
@@ -63,15 +60,26 @@ impl InputSink for InputField {
   }
 }
 
-impl Drawable for InputField {
+impl<T: 'static> Drawable for InputField<T> {
   unsafe fn plot(&mut self, painter: &Painter) -> Result<(), WidgetError> {
     self.table.plot(painter)?;
+
+    // FIXME: wtf is this shit
+    let d = self.state.to_string();
     let (o, s) = self.table.area().unwrap().to_prim();
-    let after = get_text_size(painter, &self.state.before_cursor())
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?
-      .width;
-    let a =
-      Area::new(o.x + OFFSET + after, o.y + OFFSET / 2, 2, s.height - OFFSET);
+    let after = get_text_size(
+      painter,
+      &self.state.before_cursor().lines().last().unwrap_or(""),
+    )
+    .map_err(|e| WidgetError::Unspecified(e.to_owned()))?
+    .width;
+    let l = s.height / d.lines().count() as u16;
+    let a = Area::new(
+      o.x + OFFSET + after,
+      o.y + OFFSET / 2 + s.height - l,
+      2,
+      l - OFFSET * 2,
+    );
     self
       .cursor
       .plot(painter, &a)
@@ -82,6 +90,12 @@ impl Drawable for InputField {
     self.table.draw(painter)?;
     unsafe { self.cursor.draw(painter) }
       .map_err(|e| WidgetError::Unspecified(e.to_owned()))
+  }
+}
+
+impl<T> ToString for InputField<T> {
+  fn to_string(&self) -> String {
+    self.state.to_string()
   }
 }
 
@@ -135,13 +149,19 @@ impl State {
       }
       InputEvent::Home => self.cursor = 0,
       InputEvent::End => self.cursor = self.data.len(),
+      InputEvent::Newline => {
+        self.data.insert(self.cursor, '\n');
+        self.cursor += 1;
+      }
     }
   }
 
   fn before_cursor(&self) -> String {
     self.data.iter().take(self.cursor).collect()
   }
+}
 
+impl ToString for State {
   fn to_string(&self) -> String {
     self.data.iter().collect()
   }
@@ -156,26 +176,12 @@ impl From<&str> for State {
   }
 }
 
-pub struct InputFieldWrapper {
-  field: Rc<RefCell<InputField>>,
-  mark: Mark,
-  parent: Mark,
-  child_n: usize,
-}
-
-impl RingMember for InputFieldWrapper {
-  fn push_to_ring(&self, ring: &mut crate::logic::Ring) {
-    ring.push_input_sink(self.field.clone(), self.mark);
-    ring.push(self.field.clone(), self.mark, self.parent, self.child_n);
-  }
-}
-
 #[cfg(test)]
 mod test_state {
   use super::*;
 
   #[test]
-  fn events_handling() {
+  fn movement() {
     let mut s: State = "123".into();
     assert_eq!(s, State::new("123", 3));
 
@@ -196,6 +202,12 @@ mod test_state {
     s.dispatch(&InputEvent::Right);
     s.dispatch(&InputEvent::Right);
     s.dispatch(&InputEvent::Right);
+    assert_eq!(s, State::new("123", 3));
+  }
+
+  #[test]
+  fn editing() {
+    let mut s: State = "123".into();
     assert_eq!(s, State::new("123", 3));
 
     s.dispatch(&InputEvent::Delete);
@@ -221,6 +233,11 @@ mod test_state {
     assert_eq!(s, State::new("2", 0));
     s.dispatch(&InputEvent::Backspace);
     assert_eq!(s, State::new("2", 0));
+
+    s.dispatch(&InputEvent::Char('1'));
+    assert_eq!(s, State::new("12", 1));
+    s.dispatch(&InputEvent::Newline);
+    assert_eq!(s, State::new("1\n2", 2));
   }
 
   #[test]
@@ -252,5 +269,14 @@ mod test_state {
   fn before_cursor() {
     let s = State::new("мама", 2);
     assert_eq!(s.before_cursor(), "ма")
+  }
+
+  #[test]
+  fn to_string() {
+    let mut s: State = "мама".into();
+
+    s.dispatch(&InputEvent::Newline);
+    s.dispatch(&InputEvent::Char('а'));
+    assert_eq!(s.to_string(), "мама\nа")
   }
 }
