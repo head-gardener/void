@@ -21,25 +21,24 @@ pub extern "C" fn void_gui_add(
   phone: *const c_char,
   w: &mut VoidWindow,
 ) -> u64 {
-  let p = w.painter() as *const crate::render::painter::Painter;
-  let na = unsafe { CStr::from_ptr(name) }.to_string_lossy();
-  let ph = unsafe { CStr::from_ptr(phone) }.to_string_lossy();
+  let n = unsafe { CStr::from_ptr(name) }.to_string_lossy();
+  let p = unsafe { CStr::from_ptr(phone) }.to_string_lossy();
+  let mut res = 1;
 
-  w.with_ssheet_mut(|ssheet| {
-    ssheet
-      .transaction(|s, push| {
-        push(s, unsafe { p.as_ref().unwrap() }, &na, &ph)?;
-        Ok(())
-      })
-      .unwrap()
+  w.with_ssheet_mut(|ssheet, painter| {
+    if let Err(e) = ssheet.push(painter, &n, &p) {
+      println!("Push failed: {}", e);
+      res = 2;
+      ssheet.drop();
+    }
   });
 
-  1
+  res
 }
 
 #[no_mangle]
 pub extern "C" fn void_gui_drop(w: &mut VoidWindow) -> u64 {
-  w.with_ssheet_mut(|s| s.drop());
+  w.with_ssheet_mut(|s, _| s.drop());
 
   1
 }

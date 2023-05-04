@@ -3,7 +3,7 @@ use glfw::{Action, Context, Key, Modifiers, MouseButton, WindowEvent};
 use crate::{
   logic::Ring,
   render::{painter::Painter, Point},
-  widgets::{toolbar::Toolbar, Spreadsheet, Window},
+  widgets::{toolbar::Toolbar, Spreadsheet, Window, traits::InputEvent},
 };
 
 pub struct VoidWindow {
@@ -72,6 +72,7 @@ impl VoidWindow {
       let events = glfw::flush_messages(&self.events);
       for (_, event) in events {
         match event {
+          // Hotkeys
           WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
             return 1;
           }
@@ -81,16 +82,17 @@ impl VoidWindow {
             return 2;
           }
 
+          // Resize
           WindowEvent::Size(w, h) => {
             self.painter.resize(w as u16, h as u16);
             self.ring.for_each(|mut w| w.request_plot());
             gl::Viewport(0, 0, w, h);
           }
 
+          // Mouse input
           WindowEvent::CursorPos(x, y) => {
             self.cursor = Point::new(x as u16, y as u16);
           }
-
           WindowEvent::MouseButton(
             MouseButton::Button1,
             Action::Press,
@@ -98,6 +100,39 @@ impl VoidWindow {
           ) => {
             self.ring.catch_click(&self.painter, self.cursor);
           }
+
+          // Text input
+          WindowEvent::Char(c) => {
+            self.ring.catch_input_event(
+              &self.painter,
+              InputEvent::Char(c),
+            );
+          }
+          WindowEvent::Key(Key::Left, _, Action::Press, _) => {
+            self.ring.catch_input_event(
+              &self.painter,
+              InputEvent::Left,
+            );
+          }
+          WindowEvent::Key(Key::Right, _, Action::Press, _) => {
+            self.ring.catch_input_event(
+              &self.painter,
+              InputEvent::Right,
+            );
+          }
+          WindowEvent::Key(Key::Backspace, _, Action::Press, _) => {
+            self.ring.catch_input_event(
+              &self.painter,
+              InputEvent::Backspace,
+            );
+          }
+          WindowEvent::Key(Key::Delete, _, Action::Press, _) => {
+            self.ring.catch_input_event(
+              &self.painter,
+              InputEvent::Delete,
+            );
+          }
+
           _ => {
             println!("{:?}", event);
           }
@@ -114,15 +149,18 @@ impl VoidWindow {
 
   pub fn with_ssheet_mut<F>(&mut self, f: F)
   where
-    F: Fn(&mut Spreadsheet),
+    F: FnOnce(&mut Spreadsheet, &Painter),
   {
-    f(self
-      .ring
-      .pull(&crate::logic::ring::Mark::Spreadsheet)
-      .expect("Spreadsheet should always be on the ring")
-      .borrow_mut()
-      .downcast_mut()
-      .expect("Only spreadsheet should be marked as spreadsheet in the ring"))
+    f(
+      self
+        .ring
+        .pull(&crate::logic::ring::Mark::Spreadsheet)
+        .expect("Spreadsheet should always be on the ring")
+        .borrow_mut()
+        .downcast_mut()
+        .expect("Only spreadsheet should be marked as spreadsheet in the ring"),
+      &self.painter,
+    )
   }
 
   pub fn draw(&mut self) {

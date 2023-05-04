@@ -61,32 +61,45 @@ impl Texture {
     painter: &Painter,
     text: &str,
   ) -> Result<(), String> {
-    let tmp_surface = pangocairo::cairo::Surface::from_raw_full(
-      cairo_image_surface_create(i32::from(ARgb32), 0, 0),
-    )
-    .map_err(|e| e.to_string())?;
-    let layout_context = pangocairo::cairo::Context::new(tmp_surface)
-      .map_err(|e| e.to_string())?;
+    // #[cfg(test)]
+    let (w, h, data): (i32, i32, Vec<u8>) = (
+      text.lines().map(|l| l.len()).max().unwrap_or_default() as i32,
+      text.lines().count() as i32,
+      vec![],
+    );
 
-    let font = painter.font();
-    let layout = pangocairo::create_layout(&layout_context);
-    layout.set_text(text);
-    layout.set_font_description(Some(&font));
-    let (w, h) = layout.pixel_size();
-
-    let mut data: Vec<u8> = vec![0; (w * h * 4) as usize];
-    let out_surface = pangocairo::cairo::ImageSurface::create_for_data_unsafe(
-      data.as_mut_ptr(),
-      ARgb32,
-      w,
-      h,
-      4 * w,
-    )
-    .map_err(|e| e.to_string())?;
-    let render_context = pangocairo::cairo::Context::new(out_surface)
+    #[cfg(not(test))]
+    let (w, h, data) = {
+      let tmp_surface = pangocairo::cairo::Surface::from_raw_full(
+        cairo_image_surface_create(i32::from(ARgb32), 0, 0),
+      )
       .map_err(|e| e.to_string())?;
-    render_context.set_source_rgba(0.3, 0.3, 0.3, 1.0);
-    pangocairo::show_layout(&render_context, &layout);
+      let layout_context = pangocairo::cairo::Context::new(tmp_surface)
+        .map_err(|e| e.to_string())?;
+
+      let font = painter.font();
+      let layout = pangocairo::create_layout(&layout_context);
+      layout.set_text(text);
+      layout.set_font_description(Some(&font));
+      let (w, h) = layout.pixel_size();
+
+      let mut data: Vec<u8> = vec![0; (w * h * 4) as usize];
+      let out_surface =
+        pangocairo::cairo::ImageSurface::create_for_data_unsafe(
+          data.as_mut_ptr(),
+          ARgb32,
+          w,
+          h,
+          4 * w,
+        )
+        .map_err(|e| e.to_string())?;
+      let render_context = pangocairo::cairo::Context::new(out_surface)
+        .map_err(|e| e.to_string())?;
+      render_context.set_source_rgba(0.3, 0.3, 0.3, 1.0);
+      pangocairo::show_layout(&render_context, &layout);
+
+      (w, h, data)
+    };
 
     self.size.width = w as u16;
     self.size.height = h as u16;

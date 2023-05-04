@@ -5,19 +5,24 @@ use std::{
 
 use crate::{
   render::{painter::Painter, Point},
-  widgets::traits::{CallbackResult, ClickSink, Parent, Widget, WidgetError},
+  widgets::traits::{
+    CallbackResult, ClickSink, InputSink, Parent, Widget, WidgetError, InputEvent,
+  },
 };
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Mark {
   #[cfg(test)]
   Test,
   None,
   Window,
   Spreadsheet,
+  SpreadsheetInputField,
   Toolbar,
   ToolbarDropdown,
 }
+
+type Wrap<T> = Rc<RefCell<T>>;
 
 pub trait RingMember {
   fn push_to_ring(&self, ring: &mut Ring);
@@ -25,37 +30,37 @@ pub trait RingMember {
 
 // TODO: add pull cache?
 pub struct Ring {
-  widgets: Vec<(Rc<RefCell<dyn Widget>>, Mark, Mark, usize)>,
-  clickable: Vec<(Rc<RefCell<dyn ClickSink>>, Mark)>,
-  parents: Vec<(Rc<RefCell<dyn Parent>>, Mark)>,
+  widgets: Vec<(Wrap<dyn Widget>, Mark, Mark, usize)>,
+  parents: Vec<(Wrap<dyn Parent>, Mark)>,
+  click_sinks: Vec<(Wrap<dyn ClickSink>, Mark)>,
+  input_sinks: Vec<(Wrap<dyn InputSink>, Mark)>,
 }
 
 impl Ring {
   pub fn new() -> Self {
     Self {
       widgets: vec![],
-      clickable: vec![],
+      click_sinks: vec![],
       parents: vec![],
+      input_sinks: vec![],
     }
   }
 
-  pub fn push(
-    &mut self,
-    w: Rc<RefCell<dyn Widget>>,
-    m: Mark,
-    parent: Mark,
-    n: usize,
-  ) {
+  pub fn push(&mut self, w: Wrap<dyn Widget>, m: Mark, parent: Mark, n: usize) {
     assert!(m != parent);
     self.widgets.push((w, m, parent, n));
   }
 
-  pub fn push_clickable(&mut self, w: Rc<RefCell<dyn ClickSink>>, m: Mark) {
-    self.clickable.push((w, m));
-  }
-
   pub fn push_parent(&mut self, w: Rc<RefCell<dyn Parent>>, m: Mark) {
     self.parents.push((w, m));
+  }
+
+  pub fn push_click_sink(&mut self, w: Rc<RefCell<dyn ClickSink>>, m: Mark) {
+    self.click_sinks.push((w, m));
+  }
+
+  pub fn push_input_sink(&mut self, w: Rc<RefCell<dyn InputSink>>, m: Mark) {
+    self.input_sinks.push((w, m));
   }
 
   pub fn pull(&self, mark: &Mark) -> Option<Rc<RefCell<dyn Widget>>> {
@@ -85,11 +90,16 @@ impl Ring {
 
   pub fn delete(&mut self, m: Mark) -> bool {
     let len = self.widgets.len();
+
     self.widgets.retain(|(_, _m, _, _)| *_m != m);
-    self.clickable.retain(|(_, _m)| *_m != m);
+    self.parents.retain(|(_, _m)| *_m != m);
+    self.click_sinks.retain(|(_, _m)| *_m != m);
+    self.input_sinks.retain(|(_, _m)| *_m != m);
+
     len != self.widgets.len()
   }
 
+  /// Draw all owned widgets, plotting if needed.
   pub fn draw(&mut self, painter: &Painter) -> Vec<WidgetError> {
     let p = self.widgets.iter().try_for_each(|(w, _m, p, n)| {
       let mut w = w.borrow_mut();
@@ -126,10 +136,12 @@ impl Ring {
       .collect()
   }
 
+  /// Push click event to all click sinks from last to first until one of them
+  /// handles it.
   pub fn catch_click(&mut self, painter: &Painter, p: Point) {
     let mut r = CallbackResult::Skip;
 
-    for (w, _) in self.clickable.iter() {
+    for (w, _) in self.click_sinks.iter().rev() {
       match w.borrow().handle_click(painter, p) {
         CallbackResult::Skip => continue,
         res => {
@@ -144,11 +156,23 @@ impl Ring {
       CallbackResult::None => {}
 
       CallbackResult::Error(e) => {
-        println!("Callback failed: {}", e);
+        println!("Click callback failed: {}", e);
       }
       CallbackResult::Push(x) => x.push_to_ring(self),
       CallbackResult::Modify(_, _) => todo!(),
     }
+  }
+
+  /// Push char to last input sink.
+  pub fn catch_input_event(&self, p: &Painter, e: InputEvent) {
+    self.input_sinks.last().iter().for_each(|(w, _)| {
+      match w.borrow_mut().handle_event(p, &e) {
+        CallbackResult::Error(e) => {
+          println!("Input callback failed: {}", e);
+        }
+        _ => {}
+      }
+    });
   }
 }
 

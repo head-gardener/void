@@ -1,6 +1,9 @@
 use downcast_rs::{impl_downcast, Downcast};
 
-use crate::{render::{painter::Painter, Origin}, logic::ring::{Mark, RingMember}};
+use crate::{
+  logic::ring::{Mark, RingMember},
+  render::{painter::Painter, Origin},
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum WidgetError {
@@ -18,7 +21,7 @@ pub enum CallbackResult {
   /// Callback failed.
   Error(WidgetError),
   /// Push a widget to the ring.
-  Push(Box::<dyn RingMember>),
+  Push(Box<dyn RingMember>),
   /// Modify a widget by mark.
   Modify(Mark, fn(&mut dyn Widget)),
 }
@@ -35,9 +38,9 @@ impl std::fmt::Display for WidgetError {
       WidgetError::Unplotted(widget) => {
         write!(f, "Widget '{}' drawn before being plotted", widget)
       }
-        WidgetError::InitFailure(what) => {
-          write!(f, "Component {} failed to initialize.", what)
-        },
+      WidgetError::InitFailure(what) => {
+        write!(f, "Component {} failed to initialize.", what)
+      }
     }
   }
 }
@@ -57,7 +60,7 @@ pub trait Widget: Downcast {
   /// unexpected exit.
   unsafe fn plot(&mut self, painter: &Painter) -> Result<(), WidgetError>;
 
-  /// 
+  ///
   ///
   /// # Errors
   ///

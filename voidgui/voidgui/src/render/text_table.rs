@@ -19,13 +19,22 @@ enum State {
   Plotted(Layout, Vec<Area>),
 }
 
+/// Value by which text is offset from cells' borders.
+const OFFSET: u16 = 10;
+
 impl State {
   /// Returns `true` if the state is [`Plotted`].
   ///
   /// [`Plotted`]: State::Plotted
-  #[must_use]
   fn is_plotted(&self) -> bool {
     matches!(self, Self::Plotted(..))
+  }
+
+  /// Returns `true` if the state is [`None`].
+  ///
+  /// [`None`]: State::None
+  fn is_none(&self) -> bool {
+    matches!(self, Self::None)
   }
 
   fn try_layout(&self) -> Result<&Layout, WidgetError> {
@@ -139,7 +148,7 @@ impl TextTable {
     };
 
     let mut table = TextTable::from_text(painter, r, c, &items)?;
-    table.commit();
+    table.ensure_committed();
 
     Ok(table)
   }
@@ -192,7 +201,7 @@ impl TextTable {
 
     let padded = sizes
       .iter()
-      .map(|t| t.expand(10, 10))
+      .map(|t| t.expand(OFFSET, OFFSET))
       .collect::<Vec<Size>>();
 
     let layout = Layout::from_sizes(rows, columns, padded.as_slice());
@@ -240,7 +249,7 @@ impl TextTable {
 
         let size = t.size();
         self.texture_sizes.push(size.clone());
-        self.cell_sizes.push(size.expand(10, 10));
+        self.cell_sizes.push(size.expand(OFFSET, OFFSET));
 
         self.textures.push(t);
         self.bg.push(Rectangle::new(color.into()));
@@ -254,7 +263,53 @@ impl TextTable {
     Ok(())
   }
 
-  pub fn commit(&mut self) {
+  /// Update texture and sizes for specific cell.
+  ///
+  /// # Errors
+  ///
+  /// This function will return an error if `n` is out of bounds or if
+  /// `Texture::bind_text` fails.
+  pub fn update_cell(
+    &mut self,
+    p: &Painter,
+    n: usize,
+    s: &str,
+  ) -> Result<(), WidgetError> {
+    unsafe {
+      self
+        .textures
+        .iter_mut()
+        .zip(self.texture_sizes.iter_mut())
+        .zip(self.cell_sizes.iter_mut())
+        .nth(n)
+        .map(|((t, ts), cs)| -> Result<(), String> {
+          t.bind_text(p, s)?;
+
+          let size = t.size();
+          *ts = size.clone();
+          *cs = size.expand(OFFSET, OFFSET);
+
+          Ok(())
+        })
+        .ok_or(WidgetError::Unspecified(format!(
+          "n out of bounds in update_cell: {}",
+          n
+        )))?
+        .map_err(|e| WidgetError::Unspecified(e.to_owned()))
+    }?;
+
+    self.state = State::None;
+
+    Ok(())
+  }
+
+  /// Ensure this [TextTable] is has been committed, calculating
+  /// new [Layout] if necessary.
+  pub fn ensure_committed(&mut self) {
+    if !self.state.is_none() {
+      return;
+    }
+
     self.state = State::Committed(Layout::from_sizes(
       self.rows,
       self.columns,
@@ -272,13 +327,15 @@ impl TextTable {
     self.state = State::None;
   }
 
+  /// Plot this [TextTable], committing its layout if necessary.
   pub unsafe fn plot(&mut self, painter: &Painter) -> Result<(), WidgetError> {
     let origin = self.origin.ok_or(WidgetError::Uninitialized("origin"))?;
 
+    self.ensure_committed();
     let mut state = State::default();
     swap(&mut state, &mut self.state);
 
-    let layout: Layout = state.try_into()?;
+    let layout: Layout = state.try_into().unwrap();
     let origin = origin.to_point(&layout.size());
     let cells = layout.plot(&origin);
 
@@ -382,7 +439,7 @@ impl TextTable {
       .zip(self.texture_sizes.iter())
       .zip(cs.iter())
       .map(|((t, s), a)| {
-        t.plot(p, &Area::new(a.x + 10, a.y + 10, s.width, s.height))
+        t.plot(p, &Area::new(a.x + OFFSET, a.y + OFFSET, s.width, s.height))
       })
       .collect::<Result<(), String>>()
       .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
@@ -423,6 +480,80 @@ mod test {
   use super::*;
 
   #[test]
+  fn layout() {
+    let offset = OFFSET * 2;
+
+    let p = unsafe { Painter::new(0, 0) };
+    let mut t = unsafe {
+      TextTable::from_text(&p, 2, 2, &["abc", "ab", "a\na", "a"]).unwrap()
+    };
+
+    t.set_origin(Origin::new(100, 100, crate::render::OriginPole::TopLeft));
+    unsafe { t.plot(&p).unwrap() };
+    assert_eq!(
+      *t.cells().unwrap(),
+      {
+        let w1 = offset + 3;
+        let w2 = offset + 2;
+        let h1 = offset + 1;
+        let h2 = offset + 2;
+        vec![
+          Area::new(100, 100, w1, h1),
+          Area::new(100 + w1, 100, w2, h1),
+          Area::new(100, 100 + h1, w1, h2),
+          Area::new(100 + w1, 100 + h1, w2, h2),
+        ]
+      },
+      "textures are arranged correctly"
+    );
+
+    t.update_cell(&p, 1, "abc\nabc").unwrap();
+    unsafe { t.plot(&p).unwrap() };
+    assert_eq!(
+      *t.cells().unwrap(),
+      {
+        let w1 = offset + 3;
+        let w2 = offset + 3;
+        let h1 = offset + 2;
+        let h2 = offset + 2;
+        vec![
+          Area::new(100, 100, w1, h1),
+          Area::new(100 + w1, 100, w2, h1),
+          Area::new(100, 100 + h1, w1, h2),
+          Area::new(100 + w1, 100 + h1, w2, h2),
+        ]
+      },
+      "`update_cell` works"
+    );
+
+    unsafe {
+      t.set_origin(Origin::new(100, 100, crate::render::OriginPole::TopLeft));
+      t.add_row(&p, vec![&"abcd".to_owned(); 2].iter(), CellColor::Normal)
+        .unwrap();
+      t.plot(&p).unwrap();
+    };
+    assert_eq!(
+      *t.cells().unwrap(),
+      {
+        let w1 = offset + 4;
+        let w2 = offset + 4;
+        let h1 = offset + 2;
+        let h2 = offset + 2;
+        let h3 = offset + 1;
+        vec![
+          Area::new(100, 100, w1, h1),
+          Area::new(100 + w1, 100, w2, h1),
+          Area::new(100, 100 + h1, w1, h2),
+          Area::new(100 + w1, 100 + h1, w2, h2),
+          Area::new(100, 100 + h1 + h2, w1, h3),
+          Area::new(100 + w1, 100 + h1 + h2, w2, h3),
+        ]
+      },
+      "`add_row` works",
+    );
+  }
+
+  #[test]
   fn state_changes() {
     let p = unsafe { Painter::new(0, 0) };
 
@@ -448,10 +579,10 @@ mod test {
       "`add_row` resets state to none"
     );
 
-    t.commit();
+    t.ensure_committed();
     assert!(
       matches!(t.state(), State::Committed(_)),
-      "commit works for no state and makes state committed"
+      "committing works for no state and makes state committed"
     );
 
     t.truncate(3);
@@ -460,7 +591,7 @@ mod test {
       "`truncate` resets state to none"
     );
 
-    t.commit();
+    t.ensure_committed();
     assert_eq!(
       unsafe { t.plot(&p) },
       Err(WidgetError::Uninitialized("origin")),
@@ -486,6 +617,12 @@ mod test {
     assert!(
       matches!(t.state(), State::Plotted(_, _)),
       "`plot` sets state to plotted"
+    );
+
+    t.ensure_committed();
+    assert!(
+      matches!(t.state(), State::Plotted(_, _)),
+      "`ensure_committed` is a no-op when state table is plotted"
     );
 
     assert_eq!(t.cells().unwrap().len(), 3, "`truncate` works");

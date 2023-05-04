@@ -34,7 +34,7 @@ impl Toolbar {
 
   pub fn push_to_ring(self, ring: &mut crate::logic::Ring) {
     let rc = Rc::new(RefCell::new(self));
-    ring.push_clickable(rc.clone(), crate::logic::ring::Mark::Toolbar);
+    ring.push_click_sink(rc.clone(), crate::logic::ring::Mark::Toolbar);
     ring.push_parent(rc.clone(), crate::logic::ring::Mark::Toolbar);
     ring.push(
       rc,

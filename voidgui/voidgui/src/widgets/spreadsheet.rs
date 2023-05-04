@@ -1,11 +1,14 @@
 use std::{cell::RefCell, rc::Rc};
 
-use voidmacro::{Menu, ClickableMenu};
+use voidmacro::{ClickableMenu, Menu};
 
-use crate::render::{painter::Painter, Point, TextTable, Origin};
+use crate::{
+  render::{painter::Painter, Origin, Point, TextTable},
+  widgets::InputField,
+};
 
 use super::traits::{
-  widget::WidgetError, CallbackResult, Clickable, ClickSink, Widget,
+  widget::WidgetError, CallbackResult, ClickSink, Clickable, Widget,
 };
 
 #[derive(Menu, ClickableMenu)]
@@ -26,14 +29,13 @@ impl Spreadsheet {
       crate::render::text_table::CellColor::Darker,
     )?;
 
-    table.commit();
     Ok(Self {
       table,
       records: vec![Box::new(n), Box::new(p)],
     })
   }
 
-  fn push(
+  pub fn push(
     &mut self,
     painter: &Painter,
     name: &str,
@@ -56,33 +58,15 @@ impl Spreadsheet {
     Ok(())
   }
 
-  pub fn transaction<F>(&mut self, f: F) -> Result<(), WidgetError>
-  where
-    F: std::ops::Fn(
-      &mut Self,
-      for<'r, 's, 't0> fn(
-        &'r mut Spreadsheet,
-        painter: &Painter,
-        &'s str,
-        &'t0 str,
-      ) -> Result<(), WidgetError>,
-    ) -> Result<(), WidgetError>,
-  {
-    f(self, Spreadsheet::push)?;
-    self.table.commit();
-    Ok(())
-  }
-
   pub fn drop(&mut self) {
     self.records.clear();
 
     self.table.truncate(2);
-    self.table.commit();
   }
 
   pub fn push_to_ring(self, ring: &mut crate::logic::Ring) {
     let rc = Rc::new(RefCell::new(self));
-    ring.push_clickable(rc.clone(), crate::logic::ring::Mark::Spreadsheet);
+    ring.push_click_sink(rc.clone(), crate::logic::ring::Mark::Spreadsheet);
     ring.push(
       rc,
       crate::logic::ring::Mark::Spreadsheet,
@@ -96,17 +80,17 @@ impl ClickSink for Spreadsheet {
   fn onclick(&self, painter: &Painter, p: Point) -> CallbackResult {
     let i = self.table.catch_point(&p).unwrap();
     match i {
-      0 => {
-        println!("name");
-        CallbackResult::Skip
-      }
-      1 => {
-        println!("phone");
-        CallbackResult::Skip
-      }
+      0 | 1 => CallbackResult::Skip,
       _ => {
-        println!("{}", self.records.get(i - 2).unwrap());
-        CallbackResult::Skip
+        let s = self.records.get(i - 2).unwrap();
+        match unsafe { InputField::new(painter, s) } {
+          Ok(f) => CallbackResult::Push(Box::new(f.wrap(
+            crate::logic::ring::Mark::SpreadsheetInputField,
+            crate::logic::ring::Mark::Window,
+            2,
+          ))),
+          Err(e) => CallbackResult::Error(e),
+        }
       }
     }
   }
