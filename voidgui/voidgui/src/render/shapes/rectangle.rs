@@ -52,4 +52,8 @@ impl Rectangle {
 
     Ok(())
   }
+
+  pub fn set_color(&mut self, color: Color) {
+    self.color = color;
+  }
 }

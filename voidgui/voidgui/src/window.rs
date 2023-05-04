@@ -1,9 +1,10 @@
 use glfw::{Action, Context, Key, Modifiers, MouseButton, WindowEvent};
 
 use crate::{
+  colorscheme::BACKGROUND,
   logic::Ring,
   render::{painter::Painter, Point},
-  widgets::{toolbar::Toolbar, Spreadsheet, Window, traits::InputEvent},
+  widgets::{toolbar::Toolbar, traits::InputEvent, Spreadsheet, Window},
 };
 
 pub struct VoidWindow {
@@ -37,7 +38,8 @@ impl VoidWindow {
     let _gl = gl::load_with(|s| glfw.get_proc_address_raw(s));
 
     gl::Viewport(0, 0, w as i32, h as i32);
-    gl::ClearColor(0.9, 0.9, 0.9, 1.0);
+    let (r, g, b, a) = BACKGROUND;
+    gl::ClearColor(r, g, b, a);
     gl::Enable(gl::BLEND);
     gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
 
@@ -103,34 +105,67 @@ impl VoidWindow {
 
           // Text input
           WindowEvent::Char(c) => {
-            self.ring.catch_input_event(
-              &self.painter,
-              InputEvent::Char(c),
-            );
+            self
+              .ring
+              .catch_input_event(&self.painter, InputEvent::Char(c));
           }
-          WindowEvent::Key(Key::Left, _, Action::Press, _) => {
-            self.ring.catch_input_event(
-              &self.painter,
-              InputEvent::Left,
-            );
+          WindowEvent::Key(
+            Key::Left,
+            _,
+            Action::Press | Action::Repeat,
+            _,
+          ) => {
+            self.ring.catch_input_event(&self.painter, InputEvent::Left);
           }
-          WindowEvent::Key(Key::Right, _, Action::Press, _) => {
-            self.ring.catch_input_event(
-              &self.painter,
-              InputEvent::Right,
-            );
+          WindowEvent::Key(
+            Key::Right,
+            _,
+            Action::Press | Action::Repeat,
+            _,
+          ) => {
+            self
+              .ring
+              .catch_input_event(&self.painter, InputEvent::Right);
           }
-          WindowEvent::Key(Key::Backspace, _, Action::Press, _) => {
-            self.ring.catch_input_event(
-              &self.painter,
-              InputEvent::Backspace,
-            );
+          WindowEvent::Key(
+            Key::Backspace,
+            _,
+            Action::Press | Action::Repeat,
+            _,
+          ) => {
+            self
+              .ring
+              .catch_input_event(&self.painter, InputEvent::Backspace);
           }
-          WindowEvent::Key(Key::Delete, _, Action::Press, _) => {
-            self.ring.catch_input_event(
-              &self.painter,
-              InputEvent::Delete,
-            );
+          WindowEvent::Key(
+            Key::Delete,
+            _,
+            Action::Press | Action::Repeat,
+            _,
+          ) => {
+            self
+              .ring
+              .catch_input_event(&self.painter, InputEvent::Delete);
+          }
+          WindowEvent::Key(
+            Key::Home,
+            _,
+            Action::Press | Action::Repeat,
+            _,
+          ) => {
+            self
+              .ring
+              .catch_input_event(&self.painter, InputEvent::Home);
+          }
+          WindowEvent::Key(
+            Key::End,
+            _,
+            Action::Press | Action::Repeat,
+            _,
+          ) => {
+            self
+              .ring
+              .catch_input_event(&self.painter, InputEvent::End);
           }
 
           _ => {

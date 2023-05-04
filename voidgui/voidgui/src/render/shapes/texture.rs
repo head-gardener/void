@@ -61,45 +61,7 @@ impl Texture {
     painter: &Painter,
     text: &str,
   ) -> Result<(), String> {
-    // #[cfg(test)]
-    let (w, h, data): (i32, i32, Vec<u8>) = (
-      text.lines().map(|l| l.len()).max().unwrap_or_default() as i32,
-      text.lines().count() as i32,
-      vec![],
-    );
-
-    #[cfg(not(test))]
-    let (w, h, data) = {
-      let tmp_surface = pangocairo::cairo::Surface::from_raw_full(
-        cairo_image_surface_create(i32::from(ARgb32), 0, 0),
-      )
-      .map_err(|e| e.to_string())?;
-      let layout_context = pangocairo::cairo::Context::new(tmp_surface)
-        .map_err(|e| e.to_string())?;
-
-      let font = painter.font();
-      let layout = pangocairo::create_layout(&layout_context);
-      layout.set_text(text);
-      layout.set_font_description(Some(&font));
-      let (w, h) = layout.pixel_size();
-
-      let mut data: Vec<u8> = vec![0; (w * h * 4) as usize];
-      let out_surface =
-        pangocairo::cairo::ImageSurface::create_for_data_unsafe(
-          data.as_mut_ptr(),
-          ARgb32,
-          w,
-          h,
-          4 * w,
-        )
-        .map_err(|e| e.to_string())?;
-      let render_context = pangocairo::cairo::Context::new(out_surface)
-        .map_err(|e| e.to_string())?;
-      render_context.set_source_rgba(0.3, 0.3, 0.3, 1.0);
-      pangocairo::show_layout(&render_context, &layout);
-
-      (w, h, data)
-    };
+    let (w, h, data) = get_text(painter, text)?;
 
     self.size.width = w as u16;
     self.size.height = h as u16;
@@ -177,6 +139,62 @@ impl Texture {
   pub fn size(&self) -> &Size {
     &self.size
   }
+}
+
+#[cfg(test)]
+unsafe fn get_text(
+  _: &Painter,
+  s: &str,
+) -> Result<(i32, i32, Vec<u8>), String> {
+  Ok((
+    s.lines().map(|l| l.len()).max().unwrap_or_default() as i32,
+    s.lines().count() as i32,
+    vec![],
+  ))
+}
+
+#[cfg(not(test))]
+unsafe fn get_text(
+  p: &Painter,
+  s: &str,
+) -> Result<(i32, i32, Vec<u8>), String> {
+  let tmp_surface = pangocairo::cairo::Surface::from_raw_full(
+    cairo_image_surface_create(i32::from(ARgb32), 0, 0),
+  )
+  .map_err(|e| e.to_string())?;
+  let layout_context =
+    pangocairo::cairo::Context::new(tmp_surface).map_err(|e| e.to_string())?;
+
+  let font = p.font();
+  let layout = pangocairo::create_layout(&layout_context);
+  layout.set_text(s);
+  layout.set_font_description(Some(&font));
+  let (w, h) = layout.pixel_size();
+
+  let mut data: Vec<u8> = vec![0; (w * h * 4) as usize];
+  let out_surface = pangocairo::cairo::ImageSurface::create_for_data_unsafe(
+    data.as_mut_ptr(),
+    ARgb32,
+    w,
+    h,
+    4 * w,
+  )
+  .map_err(|e| e.to_string())?;
+  let render_context =
+    pangocairo::cairo::Context::new(out_surface).map_err(|e| e.to_string())?;
+  render_context.set_source_rgba(0.3, 0.3, 0.3, 1.0);
+  pangocairo::show_layout(&render_context, &layout);
+
+  Ok((w, h, data))
+}
+
+/// Render text and return its size.
+///
+/// # Errors
+///
+/// Returns error when rendering fails.
+pub unsafe fn get_text_size(p: &Painter, s: &str) -> Result<Size, String> {
+  get_text(p, s).map(|(w, h, _)| Size::new(w as u16, h as u16))
 }
 
 fn tex_vertices(norm: &NormalizedArea) -> Vec<f32> {

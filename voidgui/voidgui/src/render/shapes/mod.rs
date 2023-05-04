@@ -1,9 +1,9 @@
 use super::Area;
 
-mod grid;
-mod rectangle;
-mod texture;
-mod common_res;
+pub mod grid;
+pub mod rectangle;
+pub mod texture;
+pub mod common_res;
 
 pub use grid::Grid;
 pub use rectangle::Rectangle;

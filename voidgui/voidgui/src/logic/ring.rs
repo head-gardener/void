@@ -6,7 +6,7 @@ use std::{
 use crate::{
   render::{painter::Painter, Point},
   widgets::traits::{
-    CallbackResult, ClickSink, InputSink, Parent, Widget, WidgetError, InputEvent,
+    CallbackResult, ClickSink, InputSink, Parent, Widget, WidgetError, InputEvent, Drawable,
   },
 };
 
@@ -30,7 +30,7 @@ pub trait RingMember {
 
 // TODO: add pull cache?
 pub struct Ring {
-  widgets: Vec<(Wrap<dyn Widget>, Mark, Mark, usize)>,
+  widgets: Vec<(Wrap<dyn Drawable>, Mark, Mark, usize)>,
   parents: Vec<(Wrap<dyn Parent>, Mark)>,
   click_sinks: Vec<(Wrap<dyn ClickSink>, Mark)>,
   input_sinks: Vec<(Wrap<dyn InputSink>, Mark)>,
@@ -46,24 +46,24 @@ impl Ring {
     }
   }
 
-  pub fn push(&mut self, w: Wrap<dyn Widget>, m: Mark, parent: Mark, n: usize) {
+  pub fn push(&mut self, w: Wrap<dyn Drawable>, m: Mark, parent: Mark, n: usize) {
     assert!(m != parent);
     self.widgets.push((w, m, parent, n));
   }
 
-  pub fn push_parent(&mut self, w: Rc<RefCell<dyn Parent>>, m: Mark) {
+  pub fn push_parent(&mut self, w: Wrap<dyn Parent>, m: Mark) {
     self.parents.push((w, m));
   }
 
-  pub fn push_click_sink(&mut self, w: Rc<RefCell<dyn ClickSink>>, m: Mark) {
+  pub fn push_click_sink(&mut self, w: Wrap<dyn ClickSink>, m: Mark) {
     self.click_sinks.push((w, m));
   }
 
-  pub fn push_input_sink(&mut self, w: Rc<RefCell<dyn InputSink>>, m: Mark) {
+  pub fn push_input_sink(&mut self, w: Wrap<dyn InputSink>, m: Mark) {
     self.input_sinks.push((w, m));
   }
 
-  pub fn pull(&self, mark: &Mark) -> Option<Rc<RefCell<dyn Widget>>> {
+  pub fn pull(&self, mark: &Mark) -> Option<Wrap<dyn Drawable>> {
     self
       .widgets
       .iter()
@@ -71,7 +71,7 @@ impl Ring {
       .map(|i| self.widgets.get(i).unwrap().0.clone())
   }
 
-  pub fn pull_parent(&self, mark: &Mark) -> Option<Rc<RefCell<dyn Parent>>> {
+  pub fn pull_parent(&self, mark: &Mark) -> Option<Wrap<dyn Parent>> {
     self
       .parents
       .iter()
@@ -81,7 +81,7 @@ impl Ring {
 
   pub fn for_each<F>(&mut self, mut f: F)
   where
-    F: FnMut(RefMut<dyn Widget>) -> (),
+    F: FnMut(RefMut<dyn Drawable>) -> (),
   {
     for (w, _, _, _) in self.widgets.iter_mut() {
       f(w.borrow_mut());
@@ -182,7 +182,7 @@ mod tests {
 
   use crate::{
     render::painter::Painter,
-    widgets::traits::{widget::WidgetError, Widget},
+    widgets::traits::{widget::WidgetError, Widget, Drawable},
   };
 
   use super::Ring;
@@ -214,6 +214,20 @@ mod tests {
   }
 
   impl Widget for W {
+    fn plotted(&self) -> bool {
+      self.plotted
+    }
+
+    fn set_origin(&mut self, _: &crate::render::Origin) {
+      todo!()
+    }
+
+    fn request_plot(&mut self) {
+      todo!()
+    }
+  }
+
+  impl Drawable for W {
     unsafe fn plot(&mut self, _: &Painter) -> Result<(), WidgetError> {
       if self.fail_plot {
         Err(WidgetError::Unspecified("plot failed".to_owned()))
@@ -228,18 +242,6 @@ mod tests {
       } else {
         Ok(())
       }
-    }
-
-    fn plotted(&self) -> bool {
-      self.plotted
-    }
-
-    fn set_origin(&mut self, _: &crate::render::Origin) {
-      todo!()
-    }
-
-    fn request_plot(&mut self) {
-      todo!()
     }
   }
 

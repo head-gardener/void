@@ -1,6 +1,9 @@
 use std::mem::swap;
 
 use crate::{
+  colorscheme::{
+    CELL_BG_COLOR_DARK, CELL_BG_COLOR_LGHT, CELL_BG_COLOR_NORM, GRID_COLOR,
+  },
   logic::Layout,
   render::{
     painter::Painter,
@@ -14,13 +17,19 @@ use super::{Area, Color, Origin, Point};
 
 #[derive(Debug)]
 enum State {
+  /// Table was initialized or modified.
   None,
+
+  /// [Layout] was calculated and table wasn't plotted, origin has changed
+  /// or a plot was requested since calculating layout.
   Committed(Layout),
+
+  /// Table was plotted and suffered no changes since then.
   Plotted(Layout, Vec<Area>),
 }
 
 /// Value by which text is offset from cells' borders.
-const OFFSET: u16 = 10;
+pub const OFFSET: u16 = 10;
 
 impl State {
   /// Returns `true` if the state is [`Plotted`].
@@ -92,11 +101,6 @@ impl Default for State {
   }
 }
 
-static BG_COLOR_NORM: Color = (0.7, 0.7, 0.75, 1.0);
-static BG_COLOR_DARK: Color = (0.6, 0.6, 0.7, 1.0);
-static BG_COLOR_LGHT: Color = (0.8, 0.8, 0.83, 1.0);
-static GRID_COLOR: Color = (0.5, 0.5, 0.5, 1.0);
-
 #[derive(Clone, Copy)]
 pub enum CellColor {
   Normal,
@@ -112,9 +116,9 @@ pub enum Orientation {
 impl Into<Color> for CellColor {
   fn into(self) -> Color {
     match self {
-      CellColor::Normal => BG_COLOR_NORM,
-      CellColor::Darker => BG_COLOR_DARK,
-      CellColor::Lighter => BG_COLOR_LGHT,
+      CellColor::Normal => CELL_BG_COLOR_NORM,
+      CellColor::Darker => CELL_BG_COLOR_DARK,
+      CellColor::Lighter => CELL_BG_COLOR_LGHT,
     }
   }
 }
@@ -148,7 +152,6 @@ impl TextTable {
     };
 
     let mut table = TextTable::from_text(painter, r, c, &items)?;
-    table.ensure_committed();
 
     Ok(table)
   }
@@ -207,7 +210,7 @@ impl TextTable {
     let layout = Layout::from_sizes(rows, columns, padded.as_slice());
 
     let bg = (0..rows * columns)
-      .map(|_| Rectangle::new(BG_COLOR_NORM))
+      .map(|_| Rectangle::new(CELL_BG_COLOR_NORM))
       .collect();
 
     Ok(Self {
@@ -303,6 +306,22 @@ impl TextTable {
     Ok(())
   }
 
+  pub fn set_cell_color(
+    &mut self,
+    n: usize,
+    c: CellColor,
+  ) -> Result<(), WidgetError> {
+    self
+      .bg
+      .iter_mut()
+      .nth(n)
+      .map(|b| b.set_color(c.into()))
+      .ok_or(WidgetError::Unspecified(format!(
+        "n out of bounds in update_cell: {}",
+        n
+      )))
+  }
+
   /// Ensure this [TextTable] is has been committed, calculating
   /// new [Layout] if necessary.
   pub fn ensure_committed(&mut self) {
@@ -383,6 +402,8 @@ impl TextTable {
     self.constr
   }
 
+  /// Calculate area, occupied by the table. Returns `None` if origin
+  /// hasn't been set or if state is worse then [State::Committed].
   pub fn area(&self) -> Option<Area> {
     let s = self.state.try_layout().ok()?.size().clone();
     self.origin.map(|o| Area::from_prim(o.to_point(&s), s))

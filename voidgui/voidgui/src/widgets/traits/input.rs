@@ -8,6 +8,8 @@ pub enum InputEvent {
   Right,
   Delete,
   Backspace,
+  Home,
+  End,
 }
 
 pub trait InputSink {

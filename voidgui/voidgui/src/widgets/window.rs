@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::render::{Area, Origin, OriginPole};
 
-use super::traits::{Parent, Widget};
+use super::traits::{Drawable, Parent, Widget};
 
 pub struct Window {
   area: Area,
@@ -30,6 +30,18 @@ impl Window {
 }
 
 impl Widget for Window {
+  fn plotted(&self) -> bool {
+    self.plotted
+  }
+
+  fn request_plot(&mut self) {
+    self.plotted = false;
+  }
+
+  fn set_origin(&mut self, _: &Origin) {}
+}
+
+impl Drawable for Window {
   unsafe fn plot(
     &mut self,
     painter: &crate::render::painter::Painter,
@@ -45,16 +57,6 @@ impl Widget for Window {
   ) -> Result<(), super::traits::WidgetError> {
     Ok(())
   }
-
-  fn plotted(&self) -> bool {
-    self.plotted
-  }
-
-  fn request_plot(&mut self) {
-    self.plotted = false;
-  }
-
-  fn set_origin(&mut self, _: &Origin) {}
 }
 
 impl Parent for Window {

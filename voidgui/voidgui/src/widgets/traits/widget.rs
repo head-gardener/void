@@ -1,17 +1,7 @@
-use downcast_rs::{impl_downcast, Downcast};
-
 use crate::{
   logic::ring::{Mark, RingMember},
-  render::{painter::Painter, Origin},
+  render::Origin,
 };
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum WidgetError {
-  InitFailure(&'static str),
-  Unspecified(String),
-  Uninitialized(&'static str),
-  Unplotted(&'static str),
-}
 
 pub enum CallbackResult {
   /// Event was dropped.
@@ -24,6 +14,14 @@ pub enum CallbackResult {
   Push(Box<dyn RingMember>),
   /// Modify a widget by mark.
   Modify(Mark, fn(&mut dyn Widget)),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum WidgetError {
+  InitFailure(&'static str),
+  Unspecified(String),
+  Uninitialized(&'static str),
+  Unplotted(&'static str),
 }
 
 impl std::fmt::Display for WidgetError {
@@ -47,25 +45,21 @@ impl std::fmt::Display for WidgetError {
 
 impl std::error::Error for WidgetError {}
 
-pub trait Widget: Downcast {
-  /// Map widget's layout to normalized coordinates according to origin.
-  ///
-  /// # Errors
-  ///
-  /// Returns error when sequenced incorrectly.
-  ///
-  /// # Safety
-  ///
-  /// Since this function calls GL functions, there is a risk of an
-  /// unexpected exit.
-  unsafe fn plot(&mut self, painter: &Painter) -> Result<(), WidgetError>;
+impl From<String> for WidgetError {
+  fn from(s: String) -> Self {
+    WidgetError::Unspecified(s)
+  }
+}
 
-  ///
-  ///
-  /// # Errors
-  ///
-  /// This function will return an error if .
-  fn draw(&self, painter: &Painter) -> Result<(), WidgetError>;
+impl From<&str> for WidgetError {
+  fn from(s: &str) -> Self {
+    WidgetError::Unspecified(s.to_string())
+  }
+}
+
+pub trait Widget {
+  /// Set origin point.
+  fn set_origin(&mut self, origin: &Origin);
 
   /// Whether widget was plotted. This value should be reset to false to
   /// trigger plotting after any changes.
@@ -73,11 +67,7 @@ pub trait Widget: Downcast {
 
   /// Sets plotted to false, requesting replotting.
   fn request_plot(&mut self);
-
-  /// Set origin point.
-  fn set_origin(&mut self, origin: &Origin);
 }
-impl_downcast!(Widget);
 
 impl std::fmt::Debug for dyn Widget {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

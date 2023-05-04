@@ -13,12 +13,6 @@ pub fn derive_menu(input: TokenStream) -> TokenStream {
 
   let expanded = quote! {
     impl Widget for #name {
-      unsafe fn plot(&mut self, painter: &Painter) -> Result<(), WidgetError> {
-        self.table.plot(painter)
-      }
-      fn draw(&self, painter: &Painter) -> Result<(), WidgetError> {
-        self.table.draw(painter)
-      }
       fn plotted(&self) -> bool {
         self.table.plotted()
       }
@@ -27,6 +21,25 @@ pub fn derive_menu(input: TokenStream) -> TokenStream {
       }
       fn request_plot(&mut self) {
         self.table.request_plot();
+      }
+    }
+  };
+
+  TokenStream::from(expanded)
+}
+
+#[proc_macro_derive(DrawableMenu)]
+pub fn derive_draw_menu(input: TokenStream) -> TokenStream {
+  let input = parse_macro_input!(input as DeriveInput);
+  let name = input.ident;
+
+  let expanded = quote! {
+    impl Drawable for #name {
+      unsafe fn plot(&mut self, painter: &Painter) -> Result<(), WidgetError> {
+        self.table.plot(painter)
+      }
+      fn draw(&self, painter: &Painter) -> Result<(), WidgetError> {
+        self.table.draw(painter)
       }
     }
   };

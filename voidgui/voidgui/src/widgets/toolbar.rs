@@ -7,16 +7,17 @@ use crate::{
 use std::{cell::RefCell, rc::Rc};
 
 use super::traits::{
-  widget::WidgetError, CallbackResult, ClickSink, Clickable, Parent, Widget,
+  widget::WidgetError, CallbackResult, ClickSink, Clickable, Drawable, Parent,
+  Widget,
 };
 
-use voidmacro::{ClickableMenu, Menu};
+use voidmacro::{ClickableMenu, DrawableMenu, Menu};
 
 static TOOLBAR_ITEMS: [&str; 2] = ["Table", "Tools"];
 static TOOLBAR_TABLE_ITEMS: [&str; 2] = ["Pull", "Push"];
 static TOOLBAR_TOOLS_ITEMS: [&str; 1] = [":)"];
 
-#[derive(Menu, ClickableMenu)]
+#[derive(Menu, DrawableMenu, ClickableMenu)]
 pub struct Toolbar {
   table: TextTable,
 }
@@ -75,7 +76,7 @@ impl Parent for Toolbar {
   }
 }
 
-#[derive(Menu, ClickableMenu)]
+#[derive(Menu, DrawableMenu, ClickableMenu)]
 pub struct ToolbarTable {
   table: TextTable,
 }

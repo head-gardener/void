@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use voidmacro::{ClickableMenu, Menu};
+use voidmacro::{ClickableMenu, DrawableMenu, Menu};
 
 use crate::{
   render::{painter::Painter, Origin, Point, TextTable},
@@ -8,10 +8,10 @@ use crate::{
 };
 
 use super::traits::{
-  widget::WidgetError, CallbackResult, ClickSink, Clickable, Widget,
+  widget::WidgetError, CallbackResult, ClickSink, Clickable, Drawable, Widget,
 };
 
-#[derive(Menu, ClickableMenu)]
+#[derive(Menu, DrawableMenu, ClickableMenu)]
 pub struct Spreadsheet {
   table: TextTable,
   records: Vec<Box<String>>,
