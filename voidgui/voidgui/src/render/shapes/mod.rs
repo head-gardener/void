@@ -3,10 +3,12 @@ use super::Area;
 mod grid;
 mod rectangle;
 mod texture;
+mod common_res;
 
 pub use grid::Grid;
 pub use rectangle::Rectangle;
 pub use texture::Texture;
+use common_res::*;
 
 struct NormalizedArea {
   pub a_x: f32,
@@ -56,37 +58,4 @@ fn normalized_to_coords(norm: NormalizedArea) -> Vec<f32> {
     norm.b_x, norm.b_y, // bottom-right
     norm.a_x, norm.b_y, // bottom-left
   ]
-}
-
-struct CommonRes {
-  vao: gl::types::GLuint,
-  vbo: gl::types::GLuint,
-}
-
-impl CommonRes {
-  pub unsafe fn allocate() -> Self {
-    let mut vao: gl::types::GLuint = 0;
-    let mut vbo: gl::types::GLuint = 0;
-    gl::GenVertexArrays(1, &mut vao);
-    gl::GenBuffers(1, &mut vbo);
-    Self { vao, vbo }
-  }
-
-  pub unsafe fn bind(&self) -> () {
-    gl::BindVertexArray(self.vao);
-  }
-
-  pub unsafe fn bind_buffers(&self) -> () {
-    gl::BindVertexArray(self.vao);
-    gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo);
-  }
-}
-
-impl Drop for CommonRes {
-  fn drop(&mut self) {
-    unsafe {
-      gl::DeleteVertexArrays(1, &self.vao);
-      gl::DeleteBuffers(1, &self.vbo);
-    }
-  }
 }

@@ -1,3 +1,5 @@
+use std::mem::swap;
+
 use crate::{
   logic::Layout,
   render::{
@@ -9,6 +11,77 @@ use crate::{
 };
 
 use super::{Area, Color, Origin, Point};
+
+#[derive(Debug)]
+enum State {
+  None,
+  Committed(Layout),
+  Plotted(Layout, Vec<Area>),
+}
+
+impl State {
+  /// Returns `true` if the state is [`Plotted`].
+  ///
+  /// [`Plotted`]: State::Plotted
+  #[must_use]
+  fn is_plotted(&self) -> bool {
+    matches!(self, Self::Plotted(..))
+  }
+
+  fn try_layout(&self) -> Result<&Layout, WidgetError> {
+    match self {
+      State::None => Err(WidgetError::Unspecified(
+        "Layout hasn't been committed".to_string(),
+      )),
+      State::Committed(l) => Ok(l),
+      State::Plotted(l, _) => Ok(l),
+    }
+  }
+
+  fn try_cells(&self) -> Result<&Vec<Area>, WidgetError> {
+    match self {
+      State::None => Err(WidgetError::Unspecified(
+        "Layout hasn't been committed".to_string(),
+      )),
+      State::Committed(_) => {
+        Err(WidgetError::Unplotted("Cells haven't been plotted"))
+      }
+      State::Plotted(_, c) => Ok(c),
+    }
+  }
+
+  /// Ensures this state is [State::Committed] or worse, downgrading if
+  /// necessary.
+  fn ensure_committed_or_worse(&mut self) {
+    let mut s = Self::default();
+    std::mem::swap(self, &mut s);
+    if let Self::Plotted(l, _) = s {
+      *self = Self::Committed(l);
+    } else {
+      *self = s;
+    }
+  }
+}
+
+impl TryInto<Layout> for State {
+  type Error = WidgetError;
+
+  fn try_into(self) -> Result<Layout, Self::Error> {
+    match self {
+      State::None => Err(WidgetError::Unspecified(
+        "Layout hasn't been committed".to_string(),
+      )),
+      State::Committed(l) => Ok(l),
+      State::Plotted(l, _) => Ok(l),
+    }
+  }
+}
+
+impl Default for State {
+  fn default() -> Self {
+    Self::None
+  }
+}
 
 static BG_COLOR_NORM: Color = (0.7, 0.7, 0.75, 1.0);
 static BG_COLOR_DARK: Color = (0.6, 0.6, 0.7, 1.0);
@@ -38,9 +111,7 @@ impl Into<Color> for CellColor {
 }
 
 pub struct TextTable {
-  layout: Option<Layout>,
   grid: Grid,
-  plotted: bool,
   rows: usize,
   columns: usize,
 
@@ -49,10 +120,10 @@ pub struct TextTable {
 
   texture_sizes: Vec<Size>,
   cell_sizes: Vec<Size>,
-  cells: Option<Vec<Area>>,
   constr: Size,
 
   origin: Option<Origin>,
+  state: State,
 }
 
 impl TextTable {
@@ -82,7 +153,6 @@ impl TextTable {
     }
 
     Self {
-      layout: None,
       rows,
       columns,
       grid: Grid::new(GRID_COLOR),
@@ -92,8 +162,7 @@ impl TextTable {
       cell_sizes: vec![],
       constr: Size::new(0, 0),
       origin: None,
-      cells: None,
-      plotted: false,
+      state: State::None,
     }
   }
 
@@ -141,13 +210,20 @@ impl TextTable {
       texture_sizes: sizes,
       cell_sizes: padded,
       constr: layout.size(),
-      layout: Some(layout),
       origin: None,
-      cells: None,
-      plotted: false,
+      state: State::Committed(layout),
     })
   }
 
+  /// Add new row to the table and request plotting.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error only if [Texture::bind_text] fails.
+  ///
+  /// # Safety
+  ///
+  /// Unsafe due to creating and rendering textures.
   pub unsafe fn add_row<'a, I>(
     &mut self,
     painter: &Painter,
@@ -172,22 +248,18 @@ impl TextTable {
       })
       .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
 
-    self.layout = None;
-    self.cells = None;
     self.rows += 1;
+    self.state = State::None;
 
     Ok(())
   }
 
   pub fn commit(&mut self) {
-    self.layout = Some(Layout::from_sizes(
+    self.state = State::Committed(Layout::from_sizes(
       self.rows,
       self.columns,
       self.cell_sizes.as_slice(),
     ));
-
-    self.plotted = false;
-    self.cells = None;
   }
 
   pub fn truncate(&mut self, len: usize) {
@@ -196,91 +268,41 @@ impl TextTable {
     self.texture_sizes.truncate(len);
     self.cell_sizes.truncate(len);
 
-    self.layout = None;
-    self.cells = None;
     self.rows = len / self.columns;
+    self.state = State::None;
   }
 
   pub unsafe fn plot(&mut self, painter: &Painter) -> Result<(), WidgetError> {
-    let layout: &Layout =
-      self.layout.as_ref().ok_or(WidgetError::Unspecified(
-        "Plottig a text table with outdated layout".to_owned(),
-      ))?;
-    let origin = self
-      .origin
-      .ok_or(WidgetError::Uninitialized("origin"))?
-      .to_point(&layout.size());
+    let origin = self.origin.ok_or(WidgetError::Uninitialized("origin"))?;
 
-    self
-      .grid
-      .plot(
-        painter,
-        layout.rows(),
-        layout.columns(),
-        layout.row_ratio(),
-        layout.column_ratio(),
-        &Area::new(
-          origin.x,
-          origin.y,
-          layout.size().width,
-          layout.size().height,
-        ),
-      )
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
+    let mut state = State::default();
+    swap(&mut state, &mut self.state);
 
-    let layout = layout.plot(&origin);
+    let layout: Layout = state.try_into()?;
+    let origin = origin.to_point(&layout.size());
+    let cells = layout.plot(&origin);
 
-    self
-      .textures
-      .iter()
-      .zip(self.texture_sizes.iter())
-      .zip(layout.iter())
-      .map(|((t, s), a)| {
-        t.plot(painter, &Area::new(a.x + 10, a.y + 10, s.width, s.height))
-      })
-      .collect::<Result<(), String>>()
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
+    self.do_plot(painter, origin, &layout, &cells)?;
 
-    self
-      .bg
-      .iter()
-      .zip(layout.iter())
-      .map(|(r, a)| r.plot(painter, a))
-      .collect::<Result<(), String>>()
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
-
-    self.plotted = true;
-    self.cells = Some(layout);
+    self.state = State::Plotted(layout, cells);
     Ok(())
   }
 
   pub fn draw(&self, painter: &Painter) -> Result<(), WidgetError> {
-    if !self.plotted {
+    if !self.state.is_plotted() {
       return Err(WidgetError::Unplotted("spreadsheet"));
     }
 
-    unsafe {
-      self
-        .bg
-        .iter()
-        .map(|r| r.draw(painter))
-        .collect::<Result<(), String>>()
-        .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
-      self
-        .grid
-        .draw(painter)
-        .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
-      self
-        .textures
-        .iter()
-        .map(|t| t.draw(painter))
-        .collect::<Result<(), String>>()
-        .map_err(|e| WidgetError::Unspecified(e.to_owned()))
-    }
+    unsafe { self.do_draw(painter) }
   }
 
   pub fn catch_point(&self, p: &Point) -> Option<usize> {
-    self.cells.as_ref()?.iter().position(|c| p.contained(c))
+    self
+      .state
+      .try_cells()
+      .ok()?
+      .iter()
+      .position(|c| p.contained(c))
   }
 
   pub fn set_origin(&mut self, origin: Origin) {
@@ -289,17 +311,15 @@ impl TextTable {
     }
 
     self.origin = Some(origin);
-    self.plotted = false;
-    self.cells = None;
+    self.state.ensure_committed_or_worse();
   }
 
   pub fn plotted(&self) -> bool {
-    self.plotted
+    self.state.is_plotted()
   }
 
   pub fn request_plot(&mut self) {
-    self.plotted = false;
-    self.cells = None;
+    self.state.ensure_committed_or_worse();
   }
 
   pub fn constr(&self) -> Size {
@@ -307,21 +327,186 @@ impl TextTable {
   }
 
   pub fn area(&self) -> Option<Area> {
-    let s = (&self.layout).as_ref().map(|s| s.size().clone())?;
+    let s = self.state.try_layout().ok()?.size().clone();
     self.origin.map(|o| Area::from_prim(o.to_point(&s), s))
   }
 
   pub fn cells(&self) -> Option<&Vec<Area>> {
-    self.cells.as_ref()
+    self.state.try_cells().ok()
   }
 }
 
-// #[cfg(test)]
-// mod test {
-//   use super::*;
+#[cfg(not(test))]
+impl TextTable {
+  unsafe fn do_draw(&self, p: &Painter) -> Result<(), WidgetError> {
+    self
+      .bg
+      .iter()
+      .map(|r| r.draw(p))
+      .collect::<Result<(), String>>()
+      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
+    self
+      .grid
+      .draw(p)
+      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
+    self
+      .textures
+      .iter()
+      .map(|t| t.draw(p))
+      .collect::<Result<(), String>>()
+      .map_err(|e| WidgetError::Unspecified(e.to_owned()))
+  }
 
-//   #[test]
-//   fn state_changes() {
-//     let mut t = unsafe { TextTable::new(0, 3) };
-//   }
-// }
+  unsafe fn do_plot(
+    &mut self,
+    p: &Painter,
+    o: Point,
+    l: &Layout,
+    cs: &Vec<Area>,
+  ) -> Result<(), WidgetError> {
+    self
+      .grid
+      .plot(
+        p,
+        l.rows(),
+        l.columns(),
+        l.row_ratio(),
+        l.column_ratio(),
+        &Area::new(o.x, o.y, l.size().width, l.size().height),
+      )
+      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
+
+    self
+      .textures
+      .iter()
+      .zip(self.texture_sizes.iter())
+      .zip(cs.iter())
+      .map(|((t, s), a)| {
+        t.plot(p, &Area::new(a.x + 10, a.y + 10, s.width, s.height))
+      })
+      .collect::<Result<(), String>>()
+      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
+
+    self
+      .bg
+      .iter()
+      .zip(cs.iter())
+      .map(|(r, a)| r.plot(p, a))
+      .collect::<Result<(), String>>()
+      .map_err(|e| WidgetError::Unspecified(e.to_owned()))
+  }
+}
+
+#[cfg(test)]
+impl TextTable {
+  unsafe fn do_draw(&self, _: &Painter) -> Result<(), WidgetError> {
+    Ok(())
+  }
+
+  unsafe fn do_plot(
+    &self,
+    _: &Painter,
+    _: Point,
+    _: &Layout,
+    _: &Vec<Area>,
+  ) -> Result<(), WidgetError> {
+    Ok(())
+  }
+
+  fn state(&self) -> &State {
+    &self.state
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use super::*;
+
+  #[test]
+  fn state_changes() {
+    let p = unsafe { Painter::new(0, 0) };
+
+    let mut t = unsafe { TextTable::new(0, 3) };
+    assert!(
+      matches!(t.state(), State::None),
+      "table starts with no state"
+    );
+
+    assert!(
+      matches!(unsafe { t.plot(&p) }, Err(_)),
+      "`plot` errors when called before commit"
+    );
+
+    unsafe {
+      t.add_row(&p, vec![&"".to_owned(); 3].iter(), CellColor::Normal)
+        .unwrap();
+      t.add_row(&p, vec![&"".to_owned(); 3].iter(), CellColor::Normal)
+        .unwrap();
+    };
+    assert!(
+      matches!(t.state(), State::None),
+      "`add_row` resets state to none"
+    );
+
+    t.commit();
+    assert!(
+      matches!(t.state(), State::Committed(_)),
+      "commit works for no state and makes state committed"
+    );
+
+    t.truncate(3);
+    assert!(
+      matches!(t.state(), State::None),
+      "`truncate` resets state to none"
+    );
+
+    t.commit();
+    assert_eq!(
+      unsafe { t.plot(&p) },
+      Err(WidgetError::Uninitialized("origin")),
+      "`plot` errors when origin isn't set"
+    );
+    assert!(
+      matches!(t.state(), State::Committed(_)),
+      "`plot` called without origin doesn't reset state"
+    );
+
+    t.set_origin(Origin::new(0, 0, crate::render::OriginPole::TopLeft));
+    assert!(
+      matches!(t.state(), State::Committed(_)),
+      "`set_origin` doesn't affect state when it's committed"
+    );
+
+    assert_eq!(
+      unsafe { t.plot(&p) },
+      Ok(()),
+      "`plot` works when state is committed and origin is set"
+    );
+
+    assert!(
+      matches!(t.state(), State::Plotted(_, _)),
+      "`plot` sets state to plotted"
+    );
+
+    assert_eq!(t.cells().unwrap().len(), 3, "`truncate` works");
+
+    t.set_origin(Origin::new(0, 0, crate::render::OriginPole::TopLeft));
+    assert!(
+      matches!(t.state(), State::Plotted(_, _)),
+      "`set_origin` is a no-op when origin remains the same after the call"
+    );
+
+    t.set_origin(Origin::new(100, 0, crate::render::OriginPole::TopLeft));
+    assert!(
+      matches!(t.state(), State::Committed(_)),
+      "`set_origin` downgrades state to committed from plotted"
+    );
+
+    unsafe { t.plot(&p).unwrap() };
+    t.request_plot();
+    assert!(
+      matches!(t.state(), State::Committed(_)),
+      "`request_plot` downgrades state to committed from plotted"
+    );
+  }
+}

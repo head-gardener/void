@@ -1,11 +1,14 @@
 use std::{cell::RefCell, rc::Rc};
 
+use voidmacro::{Menu, ClickableMenu};
+
 use crate::render::{painter::Painter, Point, TextTable, Origin};
 
 use super::traits::{
   widget::WidgetError, CallbackResult, Clickable, ClickSink, Widget,
 };
 
+#[derive(Menu, ClickableMenu)]
 pub struct Spreadsheet {
   table: TextTable,
   records: Vec<Box<String>>,
@@ -86,34 +89,6 @@ impl Spreadsheet {
       crate::logic::ring::Mark::Window,
       0,
     );
-  }
-}
-
-impl Widget for Spreadsheet {
-  unsafe fn plot(&mut self, painter: &Painter) -> Result<(), WidgetError> {
-    self.table.plot(painter)
-  }
-
-  fn draw(&self, painter: &Painter) -> Result<(), WidgetError> {
-    self.table.draw(painter)
-  }
-
-  fn plotted(&self) -> bool {
-    self.table.plotted()
-  }
-
-  fn set_origin(&mut self, origin: &Origin) {
-    self.table.set_origin(origin.clone());
-  }
-
-  fn request_plot(&mut self) {
-    self.table.request_plot();
-  }
-}
-
-impl Clickable for Spreadsheet {
-  fn click_area(&self) -> Option<crate::render::Area> {
-    self.table.area()
   }
 }
 

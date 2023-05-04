@@ -6,12 +6,14 @@ use super::traits::{Parent, Widget};
 
 pub struct Window {
   area: Area,
+  plotted: bool,
 }
 
 impl Window {
   pub fn new(painter: &crate::render::painter::Painter) -> Self {
     Self {
       area: painter.window_area().clone(),
+      plotted: false,
     }
   }
 
@@ -33,6 +35,7 @@ impl Widget for Window {
     painter: &crate::render::painter::Painter,
   ) -> Result<(), super::traits::WidgetError> {
     self.area = painter.window_area().clone();
+    self.plotted = true;
     Ok(())
   }
 
@@ -44,10 +47,12 @@ impl Widget for Window {
   }
 
   fn plotted(&self) -> bool {
-    true
+    self.plotted
   }
 
-  fn request_plot(&mut self) {}
+  fn request_plot(&mut self) {
+    self.plotted = false;
+  }
 
   fn set_origin(&mut self, _: &Origin) {}
 }

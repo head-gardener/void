@@ -58,12 +58,16 @@ impl Painter {
 }
 
 #[cfg(test)]
-pub struct Painter {}
+pub struct Painter {
+  font: FontDescription,
+}
 
 #[cfg(test)]
 impl Painter {
   pub fn new(_: u16, _: u16) -> Self {
-    Self {}
+    Self {
+      font: FontDescription::default(),
+    }
   }
 
   pub fn resize(&mut self, w: u16, h: u16) {
@@ -88,7 +92,7 @@ impl Painter {
   }
 
   pub fn font(&self) -> &FontDescription {
-    todo!();
+    &self.font
   }
 }
 

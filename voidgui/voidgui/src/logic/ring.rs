@@ -8,7 +8,7 @@ use crate::{
   widgets::traits::{CallbackResult, ClickSink, Parent, Widget, WidgetError},
 };
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Mark {
   #[cfg(test)]
   Test,
@@ -91,7 +91,7 @@ impl Ring {
   }
 
   pub fn draw(&mut self, painter: &Painter) -> Vec<WidgetError> {
-    let p = self.widgets.iter().try_for_each(|(w, _, p, n)| {
+    let p = self.widgets.iter().try_for_each(|(w, _m, p, n)| {
       let mut w = w.borrow_mut();
       if !w.plotted() {
         if *p != Mark::None {

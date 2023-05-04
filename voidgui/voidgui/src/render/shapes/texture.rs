@@ -20,6 +20,7 @@ impl Texture {
     }
   }
 
+  #[cfg(not(test))]
   unsafe fn write_texture(&mut self, w: i32, h: i32, data: *const u8) {
     self.texture.map(|s| gl::DeleteTextures(1, &s));
     let mut t: gl::types::GLuint = 0;
@@ -51,6 +52,9 @@ impl Texture {
     );
     gl::BindVertexArray(0);
   }
+
+  #[cfg(test)]
+  unsafe fn write_texture(&mut self, _: i32, _: i32, _: *const u8) {}
 
   pub unsafe fn bind_text(
     &mut self,
@@ -92,6 +96,7 @@ impl Texture {
     Ok(())
   }
 
+  #[cfg(not(test))]
   pub unsafe fn plot(
     &self,
     painter: &Painter,
@@ -131,15 +136,23 @@ impl Texture {
     Ok(())
   }
 
+  #[cfg(test)]
+  pub unsafe fn plot(&self, _: &Painter, _: &Area) -> Result<(), String> {
+    Ok(())
+  }
+
   pub unsafe fn draw(&self, painter: &Painter) -> Result<(), String> {
     let t = self
       .texture
       .ok_or("Attempted to draw a texture without binding anything to it")?;
 
-    painter.shaders().tex().set_used();
-    self.res.bind();
-    gl::BindTexture(gl::TEXTURE_2D, t);
-    gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, std::ptr::null());
+    #[cfg(not(test))]
+    {
+      painter.shaders().tex().set_used();
+      self.res.bind();
+      gl::BindTexture(gl::TEXTURE_2D, t);
+      gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, std::ptr::null());
+    }
 
     Ok(())
   }
@@ -164,6 +177,7 @@ fn tex_vertices(norm: &NormalizedArea) -> Vec<f32> {
 
 impl Drop for Texture {
   fn drop(&mut self) {
+    #[cfg(not(test))]
     self.texture().map(|s| unsafe { gl::DeleteTextures(1, &s) });
   }
 }

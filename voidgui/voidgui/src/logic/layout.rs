@@ -9,6 +9,7 @@ use crate::render::{Area, Point, Size};
 ///
 /// A laoyout can be plotted multiple times but can't be updated, only
 /// regenerated from scratch.
+#[derive(Debug)]
 pub struct Layout {
   row_ratio: Vec<f32>,
   column_ratio: Vec<f32>,

@@ -15,7 +15,7 @@ debug: build
 	$(GDB) $(PROJECT_ROOT)/$(BINPATH)/void
 
 test: build
-	cd voidgui && cargo test
+	cd voidgui && RUST_BACKTRACE=1 cargo test
 	cd void && cabal test
 
 clear: 
