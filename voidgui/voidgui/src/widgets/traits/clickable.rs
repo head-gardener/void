@@ -16,11 +16,11 @@ pub trait ClickSink: Clickable {
   fn onclick(&self, painter: &Painter, p: Point) -> CallbackResult;
 
   fn handle_click(&self, painter: &Painter, p: Point) -> CallbackResult {
-    self.click_area().map_or(CallbackResult::Skip, |a| {
+    self.click_area().map_or(CallbackResult::Pass, |a| {
       if p.contained(&a) {
         self.onclick(painter, p)
       } else {
-        CallbackResult::Skip
+        CallbackResult::Pass
       }
     })
   }

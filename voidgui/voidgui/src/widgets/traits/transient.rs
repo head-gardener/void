@@ -11,6 +11,11 @@ use super::CallbackResult;
 /// Only one transient can exist at a time, previous transient will be
 /// closed with `cancel` if new one is created.
 pub trait Transient {
-  fn handle_cancel(&self, painter: &Painter) -> CallbackResult;
-  fn handle_accept(&self, painter: &Painter) -> CallbackResult;
+  fn handle_cancel(&self, _: &Painter) -> CallbackResult {
+    CallbackResult::None
+  }
+
+  fn handle_accept(&self, _: &Painter) -> CallbackResult {
+    CallbackResult::None
+  }
 }

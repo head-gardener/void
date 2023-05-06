@@ -1,5 +1,5 @@
 use std::{
-  cell::{RefCell, RefMut},
+  cell::{Cell, RefCell, RefMut},
   rc::Rc,
 };
 
@@ -8,10 +8,12 @@ use glfw::{Action, Key, Modifiers, WindowEvent};
 use crate::{
   render::{painter::Painter, Point},
   widgets::traits::{
-    CallbackResult, ClickSink, Drawable, InputEvent, InputSink, Parent,
-    Transient, WidgetError,
+    CallbackResult, ClickSink, Drawable, InputEvent, InputSink, KeySink,
+    Parent, Transient, WidgetError,
   },
 };
+
+use super::DamageTracker;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Mark {
@@ -23,6 +25,7 @@ pub enum Mark {
   SpreadsheetInputField,
   Toolbar,
   ToolbarDropdown,
+  DamageTracker,
 }
 
 type Wrap<T> = Rc<RefCell<T>>;
@@ -35,19 +38,26 @@ pub trait RingMember {
 pub struct Ring {
   widgets: Vec<(Wrap<dyn Drawable>, Mark, Mark, usize)>,
   parents: Vec<(Wrap<dyn Parent>, Mark)>,
+  transient: Option<(Wrap<dyn Transient>, Mark)>,
+
   click_sinks: Vec<(Wrap<dyn ClickSink>, Mark)>,
   input_sinks: Vec<(Wrap<dyn InputSink>, Mark)>,
-  transient: Option<(Wrap<dyn Transient>, Mark)>,
+  key_sinks: Vec<(Wrap<dyn KeySink>, Mark)>,
+
+  damage_tracker: Rc<RefCell<DamageTracker>>,
 }
 
 impl Ring {
   pub fn new() -> Self {
+    let damage_tracker = Rc::new(RefCell::new(DamageTracker::new()));
     Self {
       widgets: vec![],
-      click_sinks: vec![],
       parents: vec![],
-      input_sinks: vec![],
       transient: None,
+      click_sinks: vec![],
+      input_sinks: vec![],
+      key_sinks: vec![(damage_tracker.clone(), Mark::DamageTracker)],
+      damage_tracker,
     }
   }
 
@@ -66,6 +76,13 @@ impl Ring {
     self.parents.push((w, m));
   }
 
+  pub fn replace_transient(&mut self, w: Wrap<dyn Transient>, m: Mark) {
+    if let Some((_, m)) = &self.transient {
+      self.delete(*m);
+    }
+    self.transient = Some((w, m));
+  }
+
   pub fn push_click_sink(&mut self, w: Wrap<dyn ClickSink>, m: Mark) {
     self.click_sinks.push((w, m));
   }
@@ -74,8 +91,8 @@ impl Ring {
     self.input_sinks.push((w, m));
   }
 
-  pub fn replace_transient(&mut self, w: Wrap<dyn Transient>, m: Mark) {
-    self.transient = Some((w, m));
+  pub fn push_key_sink(&mut self, w: Wrap<dyn KeySink>, m: Mark) {
+    self.key_sinks.push((w, m));
   }
 
   pub fn pull(&self, mark: &Mark) -> Option<Wrap<dyn Drawable>> {
@@ -108,13 +125,15 @@ impl Ring {
 
     self.widgets.retain(|(_, _m, _, _)| *_m != m);
     self.parents.retain(|(_, _m)| *_m != m);
-    self.click_sinks.retain(|(_, _m)| *_m != m);
-    self.input_sinks.retain(|(_, _m)| *_m != m);
     if let Some((_, _m)) = &self.transient {
       if *_m == m {
         self.transient = None;
       }
     }
+
+    self.click_sinks.retain(|(_, _m)| *_m != m);
+    self.input_sinks.retain(|(_, _m)| *_m != m);
+    self.key_sinks.retain(|(_, _m)| *_m != m);
 
     len != self.widgets.len()
   }
@@ -159,12 +178,12 @@ impl Ring {
   /// Push click event to all click sinks from last to first until one of them
   /// handles it.
   pub fn catch_click(&mut self, painter: &Painter, p: Point) {
-    let mut r = CallbackResult::Skip;
+    let mut r = CallbackResult::Pass;
     let mut m = Mark::None;
 
     for (w, _m) in self.click_sinks.iter().rev() {
       match w.borrow().handle_click(painter, p) {
-        CallbackResult::Skip => continue,
+        CallbackResult::Pass => continue,
         res => {
           r = res;
           m = *_m;
@@ -173,30 +192,68 @@ impl Ring {
       }
     }
 
-    self.hanle_callback_result(painter, r, "Click", m);
+    self.handle_callback_result_mut(painter, r, "Click", m);
   }
 
   /// Act on callback result.
-  /// Returns `false` if `r` is [CallbackResult::Skip], `true otherwise`.
+  ///
+  /// # Alternatives
+  ///
+  /// See [Ring::handle_callback_result] for immutable version.
+  ///
+  /// # Return
+  ///
+  /// Returns `false` if `r` is [CallbackResult::Pass], `true otherwise`.
   /// `what` and `who` are used to describe callback in case of error:
   /// `what` describes the type of callback, `who` - marked object, sourcing
   /// the callback.
-  fn hanle_callback_result(
+  fn handle_callback_result_mut(
     &mut self,
     p: &Painter,
     r: CallbackResult,
     what: &str,
     who: Mark,
   ) -> bool {
-    if r.is_skip() {
+    if r.is_pass() {
       return false;
     }
 
     match r {
       CallbackResult::Error(e) => {
-        println!("{} callback for {:?} failed: {}", what, who, e);
+        println!("{} callback by {:?} failed: {}", what, who, e);
       }
       CallbackResult::Push(x) => x.push_to_ring(self),
+      CallbackResult::Modify(m, f) => f(self.pull(&m), p),
+      CallbackResult::Damage(f) => f(&mut self.damage_tracker.borrow_mut()),
+
+      _ => {}
+    }
+    return true;
+  }
+
+  /// Same as [Ring::handle_callback_result_mut], but [CallbackResult::Push]
+  /// and [CallbackResult::Damage] are considered errors.
+  fn handle_callback_result(
+    &self,
+    p: &Painter,
+    r: CallbackResult,
+    what: &str,
+    who: Mark,
+  ) -> bool {
+    if r.is_pass() {
+      return false;
+    }
+
+    match r {
+      CallbackResult::Error(e) => {
+        println!("{} callback by {:?} failed: {}", what, who, e);
+      }
+      CallbackResult::Damage(_) => {
+        println!("{} immutable callback by {:?} returned Damage", what, who);
+      }
+      CallbackResult::Push(_) => {
+        println!("{} immutable callback by {:?} returned Push", what, who);
+      }
       CallbackResult::Modify(m, f) => f(self.pull(&m), p),
 
       _ => {}
@@ -235,7 +292,7 @@ impl Ring {
       WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
         let r = t.borrow().handle_cancel(p);
         self.delete(m);
-        self.hanle_callback_result(p, r, "Cancel", m);
+        self.handle_callback_result_mut(p, r, "Cancel", m);
         true
       }
       WindowEvent::Key(Key::Enter | Key::KpEnter, _, Action::Press, mods)
@@ -243,11 +300,37 @@ impl Ring {
       {
         let r = t.borrow().handle_accept(p);
         self.delete(m);
-        self.hanle_callback_result(p, r, "Accept", m);
+        self.handle_callback_result_mut(p, r, "Accept", m);
         true
       }
       _ => false,
     }
+  }
+
+  pub fn handle_key(&mut self, p: &Painter, e: &WindowEvent) -> bool {
+    let mut r = CallbackResult::Pass;
+    let mut m = Mark::None;
+
+    for (w, _m) in self.key_sinks.iter().rev() {
+      match w.borrow_mut().handle_key(p, e) {
+        CallbackResult::Pass => continue,
+        res => {
+          r = res;
+          m = *_m;
+          break;
+        }
+      }
+    }
+
+    self.handle_callback_result_mut(p, r, "Click", m)
+  }
+
+  pub fn drain_damage_tracker(&self, p: &Painter) {
+    // I'm LAZY
+    let mut t = self.damage_tracker.borrow_mut();
+    t.drain().for_each(|r| {
+      self.handle_callback_result(p, r, "Damage", Mark::DamageTracker);
+    });
   }
 }
 

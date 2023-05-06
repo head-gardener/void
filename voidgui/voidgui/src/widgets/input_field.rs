@@ -1,6 +1,5 @@
 use crate::{
   colorscheme::CURSOR_COLOR,
-  logic::ring::Mark,
   render::{
     painter::Painter,
     shapes::{texture::get_text_size, Rectangle},
@@ -9,7 +8,6 @@ use crate::{
   },
   widgets::traits::CallbackResult,
 };
-use std::{cell::RefCell, rc::Rc};
 
 use super::traits::{
   widget::WidgetError, Drawable, InputEvent, InputSink, Widget,
@@ -52,7 +50,6 @@ impl<T> InputField<T> {
 impl<T> InputSink for InputField<T> {
   fn handle_event(&mut self, p: &Painter, e: &InputEvent) -> CallbackResult {
     self.state.dispatch(e);
-    println!("self.state.to_string() = {:?}", self.state.to_string());
     match self.table.update_cell(p, 0, &self.state.to_string()) {
       Ok(()) => CallbackResult::None,
       Err(e) => CallbackResult::Error(e),
@@ -73,7 +70,9 @@ impl<T: 'static> Drawable for InputField<T> {
     )
     .map_err(|e| WidgetError::Unspecified(e.to_owned()))?
     .width;
-    let l = s.height / d.lines().count() as u16;
+    let c = d.lines().count();
+    let c = if c == 0 { 1 } else { c };
+    let l = s.height / c as u16;
     let a = Area::new(
       o.x + OFFSET + after,
       o.y + OFFSET / 2 + s.height - l,

@@ -1,9 +1,10 @@
 use std::ffi::{CStr, CString};
 
-use super::Color;
+use super::{Area, Color};
 
 pub struct Shaders {
   common: CommonShader,
+  grad: GradShader,
   tex: TexShader,
 }
 
@@ -16,6 +17,13 @@ impl Shaders {
       )
       .expect("common shader to compile"),
     );
+    let grad = GradShader::new(
+      Program::from_files(
+        include_str!("shaders/common.vert"),
+        include_str!("shaders/grad.frag"),
+      )
+      .expect("grad shader to compile"),
+    );
     let tex = TexShader::new(
       Program::from_files(
         include_str!("shaders/tex.vert"),
@@ -23,7 +31,7 @@ impl Shaders {
       )
       .expect("tex shader to compile"),
     );
-    Self { common, tex }
+    Self { common, tex, grad }
   }
 
   pub fn tex(&self) -> &TexShader {
@@ -32,6 +40,10 @@ impl Shaders {
 
   pub fn common(&self) -> &CommonShader {
     &self.common
+  }
+
+  pub fn grad(&self) -> &GradShader {
+    &self.grad
   }
 }
 
@@ -45,6 +57,37 @@ impl CommonShader {
   pub fn set_color(&self, color: &Color) {
     unsafe {
       gl::Uniform4f(self.color.id, color.0, color.1, color.2, color.3);
+    };
+  }
+
+  pub fn pos(&self) -> &Attrib {
+    &self.pos
+  }
+}
+
+pub struct GradShader {
+  prog: Program,
+  color: Uniform,
+  constr: Uniform,
+  pos: Attrib,
+}
+
+impl GradShader {
+  pub fn set_color(&self, color: &Color) {
+    unsafe {
+      gl::Uniform4f(self.color.id, color.0, color.1, color.2, color.3);
+    };
+  }
+
+  pub fn set_constr(&self, a: &Area) {
+    unsafe {
+      gl::Uniform4f(
+        self.constr.id,
+        a.x as f32,
+        a.y as f32,
+        a.width as f32,
+        a.height as f32,
+      );
     };
   }
 
@@ -72,6 +115,25 @@ impl TexShader {
 impl Shader for CommonShader {
   fn new(prog: Program) -> Self {
     Self {
+      color: Uniform::get_uniform(&prog, "color"),
+      pos: Attrib::get_attrib(&prog, "pos"),
+      prog,
+    }
+  }
+
+  fn prog(&self) -> &Program {
+    &self.prog
+  }
+
+  fn attribs(&self) -> Vec<i32> {
+    vec![self.pos.id()]
+  }
+}
+
+impl Shader for GradShader {
+  fn new(prog: Program) -> Self {
+    Self {
+      constr: Uniform::get_uniform(&prog, "constr"),
       color: Uniform::get_uniform(&prog, "color"),
       pos: Attrib::get_attrib(&prog, "pos"),
       prog,

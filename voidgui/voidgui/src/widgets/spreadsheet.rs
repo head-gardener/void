@@ -33,7 +33,7 @@ impl Spreadsheet {
 
     Ok(Self {
       table,
-      records: vec![Box::new(n), Box::new(p)],
+      records: vec![],
     })
   }
 
@@ -89,10 +89,10 @@ impl ClickSink for Spreadsheet {
   fn onclick(&self, painter: &Painter, p: Point) -> CallbackResult {
     let i = self.table.catch_point(&p).unwrap();
     match i {
-      0 | 1 => CallbackResult::Skip,
+      0 | 1 => CallbackResult::Pass,
       _ => {
-        let s = self.records.get(i - 2).unwrap();
-        match unsafe { InputField::new(painter, s, i - 2) } {
+        let s = &self.records[i - 2];
+        match unsafe { InputField::new(painter, s, (i - 2, s.clone())) } {
           Ok(f) => CallbackResult::Push(Box::new(Rc::new(RefCell::new(f)))),
           Err(e) => CallbackResult::Error(e),
         }
@@ -101,23 +101,14 @@ impl ClickSink for Spreadsheet {
   }
 }
 
-type SpreadsheetIF = usize;
+type SpreadsheetIF = (usize, Box<String>);
 
 impl Transient for InputField<SpreadsheetIF> {
-  fn handle_cancel(&self, _: &Painter) -> CallbackResult {
-    CallbackResult::None
-  }
-
   fn handle_accept(&self, _: &Painter) -> CallbackResult {
-    let c = *self.closure();
-    let d = self.to_string();
-    CallbackResult::Modify(Mark::Spreadsheet, Box::new(move |s, p| {
-      s.expect("Spreadsheet should always be in the ring")
-        .borrow_mut()
-        .downcast_mut()
-        .map(|s: &mut Spreadsheet| {
-          s.update_record(p, c, &d).unwrap();
-        });
+    let (c, from) = self.closure().clone();
+    let to = self.to_string();
+    CallbackResult::Damage(Box::new(move |t| {
+      t.push(crate::logic::Damage::Update(c, *from, to))
     }))
   }
 }

@@ -8,7 +8,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::traits::{
   widget::WidgetError, CallbackResult, ClickSink, Clickable, Drawable, Parent,
-  Widget,
+  Transient, Widget,
 };
 
 use voidmacro::{ClickableMenu, DrawableMenu, Menu};
@@ -56,7 +56,7 @@ impl ClickSink for Toolbar {
       ),
       1 => {
         println!("Tools");
-        CallbackResult::Skip
+        CallbackResult::Pass
       }
       _ => {
         panic!("unexpected ind: {}", i);
@@ -96,6 +96,10 @@ impl ToolbarTable {
 impl RingMember for Rc<RefCell<ToolbarTable>> {
   fn push_to_ring(&self, ring: &mut crate::logic::Ring) {
     // ring.push_clickable(rc.clone(), crate::logic::ring::Mark::Toolbar);
+    ring.replace_transient(
+      self.clone(),
+      crate::logic::ring::Mark::ToolbarDropdown,
+    );
     ring.push(
       self.clone(),
       crate::logic::ring::Mark::ToolbarDropdown,
@@ -104,6 +108,8 @@ impl RingMember for Rc<RefCell<ToolbarTable>> {
     );
   }
 }
+
+impl Transient for ToolbarTable {}
 
 // impl ClickableWidget for ToolbarTable {
 //   fn onclick(&self, painter: &Painter, p: Point) -> CallbackResult {

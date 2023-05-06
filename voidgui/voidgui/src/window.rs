@@ -2,7 +2,7 @@ use glfw::{Action, Context, Key, Modifiers, MouseButton, WindowEvent};
 
 use crate::{
   colorscheme::BACKGROUND,
-  logic::Ring,
+  logic::{DamageTracker, Ring},
   render::{painter::Painter, Point},
   widgets::{toolbar::Toolbar, traits::InputEvent, Spreadsheet, Window},
 };
@@ -10,10 +10,12 @@ use crate::{
 pub struct VoidWindow {
   painter: Painter,
   ring: Ring,
+
+  cursor: Point,
+
   events: std::sync::mpsc::Receiver<(f64, glfw::WindowEvent)>,
   hw_window: glfw::Window,
   glfw: glfw::Glfw,
-  cursor: Point,
 }
 
 impl VoidWindow {
@@ -73,7 +75,16 @@ impl VoidWindow {
       self.poll_events();
       let events = glfw::flush_messages(&self.events);
       for (_, event) in events {
-        if self.ring.handle_transient_control_event(&self.painter, &event) {
+        if self
+          .ring
+          .handle_transient_control_event(&self.painter, &event)
+        {
+          continue;
+        }
+        if self
+          .ring
+          .handle_key(&self.painter, &event)
+        {
           continue;
         }
 
@@ -113,12 +124,7 @@ impl VoidWindow {
               .ring
               .catch_input_event(&self.painter, InputEvent::Char(c));
           }
-          WindowEvent::Key(
-            Key::Left,
-            _,
-            Action::Press | Action::Repeat,
-            _,
-          ) => {
+          WindowEvent::Key(Key::Left, _, Action::Press | Action::Repeat, _) => {
             self.ring.catch_input_event(&self.painter, InputEvent::Left);
           }
           WindowEvent::Key(
@@ -151,25 +157,11 @@ impl VoidWindow {
               .ring
               .catch_input_event(&self.painter, InputEvent::Delete);
           }
-          WindowEvent::Key(
-            Key::Home,
-            _,
-            Action::Press | Action::Repeat,
-            _,
-          ) => {
-            self
-              .ring
-              .catch_input_event(&self.painter, InputEvent::Home);
+          WindowEvent::Key(Key::Home, _, Action::Press | Action::Repeat, _) => {
+            self.ring.catch_input_event(&self.painter, InputEvent::Home);
           }
-          WindowEvent::Key(
-            Key::End,
-            _,
-            Action::Press | Action::Repeat,
-            _,
-          ) => {
-            self
-              .ring
-              .catch_input_event(&self.painter, InputEvent::End);
+          WindowEvent::Key(Key::End, _, Action::Press | Action::Repeat, _) => {
+            self.ring.catch_input_event(&self.painter, InputEvent::End);
           }
           WindowEvent::Key(
             Key::Enter,
@@ -190,6 +182,7 @@ impl VoidWindow {
 
       gl::Clear(gl::COLOR_BUFFER_BIT);
 
+      self.ring.drain_damage_tracker(&self.painter);
       self.draw();
       crate::render::painter::pop_gl_error();
       self.swap_buffers();

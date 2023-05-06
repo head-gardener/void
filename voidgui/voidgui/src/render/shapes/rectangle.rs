@@ -3,16 +3,21 @@ use crate::render::{painter::Painter, shaders::Shader, shapes::*, Color};
 pub struct Rectangle {
   color: Color,
   res: CommonRes,
+  area: Option<Area>,
 }
 
 impl Rectangle {
   pub unsafe fn new(color: Color) -> Self {
     let res = CommonRes::allocate();
-    Self { color, res }
+    Self {
+      color,
+      res,
+      area: None,
+    }
   }
 
   pub unsafe fn plot(
-    &self,
+    &mut self,
     painter: &Painter,
     area: &Area,
   ) -> Result<(), String> {
@@ -22,7 +27,7 @@ impl Rectangle {
     self.res.bind();
     self.res.bind_buffers();
     painter.common().bind_rect_ebo();
-    painter.shaders().common().enable_attribs();
+    painter.shaders().grad().enable_attribs();
 
     gl::BufferData(
       gl::ARRAY_BUFFER,
@@ -41,12 +46,14 @@ impl Rectangle {
     );
     gl::BindVertexArray(0);
 
+    self.area = Some(area.clone());
     Ok(())
   }
 
   pub unsafe fn draw(&self, painter: &Painter) -> Result<(), String> {
-    painter.shaders().common().set_used();
-    painter.shaders().common().set_color(&self.color);
+    painter.shaders().grad().set_used();
+    painter.shaders().grad().set_color(&self.color);
+    painter.shaders().grad().set_constr(&self.area.unwrap());
     self.res.bind();
     gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, std::ptr::null());
 

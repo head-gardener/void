@@ -9,6 +9,7 @@ import Text.Printf
 main :: IO ()
 main =
   G.withNewWindow $ \w -> do
+    fill w
     exec w
   where
     pull :: G.VoidWindow -> IO ()
@@ -22,6 +23,14 @@ main =
             G.drop w `seq` G.push w e
           update Nothing = putStrLn "Pull failure"
        in update d
+
+    fill :: G.VoidWindow -> IO ()
+    fill w = G.push w e
+      where
+        e =
+          [ Entry "Vovan" "123",
+            Entry "Ivan" "228"
+          ]
 
     exec :: G.VoidWindow -> IO ()
     exec window = do_exec window 0

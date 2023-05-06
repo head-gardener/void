@@ -151,7 +151,7 @@ impl TextTable {
       Orientation::Horizontal => (1, items.len()),
     };
 
-    let mut table = TextTable::from_text(painter, r, c, &items)?;
+    let table = TextTable::from_text(painter, r, c, &items)?;
 
     Ok(table)
   }
@@ -467,7 +467,7 @@ impl TextTable {
 
     self
       .bg
-      .iter()
+      .iter_mut()
       .zip(cs.iter())
       .map(|(r, a)| r.plot(p, a))
       .collect::<Result<(), String>>()
