@@ -13,7 +13,7 @@ use crate::{
   widgets::traits::widget::WidgetError,
 };
 
-use super::{Area, Color, Origin, Point};
+use super::{shapes::rectangle, Area, Origin, Point};
 
 #[derive(Debug)]
 enum State {
@@ -102,25 +102,27 @@ impl Default for State {
 }
 
 #[derive(Clone, Copy)]
-pub enum CellColor {
+pub enum CellStyle {
   Normal,
   Darker,
   Lighter,
+  Lit,
+}
+
+impl Into<rectangle::Style> for CellStyle {
+  fn into(self) -> rectangle::Style {
+    match self {
+      CellStyle::Normal => rectangle::Style::Solid(CELL_BG_COLOR_NORM),
+      CellStyle::Darker => rectangle::Style::Solid(CELL_BG_COLOR_DARK),
+      CellStyle::Lighter => rectangle::Style::Solid(CELL_BG_COLOR_LGHT),
+      CellStyle::Lit => rectangle::Style::Lit(CELL_BG_COLOR_DARK, None),
+    }
+  }
 }
 
 pub enum Orientation {
   Vertical,
   Horizontal,
-}
-
-impl Into<Color> for CellColor {
-  fn into(self) -> Color {
-    match self {
-      CellColor::Normal => CELL_BG_COLOR_NORM,
-      CellColor::Darker => CELL_BG_COLOR_DARK,
-      CellColor::Lighter => CELL_BG_COLOR_LGHT,
-    }
-  }
 }
 
 pub struct TextTable {
@@ -144,6 +146,7 @@ impl TextTable {
   pub unsafe fn make_static(
     painter: &Painter,
     or: Orientation,
+    style: CellStyle,
     items: &[&str],
   ) -> Result<Self, WidgetError> {
     let (r, c) = match or {
@@ -151,7 +154,7 @@ impl TextTable {
       Orientation::Horizontal => (1, items.len()),
     };
 
-    let table = TextTable::from_text(painter, r, c, &items)?;
+    let table = TextTable::from_text(painter, r, c, style, &items)?;
 
     Ok(table)
   }
@@ -182,6 +185,7 @@ impl TextTable {
     painter: &Painter,
     rows: usize,
     columns: usize,
+    style: CellStyle,
     text: &[R],
   ) -> Result<Self, WidgetError>
   where
@@ -210,7 +214,7 @@ impl TextTable {
     let layout = Layout::from_sizes(rows, columns, padded.as_slice());
 
     let bg = (0..rows * columns)
-      .map(|_| Rectangle::new(CELL_BG_COLOR_NORM))
+      .map(|_| Rectangle::new(style.into()))
       .collect();
 
     Ok(Self {
@@ -240,7 +244,7 @@ impl TextTable {
     &mut self,
     painter: &Painter,
     mut data: I,
-    color: CellColor,
+    color: CellStyle,
   ) -> Result<(), WidgetError>
   where
     I: std::iter::Iterator<Item = &'a &'a String>,
@@ -309,13 +313,13 @@ impl TextTable {
   pub fn set_cell_color(
     &mut self,
     n: usize,
-    c: CellColor,
+    c: CellStyle,
   ) -> Result<(), WidgetError> {
     self
       .bg
       .iter_mut()
       .nth(n)
-      .map(|b| b.set_color(c.into()))
+      .map(|b| b.set_style(c.into()))
       .ok_or(WidgetError::Unspecified(format!(
         "n out of bounds in update_cell: {}",
         n
@@ -506,7 +510,14 @@ mod test {
 
     let p = unsafe { Painter::new(0, 0) };
     let mut t = unsafe {
-      TextTable::from_text(&p, 2, 2, &["abc", "ab", "a\na", "a"]).unwrap()
+      TextTable::from_text(
+        &p,
+        2,
+        2,
+        CellStyle::Normal,
+        &["abc", "ab", "a\na", "a"],
+      )
+      .unwrap()
     };
 
     t.set_origin(Origin::new(100, 100, crate::render::OriginPole::TopLeft));
@@ -549,7 +560,7 @@ mod test {
 
     unsafe {
       t.set_origin(Origin::new(100, 100, crate::render::OriginPole::TopLeft));
-      t.add_row(&p, vec![&"abcd".to_owned(); 2].iter(), CellColor::Normal)
+      t.add_row(&p, vec![&"abcd".to_owned(); 2].iter(), CellStyle::Normal)
         .unwrap();
       t.plot(&p).unwrap();
     };
@@ -590,9 +601,9 @@ mod test {
     );
 
     unsafe {
-      t.add_row(&p, vec![&"".to_owned(); 3].iter(), CellColor::Normal)
+      t.add_row(&p, vec![&"".to_owned(); 3].iter(), CellStyle::Normal)
         .unwrap();
-      t.add_row(&p, vec![&"".to_owned(); 3].iter(), CellColor::Normal)
+      t.add_row(&p, vec![&"".to_owned(); 3].iter(), CellStyle::Normal)
         .unwrap();
     };
     assert!(

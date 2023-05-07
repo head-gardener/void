@@ -2,7 +2,7 @@ use crate::{
   colorscheme::CURSOR_COLOR,
   render::{
     painter::Painter,
-    shapes::{texture::get_text_size, Rectangle},
+    shapes::{rectangle, texture::get_text_size, Rectangle},
     text_table::{Orientation, OFFSET},
     Area, Origin, TextTable,
   },
@@ -29,14 +29,15 @@ impl<T> InputField<T> {
     s: &str,
     closure: T,
   ) -> Result<Self, WidgetError> {
-    let mut table =
-      TextTable::make_static(painter, Orientation::Vertical, &[&s])?;
-    table
-      .set_cell_color(0, crate::render::text_table::CellColor::Lighter)
-      .unwrap();
+    let table = TextTable::make_static(
+      painter,
+      Orientation::Vertical,
+      crate::render::text_table::CellStyle::Lighter,
+      &[&s],
+    )?;
     Ok(Self {
       table,
-      cursor: Rectangle::new(CURSOR_COLOR),
+      cursor: Rectangle::new(rectangle::Style::Solid(CURSOR_COLOR)),
       state: s.into(),
       closure,
     })

@@ -67,7 +67,8 @@ impl CommonShader {
 
 pub struct GradShader {
   prog: Program,
-  color: Uniform,
+  color1: Uniform,
+  color2: Uniform,
   constr: Uniform,
   pos: Attrib,
 }
@@ -75,7 +76,8 @@ pub struct GradShader {
 impl GradShader {
   pub fn set_color(&self, color: &Color) {
     unsafe {
-      gl::Uniform4f(self.color.id, color.0, color.1, color.2, color.3);
+      gl::Uniform4f(self.color1.id, color.0, color.1, color.2, color.3);
+      gl::Uniform4f(self.color2.id, color.0 + 0.1, color.1 + 0.1, color.2 + 0.1, color.3);
     };
   }
 
@@ -134,7 +136,8 @@ impl Shader for GradShader {
   fn new(prog: Program) -> Self {
     Self {
       constr: Uniform::get_uniform(&prog, "constr"),
-      color: Uniform::get_uniform(&prog, "color"),
+      color1: Uniform::get_uniform(&prog, "color1"),
+      color2: Uniform::get_uniform(&prog, "color2"),
       pos: Attrib::get_attrib(&prog, "pos"),
       prog,
     }

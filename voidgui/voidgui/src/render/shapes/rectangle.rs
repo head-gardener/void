@@ -1,19 +1,22 @@
 use crate::render::{painter::Painter, shaders::Shader, shapes::*, Color};
 
+#[derive(Debug)]
+pub enum Style {
+  Solid(Color),
+  Lit(Color, Option<Area>),
+}
+
 pub struct Rectangle {
-  color: Color,
+  style: Style,
   res: CommonRes,
-  area: Option<Area>,
 }
 
 impl Rectangle {
-  pub unsafe fn new(color: Color) -> Self {
+  pub unsafe fn new(style: Style) -> Self {
     let res = CommonRes::allocate();
-    Self {
-      color,
-      res,
-      area: None,
-    }
+    println!("style = {:?}", style);
+
+    Self { style, res }
   }
 
   pub unsafe fn plot(
@@ -27,7 +30,16 @@ impl Rectangle {
     self.res.bind();
     self.res.bind_buffers();
     painter.common().bind_rect_ebo();
-    painter.shaders().grad().enable_attribs();
+
+    match &mut self.style {
+      Style::Solid(_) => {
+        painter.shaders().common().enable_attribs();
+      }
+      Style::Lit(_, a) => {
+        painter.shaders().grad().enable_attribs();
+        *a = Some(area.clone());
+      }
+    }
 
     gl::BufferData(
       gl::ARRAY_BUFFER,
@@ -46,21 +58,34 @@ impl Rectangle {
     );
     gl::BindVertexArray(0);
 
-    self.area = Some(area.clone());
     Ok(())
   }
 
   pub unsafe fn draw(&self, painter: &Painter) -> Result<(), String> {
-    painter.shaders().grad().set_used();
-    painter.shaders().grad().set_color(&self.color);
-    painter.shaders().grad().set_constr(&self.area.unwrap());
+    match self.style {
+      Style::Solid(c) => {
+        painter.shaders().common().set_used();
+        painter.shaders().common().set_color(&c);
+        Ok::<(), String>(())
+      }
+      Style::Lit(c, a) => {
+        painter.shaders().grad().set_used();
+        painter.shaders().grad().set_color(&c);
+        painter
+          .shaders()
+          .grad()
+          .set_constr(&a.ok_or("unplotted grad rectangle".to_string())?);
+        Ok(())
+      }
+    }?;
+
     self.res.bind();
     gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, std::ptr::null());
 
     Ok(())
   }
 
-  pub fn set_color(&mut self, color: Color) {
-    self.color = color;
+  pub fn set_style(&mut self, style: Style) {
+    self.style = style;
   }
 }

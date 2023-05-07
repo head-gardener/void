@@ -2,14 +2,14 @@
 
 precision mediump float;
 
-uniform vec4 color;
+uniform vec4 color1;
+uniform vec4 color2;
 uniform vec4 constr;
 
 out vec4 out_color;
 
 void main() {
-  vec2 ndcPos;
-  ndcPos.xy = (2. * gl_FragCoord.xy - 2. * constr.xy) / constr.wz - 1.;
-
-  out_color = vec4(ndcPos.xy, color.ba);
+  float pos;
+  pos = (gl_FragCoord.x - constr.x) / constr.z;
+  out_color = color1 + (color2 - color1) * pos; 
 }

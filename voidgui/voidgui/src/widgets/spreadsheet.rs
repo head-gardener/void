@@ -28,7 +28,7 @@ impl Spreadsheet {
     table.add_row(
       painter,
       [&n, &p].iter(),
-      crate::render::text_table::CellColor::Darker,
+      crate::render::text_table::CellStyle::Lit,
     )?;
 
     Ok(Self {
@@ -50,7 +50,7 @@ impl Spreadsheet {
       self.table.add_row(
         painter,
         [&n, &p].iter(),
-        crate::render::text_table::CellColor::Normal,
+        crate::render::text_table::CellStyle::Normal,
       )?;
     };
 

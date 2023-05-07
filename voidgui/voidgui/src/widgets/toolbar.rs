@@ -28,6 +28,7 @@ impl Toolbar {
       table: TextTable::make_static(
         painter,
         Orientation::Horizontal,
+        crate::render::text_table::CellStyle::Normal,
         &TOOLBAR_ITEMS,
       )?,
     })
@@ -87,6 +88,7 @@ impl ToolbarTable {
       table: TextTable::make_static(
         painter,
         Orientation::Vertical,
+        crate::render::text_table::CellStyle::Normal,
         &TOOLBAR_TABLE_ITEMS,
       )?,
     })
