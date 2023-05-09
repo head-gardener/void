@@ -60,30 +60,13 @@ impl ClickSink for W {
 }
 
 pub fn draw_bench(c: &mut Criterion) {
-  let mut back = unsafe { Backend::new(200, 200) };
-  let mut core = Core::new();
-  let mut rng = rand::thread_rng();
-
-  for i in 0..10 {
-    let mut w = W::new(&back.painter);
-    w.set_origin(&Origin::new(
-      10 * i,
-      10 * i,
-      voidgui::render::OriginPole::TopLeft,
-    ));
-    let r = Rc::new(RefCell::new(w));
-    core
-      .ring_mut()
-      .push_click_sink(r.clone(), voidgui::logic::ring::Mark::None);
-    core.ring_mut().push(
-      r,
-      voidgui::logic::ring::Mark::None,
-      voidgui::logic::ring::Mark::None,
-      0,
-    );
-  }
+  let (back, mut core, _) = setup();
 
   c.bench_function("draw a lot", |b| b.iter(|| core.draw(&back)));
+}
+
+pub fn event_bench(c: &mut Criterion) {
+  let (mut back, mut core, mut rng) = setup();
 
   c.bench_function("handle click", |b| {
     b.iter(|| {
@@ -108,5 +91,41 @@ pub fn draw_bench(c: &mut Criterion) {
   });
 }
 
-criterion_group!(benches, draw_bench);
-criterion_main!(benches);
+fn setup() -> (Backend, Core, rand::rngs::ThreadRng) {
+  let back = unsafe { Backend::new(200, 200) };
+  let mut core = Core::new();
+  let rng = rand::thread_rng();
+
+  for i in 0..10 {
+    let mut w = W::new(&back.painter);
+    w.set_origin(&Origin::new(
+      10 * i,
+      10 * i,
+      voidgui::render::OriginPole::TopLeft,
+    ));
+    let r = Rc::new(RefCell::new(w));
+    core
+      .ring_mut()
+      .push_click_sink(r.clone(), voidgui::logic::ring::Mark::None);
+    core.ring_mut().push(
+      r,
+      voidgui::logic::ring::Mark::None,
+      voidgui::logic::ring::Mark::None,
+      0,
+    );
+  }
+
+  (back, core, rng)
+}
+
+criterion_group!{
+    name = hard;
+    config = Criterion::default().significance_level(0.08).sample_size(5000);
+    targets = draw_bench
+}
+criterion_group!{
+    name = easy;
+    config = Criterion::default().sample_size(500);
+    targets = event_bench
+}
+criterion_main!(hard, easy,);
