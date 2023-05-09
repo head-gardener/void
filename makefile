@@ -14,9 +14,12 @@ run: build
 debug: build
 	$(GDB) $(PROJECT_ROOT)/$(BINPATH)/void
 
-test: build
+test:
 	cd voidgui && RUST_BACKTRACE=1 cargo test
 	cd void && cabal test
+
+bench:
+	cd voidgui && RUST_BACKTRACE=1 cargo bench
 
 clear: 
 	rm -rf build/*

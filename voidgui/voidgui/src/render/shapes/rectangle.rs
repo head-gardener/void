@@ -14,8 +14,6 @@ pub struct Rectangle {
 impl Rectangle {
   pub unsafe fn new(style: Style) -> Self {
     let res = CommonRes::allocate();
-    println!("style = {:?}", style);
-
     Self { style, res }
   }
 

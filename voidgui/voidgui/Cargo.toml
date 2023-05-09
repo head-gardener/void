@@ -6,7 +6,7 @@ edition = "2021"
 [lib]
 name = "voidgui"
 path = "src/lib.rs"
-crate-type = ["cdylib"]
+crate-type = ["lib"]
 
 [dependencies]
 gl = ">=0.14.0"
@@ -14,3 +14,15 @@ glfw = ">=0.51.0"
 pangocairo = ">=0.17.0"
 downcast-rs = ">=1.2.0"
 voidmacro = { path = "../voidmacro" }
+
+[dev-dependencies]
+rand = "0.8.5"
+criterion = "0.4"
+
+[[bench]]
+name = "ring_benchmark"
+harness = false
+
+# [[bench]]
+# name = "layout_benchmark"
+# harness = false

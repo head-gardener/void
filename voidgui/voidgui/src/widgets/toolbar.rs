@@ -1,7 +1,7 @@
 use crate::{
   logic::ring::RingMember,
   render::{
-    painter::Painter, text_table::Orientation, Origin, Point, TextTable,
+    painter::Painter, text_table::Orientation, Area, Origin, Point, TextTable,
   },
 };
 use std::{cell::RefCell, rc::Rc};
@@ -15,7 +15,7 @@ use voidmacro::{ClickableMenu, DrawableMenu, Menu};
 
 static TOOLBAR_ITEMS: [&str; 2] = ["Table", "Tools"];
 static TOOLBAR_TABLE_ITEMS: [&str; 2] = ["Pull", "Push"];
-static TOOLBAR_TOOLS_ITEMS: [&str; 1] = [":)"];
+// static TOOLBAR_TOOLS_ITEMS: [&str; 1] = [":)"];
 
 #[derive(Menu, DrawableMenu, ClickableMenu)]
 pub struct Toolbar {

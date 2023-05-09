@@ -1,2 +1,2 @@
 [workspace]
-members = ["voidmacro", "voidgui"]
+members = ["voidmacro", "voidgui", "voidcrm"]

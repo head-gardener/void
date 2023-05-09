@@ -15,21 +15,21 @@ impl Shaders {
         include_str!("shaders/common.vert"),
         include_str!("shaders/common.frag"),
       )
-      .expect("common shader to compile"),
+      .expect("common shader should compile"),
     );
     let grad = GradShader::new(
       Program::from_files(
         include_str!("shaders/common.vert"),
         include_str!("shaders/grad.frag"),
       )
-      .expect("grad shader to compile"),
+      .expect("grad shader should compile"),
     );
     let tex = TexShader::new(
       Program::from_files(
         include_str!("shaders/tex.vert"),
         include_str!("shaders/tex.frag"),
       )
-      .expect("tex shader to compile"),
+      .expect("tex shader should compile"),
     );
     Self { common, tex, grad }
   }
@@ -77,7 +77,13 @@ impl GradShader {
   pub fn set_color(&self, color: &Color) {
     unsafe {
       gl::Uniform4f(self.color1.id, color.0, color.1, color.2, color.3);
-      gl::Uniform4f(self.color2.id, color.0 + 0.1, color.1 + 0.1, color.2 + 0.1, color.3);
+      gl::Uniform4f(
+        self.color2.id,
+        color.0 + 0.1,
+        color.1 + 0.1,
+        color.2 + 0.1,
+        color.3,
+      );
     };
   }
 

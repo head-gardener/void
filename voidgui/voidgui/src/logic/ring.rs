@@ -1,5 +1,5 @@
 use std::{
-  cell::{Cell, RefCell, RefMut},
+  cell::{RefCell, RefMut},
   rc::Rc,
 };
 
@@ -68,7 +68,6 @@ impl Ring {
     parent: Mark,
     n: usize,
   ) {
-    assert!(m != parent);
     self.widgets.push((w, m, parent, n));
   }
 

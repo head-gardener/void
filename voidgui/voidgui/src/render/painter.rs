@@ -43,11 +43,6 @@ impl Painter {
     &self.common
   }
 
-  pub fn update_window_area(&mut self, width: u16, height: u16) -> () {
-    self.window_area.width = width;
-    self.window_area.height = height;
-  }
-
   pub fn window_area(&self) -> &Area {
     &self.window_area
   }

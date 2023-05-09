@@ -4,7 +4,7 @@ use voidmacro::{ClickableMenu, DrawableMenu, Menu};
 
 use crate::{
   logic::ring::{Mark, RingMember},
-  render::{painter::Painter, Origin, Point, TextTable},
+  render::{painter::Painter, Area, Origin, Point, TextTable},
   widgets::InputField,
 };
 

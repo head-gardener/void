@@ -55,7 +55,7 @@ pub fn derive_clickable_menu(input: TokenStream) -> TokenStream {
 
   let expanded = quote! {
     impl Clickable for #name {
-      fn click_area(&self) -> Option<crate::render::Area> {
+      fn click_area(&self) -> Option<Area> {
         self.table.area()
       }
     }
