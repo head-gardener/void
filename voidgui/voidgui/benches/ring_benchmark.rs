@@ -20,10 +20,11 @@ use voidmacro::{ClickableMenu, Menu};
 struct W {
   table: TextTable,
   _ind: usize,
+  unplottable: bool,
 }
 
 impl W {
-  fn new(ind: usize, p: &Painter) -> Self {
+  fn new(ind: usize, unplottable: bool, p: &Painter) -> Self {
     Self {
       table: unsafe {
         TextTable::from_text(
@@ -36,6 +37,7 @@ impl W {
         .unwrap()
       },
       _ind: ind,
+      unplottable,
     }
   }
 }
@@ -44,7 +46,9 @@ impl Drawable for W {
   unsafe fn plot(&mut self, painter: &Painter) -> Result<(), widgets::Error> {
     // println!("plot {}", self.ind);
     let r = self.table.plot(painter);
-    self.table.request_plot();
+    if self.unplottable || self._ind == 3 {
+      self.table.request_plot();
+    }
     r
   }
 
@@ -69,10 +73,22 @@ impl Parent for W {
   }
 }
 
-pub fn draw_bench(c: &mut Criterion) {
-  let (back, mut core, _) = setup();
+pub fn draw_bench_plot_all(c: &mut Criterion) {
+  let (back, mut core, _) = setup(true);
 
-  c.bench_function("draw a lot", |b| {
+  c.bench_function("plot a lot", |b| {
+    b.iter(|| {
+      // println!("from");
+      core.draw(&back);
+      // println!("to");
+    })
+  });
+}
+
+pub fn draw_bench_plot_one(c: &mut Criterion) {
+  let (back, mut core, _) = setup(false);
+
+  c.bench_function("plot one", |b| {
     b.iter(|| {
       // println!("from");
       core.draw(&back);
@@ -82,7 +98,7 @@ pub fn draw_bench(c: &mut Criterion) {
 }
 
 pub fn event_bench(c: &mut Criterion) {
-  let (mut back, mut core, mut rng) = setup();
+  let (mut back, mut core, mut rng) = setup(false);
 
   c.bench_function("handle click", |b| {
     b.iter(|| {
@@ -107,14 +123,14 @@ pub fn event_bench(c: &mut Criterion) {
   });
 }
 
-fn setup() -> (Backend, Core, rand::rngs::ThreadRng) {
+fn setup(unplottable: bool) -> (Backend, Core, rand::rngs::ThreadRng) {
   let back = unsafe { Backend::new(400, 400) };
   let mut core = Core::new();
   let rng = rand::thread_rng();
 
   // push parents
   for m in [Mark::_Test1, Mark::_Test2] {
-    let mut w = W::new(m as usize, &back.painter);
+    let mut w = W::new(m as usize, unplottable, &back.painter);
     w.set_origin(&Origin::new(0, 0, voidgui::render::OriginPole::TopLeft));
     unsafe { w.plot(&back.painter).unwrap() };
     let r = ring::wrap(w);
@@ -125,7 +141,7 @@ fn setup() -> (Backend, Core, rand::rngs::ThreadRng) {
 
   for m in [Mark::_Test1, Mark::_Test2] {
     for i in 0..6 {
-      let w = W::new(2 + i + 6 * m as usize, &back.painter);
+      let w = W::new(2 + i + 6 * m as usize, unplottable, &back.painter);
       let r = ring::wrap(w);
       core.ring_mut().push_click_sink(r.clone(), Mark::None);
       core.ring_mut().push(r, Mark::None, m, i as usize);
@@ -138,7 +154,7 @@ fn setup() -> (Backend, Core, rand::rngs::ThreadRng) {
 criterion_group! {
     name = hard;
     config = Criterion::default().significance_level(0.08).sample_size(5000);
-    targets = draw_bench
+    targets = draw_bench_plot_all, draw_bench_plot_one
 }
 criterion_group! {
     name = easy;
