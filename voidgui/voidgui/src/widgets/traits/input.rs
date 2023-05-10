@@ -1,6 +1,4 @@
-use crate::render::painter::Painter;
-
-use super::CallbackResult;
+use crate::{render::painter::Painter, logic::CallbackResult};
 
 pub enum InputEvent {
   Char(char),

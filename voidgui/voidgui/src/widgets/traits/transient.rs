@@ -1,6 +1,4 @@
-use crate::render::painter::Painter;
-
-use super::CallbackResult;
+use crate::{render::painter::Painter, logic::CallbackResult};
 
 /// `Transient` is an object, that listens for control events, as described
 /// in [Ring::handle_transient_control_event]. All objects, stored with the

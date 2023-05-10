@@ -3,7 +3,7 @@ use std::ffi::{c_char, CStr};
 use voidgui::{
   backend::Backend,
   core::*,
-  widgets::{self, toolbar::Toolbar, Spreadsheet, traits::WidgetError},
+  widgets::{self, toolbar::Toolbar, Spreadsheet, traits::Error},
 };
 
 struct Window {
@@ -22,7 +22,7 @@ extern "C" fn void_gui_init() -> Box<Window> {
   Box::new(w)
 }
 
-unsafe fn populate(c: &mut Core, b: &Backend) -> Result<(), WidgetError> {
+unsafe fn populate(c: &mut Core, b: &Backend) -> Result<(), Error> {
   let win = widgets::Window::new(&b.painter);
   let ssheet = Spreadsheet::new(&b.painter)?;
   let toolbar = Toolbar::new(&b.painter)?;

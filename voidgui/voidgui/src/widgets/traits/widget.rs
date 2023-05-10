@@ -1,99 +1,44 @@
-use std::{cell::RefCell, rc::Rc};
+use crate::render::Origin;
 
-use crate::{
-  logic::{
-    ring::{Mark, RingMember},
-    DamageTracker,
-  },
-  render::{painter::Painter, Origin},
-};
-
-use super::Drawable;
-
-pub enum CallbackResult {
-  /// Event was dropped.
-  Pass,
-
-  /// No side effects.
-  None,
-
-  /// Callback failed.
-  Error(WidgetError),
-
-  /// Push a widget to the ring.
-  Push(Box<dyn RingMember>),
-
-  /// Modify a widget by mark.
-  Modify(
-    Mark,
-    Box<dyn FnOnce(Option<Rc<RefCell<dyn Drawable>>>, &Painter)>,
-  ),
-
-  /// Access damage tracker.
-  Damage(Box<dyn FnOnce(&mut DamageTracker)>),
-}
-
-impl std::fmt::Debug for CallbackResult {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      CallbackResult::Pass => write!(f, "Pass"),
-      CallbackResult::None => write!(f, "None"),
-      CallbackResult::Error(e) => write!(f, "Error({})", e),
-      CallbackResult::Push(_) => write!(f, "Push(_)"),
-      CallbackResult::Modify(m, _) => write!(f, "Modify({:?}, _)", m),
-      CallbackResult::Damage(_) => write!(f, "Damage(_)"),
-    }
-  }
-}
-
-impl CallbackResult {
-  /// Returns `true` if the callback result is [`Pass`].
-  ///
-  /// [`Pass`]: CallbackResult::Pass
-  #[must_use]
-  pub fn is_pass(&self) -> bool {
-    matches!(self, Self::Pass)
-  }
-}
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum WidgetError {
+pub enum Error {
   InitFailure(&'static str),
   Unspecified(String),
   Uninitialized(&'static str),
   Unplotted(&'static str),
 }
 
-impl std::fmt::Display for WidgetError {
+impl std::fmt::Display for Error {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      WidgetError::Unspecified(cause) => {
+      Error::Unspecified(cause) => {
         write!(f, "Unspecified error caused by: {}", cause)
       }
-      WidgetError::Uninitialized(param) => {
+      Error::Uninitialized(param) => {
         write!(f, "Field '{}' uninitialized", param)
       }
-      WidgetError::Unplotted(widget) => {
+      Error::Unplotted(widget) => {
         write!(f, "Widget '{}' drawn before being plotted", widget)
       }
-      WidgetError::InitFailure(what) => {
+      Error::InitFailure(what) => {
         write!(f, "Component {} failed to initialize.", what)
       }
     }
   }
 }
 
-impl std::error::Error for WidgetError {}
+impl std::error::Error for Error {}
 
-impl From<String> for WidgetError {
+impl From<String> for Error {
   fn from(s: String) -> Self {
-    WidgetError::Unspecified(s)
+    Error::Unspecified(s)
   }
 }
 
-impl From<&str> for WidgetError {
+impl From<&str> for Error {
   fn from(s: &str) -> Self {
-    WidgetError::Unspecified(s.to_string())
+    Error::Unspecified(s.to_string())
   }
 }
 

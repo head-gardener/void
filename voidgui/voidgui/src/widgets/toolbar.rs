@@ -1,13 +1,12 @@
 use crate::{
-  logic::ring::RingMember,
+  logic::{ring::{RingMember, self}, CallbackResult},
   render::{
     painter::Painter, text_table::Orientation, Area, Origin, Point, TextTable,
-  },
+  }, widgets,
 };
-use std::{cell::RefCell, rc::Rc};
 
 use super::traits::{
-  widget::WidgetError, CallbackResult, ClickSink, Clickable, Drawable, Parent,
+  widget::Error, ClickSink, Clickable, Drawable, Parent,
   Transient, Widget,
 };
 
@@ -23,7 +22,7 @@ pub struct Toolbar {
 }
 
 impl Toolbar {
-  pub unsafe fn new(painter: &Painter) -> Result<Self, WidgetError> {
+  pub unsafe fn new(painter: &Painter) -> Result<Self, Error> {
     Ok(Self {
       table: TextTable::make_static(
         painter,
@@ -35,7 +34,7 @@ impl Toolbar {
   }
 
   pub fn push_to_ring(self, ring: &mut crate::logic::Ring) {
-    let rc = Rc::new(RefCell::new(self));
+    let rc = ring::wrap(self);
     ring.push_click_sink(rc.clone(), crate::logic::ring::Mark::Toolbar);
     ring.push_parent(rc.clone(), crate::logic::ring::Mark::Toolbar);
     ring.push(
@@ -52,8 +51,8 @@ impl ClickSink for Toolbar {
     let i = self.table.catch_point(&p).unwrap();
     match i {
       0 => unsafe { ToolbarTable::new(painter) }.map_or(
-        CallbackResult::Error(WidgetError::InitFailure("ToolbarTable")),
-        |m| CallbackResult::Push(Box::new(Rc::new(RefCell::new(m)))),
+        CallbackResult::Error(Error::InitFailure("ToolbarTable")),
+        |m| CallbackResult::Push(Box::new(ring::wrap(m))),
       ),
       1 => {
         println!("Tools");
@@ -83,7 +82,7 @@ pub struct ToolbarTable {
 }
 
 impl ToolbarTable {
-  pub unsafe fn new(painter: &Painter) -> Result<Self, WidgetError> {
+  pub unsafe fn new(painter: &Painter) -> Result<Self, Error> {
     Ok(Self {
       table: TextTable::make_static(
         painter,
@@ -95,7 +94,7 @@ impl ToolbarTable {
   }
 }
 
-impl RingMember for Rc<RefCell<ToolbarTable>> {
+impl RingMember for ring::Wrap<ToolbarTable> {
   fn push_to_ring(&self, ring: &mut crate::logic::Ring) {
     // ring.push_clickable(rc.clone(), crate::logic::ring::Mark::Toolbar);
     ring.replace_transient(

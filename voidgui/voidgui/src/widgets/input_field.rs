@@ -5,12 +5,11 @@ use crate::{
     shapes::{rectangle, texture::get_text_size, Rectangle},
     text_table::{Orientation, OFFSET},
     Area, Origin, TextTable,
-  },
-  widgets::traits::CallbackResult,
+  }, logic::CallbackResult,
 };
 
 use super::traits::{
-  widget::WidgetError, Drawable, InputEvent, InputSink, Widget,
+  widget::Error, Drawable, InputEvent, InputSink, Widget,
 };
 
 use voidmacro::Menu;
@@ -23,12 +22,12 @@ pub struct InputField<T> {
   closure: T,
 }
 
-impl<T> InputField<T> {
+impl<T: Send> InputField<T> {
   pub unsafe fn new(
     painter: &Painter,
     s: &str,
     closure: T,
-  ) -> Result<Self, WidgetError> {
+  ) -> Result<Self, Error> {
     let table = TextTable::make_static(
       painter,
       Orientation::Vertical,
@@ -58,8 +57,8 @@ impl<T> InputSink for InputField<T> {
   }
 }
 
-impl<T: 'static> Drawable for InputField<T> {
-  unsafe fn plot(&mut self, painter: &Painter) -> Result<(), WidgetError> {
+impl<T: Send + Sync + 'static> Drawable for InputField<T> {
+  unsafe fn plot(&mut self, painter: &Painter) -> Result<(), Error> {
     self.table.plot(painter)?;
 
     // FIXME: wtf is this shit
@@ -69,7 +68,7 @@ impl<T: 'static> Drawable for InputField<T> {
       painter,
       &self.state.before_cursor().lines().last().unwrap_or(""),
     )
-    .map_err(|e| WidgetError::Unspecified(e.to_owned()))?
+    .map_err(|e| Error::Unspecified(e.to_owned()))?
     .width;
     let c = d.lines().count();
     let c = if c == 0 { 1 } else { c };
@@ -83,13 +82,13 @@ impl<T: 'static> Drawable for InputField<T> {
     self
       .cursor
       .plot(painter, &a)
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))
+      .map_err(|e| Error::Unspecified(e.to_owned()))
   }
 
-  fn draw(&self, painter: &Painter) -> Result<(), WidgetError> {
+  fn draw(&self, painter: &Painter) -> Result<(), Error> {
     self.table.draw(painter)?;
     unsafe { self.cursor.draw(painter) }
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))
+      .map_err(|e| Error::Unspecified(e.to_owned()))
   }
 }
 

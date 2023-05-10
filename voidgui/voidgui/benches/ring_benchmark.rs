@@ -1,17 +1,16 @@
-use std::{cell::RefCell, rc::Rc};
-
 use rand::Rng;
 
 use criterion::{criterion_group, criterion_main, Criterion};
+use voidgui::logic::CallbackResult;
+use voidgui::widgets;
 use voidgui::{
   backend::Backend,
   core::Core,
+  logic::ring,
   render::{
     painter::Painter, text_table::CellStyle::Normal, Area, Origin, TextTable,
   },
-  widgets::traits::{
-    CallbackResult, ClickSink, Clickable, Drawable, Widget, WidgetError,
-  },
+  widgets::traits::{ClickSink, Clickable, Drawable, Widget},
 };
 use voidmacro::{ClickableMenu, Menu};
 
@@ -38,23 +37,19 @@ impl W {
 }
 
 impl Drawable for W {
-  unsafe fn plot(&mut self, painter: &Painter) -> Result<(), WidgetError> {
+  unsafe fn plot(&mut self, painter: &Painter) -> Result<(), widgets::Error> {
     let r = self.table.plot(painter);
     self.table.request_plot();
     r
   }
 
-  fn draw(&self, _: &Painter) -> Result<(), WidgetError> {
+  fn draw(&self, _: &Painter) -> Result<(), widgets::Error> {
     Ok(())
   }
 }
 
 impl ClickSink for W {
-  fn onclick(
-    &self,
-    _: &Painter,
-    _: voidgui::render::Point,
-  ) -> voidgui::widgets::traits::CallbackResult {
+  fn onclick(&self, _: &Painter, _: voidgui::render::Point) -> CallbackResult {
     CallbackResult::None
   }
 }
@@ -103,7 +98,7 @@ fn setup() -> (Backend, Core, rand::rngs::ThreadRng) {
       10 * i,
       voidgui::render::OriginPole::TopLeft,
     ));
-    let r = Rc::new(RefCell::new(w));
+    let r = ring::wrap(w);
     core
       .ring_mut()
       .push_click_sink(r.clone(), voidgui::logic::ring::Mark::None);
@@ -118,12 +113,12 @@ fn setup() -> (Backend, Core, rand::rngs::ThreadRng) {
   (back, core, rng)
 }
 
-criterion_group!{
+criterion_group! {
     name = hard;
     config = Criterion::default().significance_level(0.08).sample_size(5000);
     targets = draw_bench
 }
-criterion_group!{
+criterion_group! {
     name = easy;
     config = Criterion::default().sample_size(500);
     targets = event_bench

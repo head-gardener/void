@@ -9,10 +9,11 @@ path = "src/lib.rs"
 crate-type = ["lib"]
 
 [dependencies]
-gl = ">=0.14.0"
-glfw = ">=0.51.0"
-pangocairo = ">=0.17.0"
-downcast-rs = ">=1.2.0"
+gl = ">=0.14"
+glfw = ">=0.51"
+pangocairo = ">=0.17"
+downcast-rs = ">=1.2"
+rayon = ">=1.7"
 voidmacro = { path = "../voidmacro" }
 
 [dev-dependencies]

@@ -1,15 +1,15 @@
-use std::{cell::RefCell, rc::Rc};
-
 use glfw::{Action, Key, Modifiers, WindowEvent};
 
 use crate::{
   logic::ring::Mark,
   render::painter::Painter,
   widgets::{
-    traits::{CallbackResult, Drawable, KeySink},
+    traits::{Drawable, KeySink},
     Spreadsheet,
   },
 };
+
+use super::{CallbackResult, ring};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Damage {
@@ -41,10 +41,11 @@ impl Into<CallbackResult> for Damage {
 
 fn with_spreadsheet(
   f: impl FnOnce(&Painter, &mut Spreadsheet) + 'static,
-) -> Box<dyn FnOnce(Option<Rc<RefCell<dyn Drawable>>>, &Painter)> {
+) -> Box<dyn FnOnce(Option<ring::Wrap<dyn Drawable>>, &Painter)> {
   Box::new(move |s, p| {
     s.expect("Spreadsheet should always be in the ring")
-      .borrow_mut()
+      .write()
+      .unwrap()
       .downcast_mut()
       .map(|s| f(p, s));
   })

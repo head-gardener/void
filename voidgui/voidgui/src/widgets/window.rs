@@ -1,6 +1,7 @@
-use std::{cell::RefCell, rc::Rc};
-
-use crate::render::{Area, Origin, OriginPole};
+use crate::{
+  logic::ring,
+  render::{Area, Origin, OriginPole},
+};
 
 use super::traits::{Drawable, Parent, Widget};
 
@@ -18,7 +19,7 @@ impl Window {
   }
 
   pub fn push_to_ring(self, ring: &mut crate::logic::Ring) {
-    let rc = Rc::new(RefCell::new(self));
+    let rc = ring::wrap(self);
     ring.push_parent(rc.clone(), crate::logic::ring::Mark::Window);
     ring.push(
       rc,
@@ -45,7 +46,7 @@ impl Drawable for Window {
   unsafe fn plot(
     &mut self,
     painter: &crate::render::painter::Painter,
-  ) -> Result<(), super::traits::WidgetError> {
+  ) -> Result<(), super::traits::Error> {
     self.area = painter.window_area().clone();
     self.plotted = true;
     Ok(())
@@ -54,7 +55,7 @@ impl Drawable for Window {
   fn draw(
     &self,
     _: &crate::render::painter::Painter,
-  ) -> Result<(), super::traits::WidgetError> {
+  ) -> Result<(), super::traits::Error> {
     Ok(())
   }
 }

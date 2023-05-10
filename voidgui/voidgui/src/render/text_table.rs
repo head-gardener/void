@@ -10,7 +10,7 @@ use crate::{
     shapes::{Grid, Rectangle, Texture},
     Size,
   },
-  widgets::traits::widget::WidgetError,
+  widgets::traits::widget::Error,
 };
 
 use super::{shapes::rectangle, Area, Origin, Point};
@@ -46,9 +46,9 @@ impl State {
     matches!(self, Self::None)
   }
 
-  fn try_layout(&self) -> Result<&Layout, WidgetError> {
+  fn try_layout(&self) -> Result<&Layout, Error> {
     match self {
-      State::None => Err(WidgetError::Unspecified(
+      State::None => Err(Error::Unspecified(
         "Layout hasn't been committed".to_string(),
       )),
       State::Committed(l) => Ok(l),
@@ -56,13 +56,13 @@ impl State {
     }
   }
 
-  fn try_cells(&self) -> Result<&Vec<Area>, WidgetError> {
+  fn try_cells(&self) -> Result<&Vec<Area>, Error> {
     match self {
-      State::None => Err(WidgetError::Unspecified(
+      State::None => Err(Error::Unspecified(
         "Layout hasn't been committed".to_string(),
       )),
       State::Committed(_) => {
-        Err(WidgetError::Unplotted("Cells haven't been plotted"))
+        Err(Error::Unplotted("Cells haven't been plotted"))
       }
       State::Plotted(_, c) => Ok(c),
     }
@@ -82,11 +82,11 @@ impl State {
 }
 
 impl TryInto<Layout> for State {
-  type Error = WidgetError;
+  type Error = Error;
 
   fn try_into(self) -> Result<Layout, Self::Error> {
     match self {
-      State::None => Err(WidgetError::Unspecified(
+      State::None => Err(Error::Unspecified(
         "Layout hasn't been committed".to_string(),
       )),
       State::Committed(l) => Ok(l),
@@ -148,7 +148,7 @@ impl TextTable {
     or: Orientation,
     style: CellStyle,
     items: &[&str],
-  ) -> Result<Self, WidgetError> {
+  ) -> Result<Self, Error> {
     let (r, c) = match or {
       Orientation::Vertical => (items.len(), 1),
       Orientation::Horizontal => (1, items.len()),
@@ -187,7 +187,7 @@ impl TextTable {
     columns: usize,
     style: CellStyle,
     text: &[R],
-  ) -> Result<Self, WidgetError>
+  ) -> Result<Self, Error>
   where
     R: AsRef<str>,
   {
@@ -199,7 +199,7 @@ impl TextTable {
         Ok(t)
       })
       .collect::<Result<Vec<Texture>, String>>()
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
+      .map_err(|e| Error::Unspecified(e.to_owned()))?;
 
     let sizes = textures
       .iter()
@@ -245,7 +245,7 @@ impl TextTable {
     painter: &Painter,
     mut data: I,
     color: CellStyle,
-  ) -> Result<(), WidgetError>
+  ) -> Result<(), Error>
   where
     I: std::iter::Iterator<Item = &'a &'a String>,
   {
@@ -262,7 +262,7 @@ impl TextTable {
         self.bg.push(Rectangle::new(color.into()));
         Ok(())
       })
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
+      .map_err(|e| Error::Unspecified(e.to_owned()))?;
 
     self.rows += 1;
     self.state = State::None;
@@ -281,7 +281,7 @@ impl TextTable {
     p: &Painter,
     n: usize,
     s: &str,
-  ) -> Result<(), WidgetError> {
+  ) -> Result<(), Error> {
     unsafe {
       self
         .textures
@@ -298,11 +298,11 @@ impl TextTable {
 
           Ok(())
         })
-        .ok_or(WidgetError::Unspecified(format!(
+        .ok_or(Error::Unspecified(format!(
           "n out of bounds in update_cell: {}",
           n
         )))?
-        .map_err(|e| WidgetError::Unspecified(e.to_owned()))
+        .map_err(|e| Error::Unspecified(e.to_owned()))
     }?;
 
     self.state = State::None;
@@ -314,13 +314,13 @@ impl TextTable {
     &mut self,
     n: usize,
     c: CellStyle,
-  ) -> Result<(), WidgetError> {
+  ) -> Result<(), Error> {
     self
       .bg
       .iter_mut()
       .nth(n)
       .map(|b| b.set_style(c.into()))
-      .ok_or(WidgetError::Unspecified(format!(
+      .ok_or(Error::Unspecified(format!(
         "n out of bounds in update_cell: {}",
         n
       )))
@@ -351,8 +351,8 @@ impl TextTable {
   }
 
   /// Plot this [TextTable], committing its layout if necessary.
-  pub unsafe fn plot(&mut self, painter: &Painter) -> Result<(), WidgetError> {
-    let origin = self.origin.ok_or(WidgetError::Uninitialized("origin"))?;
+  pub unsafe fn plot(&mut self, painter: &Painter) -> Result<(), Error> {
+    let origin = self.origin.ok_or(Error::Uninitialized("origin"))?;
 
     self.ensure_committed();
     let mut state = State::default();
@@ -368,9 +368,9 @@ impl TextTable {
     Ok(())
   }
 
-  pub fn draw(&self, painter: &Painter) -> Result<(), WidgetError> {
+  pub fn draw(&self, painter: &Painter) -> Result<(), Error> {
     if !self.state.is_plotted() {
-      return Err(WidgetError::Unplotted("spreadsheet"));
+      return Err(Error::Unplotted("spreadsheet"));
     }
 
     unsafe { self.do_draw(painter) }
@@ -420,23 +420,23 @@ impl TextTable {
 
 #[cfg(not(test))]
 impl TextTable {
-  unsafe fn do_draw(&self, p: &Painter) -> Result<(), WidgetError> {
+  unsafe fn do_draw(&self, p: &Painter) -> Result<(), Error> {
     self
       .bg
       .iter()
       .map(|r| r.draw(p))
       .collect::<Result<(), String>>()
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
+      .map_err(|e| Error::Unspecified(e.to_owned()))?;
     self
       .grid
       .draw(p)
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
+      .map_err(|e| Error::Unspecified(e.to_owned()))?;
     self
       .textures
       .iter()
       .map(|t| t.draw(p))
       .collect::<Result<(), String>>()
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))
+      .map_err(|e| Error::Unspecified(e.to_owned()))
   }
 
   unsafe fn do_plot(
@@ -445,7 +445,7 @@ impl TextTable {
     o: Point,
     l: &Layout,
     cs: &Vec<Area>,
-  ) -> Result<(), WidgetError> {
+  ) -> Result<(), Error> {
     self
       .grid
       .plot(
@@ -456,7 +456,7 @@ impl TextTable {
         l.column_ratio(),
         &Area::new(o.x, o.y, l.size().width, l.size().height),
       )
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
+      .map_err(|e| Error::Unspecified(e.to_owned()))?;
 
     self
       .textures
@@ -467,7 +467,7 @@ impl TextTable {
         t.plot(p, &Area::new(a.x + OFFSET, a.y + OFFSET, s.width, s.height))
       })
       .collect::<Result<(), String>>()
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))?;
+      .map_err(|e| Error::Unspecified(e.to_owned()))?;
 
     self
       .bg
@@ -475,13 +475,13 @@ impl TextTable {
       .zip(cs.iter())
       .map(|(r, a)| r.plot(p, a))
       .collect::<Result<(), String>>()
-      .map_err(|e| WidgetError::Unspecified(e.to_owned()))
+      .map_err(|e| Error::Unspecified(e.to_owned()))
   }
 }
 
 #[cfg(test)]
 impl TextTable {
-  unsafe fn do_draw(&self, _: &Painter) -> Result<(), WidgetError> {
+  unsafe fn do_draw(&self, _: &Painter) -> Result<(), Error> {
     Ok(())
   }
 
@@ -491,7 +491,7 @@ impl TextTable {
     _: Point,
     _: &Layout,
     _: &Vec<Area>,
-  ) -> Result<(), WidgetError> {
+  ) -> Result<(), Error> {
     Ok(())
   }
 
@@ -626,7 +626,7 @@ mod test {
     t.ensure_committed();
     assert_eq!(
       unsafe { t.plot(&p) },
-      Err(WidgetError::Uninitialized("origin")),
+      Err(Error::Uninitialized("origin")),
       "`plot` errors when origin isn't set"
     );
     assert!(

@@ -1,6 +1,4 @@
-use crate::render::{Area, Point, painter::Painter};
-
-use super::CallbackResult;
+use crate::{render::{Area, Point, painter::Painter}, logic::CallbackResult};
 
 /// `Clickable` is an object, that has an area catching clicks.
 pub trait Clickable {

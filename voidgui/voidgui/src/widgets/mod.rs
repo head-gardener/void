@@ -7,3 +7,4 @@ pub mod window;
 pub use spreadsheet::Spreadsheet;
 pub use input_field::*;
 pub use window::*;
+pub use traits::Error;

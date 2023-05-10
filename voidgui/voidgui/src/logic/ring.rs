@@ -1,15 +1,12 @@
-use std::{
-  cell::{RefCell, RefMut},
-  rc::Rc,
-};
+use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 use glfw::{Action, Key, Modifiers, WindowEvent};
 
 use crate::{
   render::{painter::Painter, Point},
   widgets::traits::{
-    CallbackResult, ClickSink, Drawable, InputEvent, InputSink, KeySink,
-    Parent, Transient, WidgetError,
+    ClickSink, Drawable, InputEvent, InputSink, KeySink,
+    Parent, Transient, Error,
   },
 };
 
@@ -28,7 +25,58 @@ pub enum Mark {
   DamageTracker,
 }
 
-type Wrap<T> = Rc<RefCell<T>>;
+pub enum CallbackResult {
+  /// Event was dropped.
+  Pass,
+
+  /// No side effects.
+  None,
+
+  /// Callback failed.
+  Error(Error),
+
+  /// Push a widget to the ring.
+  Push(Box<dyn RingMember>),
+
+  /// Modify a widget by mark.
+  Modify(
+    Mark,
+    Box<dyn FnOnce(Option<Wrap<dyn Drawable>>, &Painter)>,
+  ),
+
+  /// Access damage tracker.
+  Damage(Box<dyn FnOnce(&mut DamageTracker)>),
+}
+
+impl std::fmt::Debug for CallbackResult {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      CallbackResult::Pass => write!(f, "Pass"),
+      CallbackResult::None => write!(f, "None"),
+      CallbackResult::Error(e) => write!(f, "Error({})", e),
+      CallbackResult::Push(_) => write!(f, "Push(_)"),
+      CallbackResult::Modify(m, _) => write!(f, "Modify({:?}, _)", m),
+      CallbackResult::Damage(_) => write!(f, "Damage(_)"),
+    }
+  }
+}
+
+impl CallbackResult {
+  /// Returns `true` if the callback result is [`Pass`].
+  ///
+  /// [`Pass`]: CallbackResult::Pass
+  #[must_use]
+  pub fn is_pass(&self) -> bool {
+    matches!(self, Self::Pass)
+  }
+}
+
+pub type Wrap<T> = Arc<RwLock<T>>;
+pub type Unwrapped<'a, T> = RwLockWriteGuard<'a, T>;
+
+pub fn wrap<T: Send + Sync>(x: T) -> Wrap<T> {
+  Arc::new(RwLock::new(x))
+}
 
 pub trait RingMember {
   fn push_to_ring(&self, ring: &mut Ring);
@@ -44,12 +92,12 @@ pub struct Ring {
   input_sinks: Vec<(Wrap<dyn InputSink>, Mark)>,
   key_sinks: Vec<(Wrap<dyn KeySink>, Mark)>,
 
-  damage_tracker: Rc<RefCell<DamageTracker>>,
+  damage_tracker: Wrap<DamageTracker>,
 }
 
 impl Ring {
   pub fn new() -> Self {
-    let damage_tracker = Rc::new(RefCell::new(DamageTracker::new()));
+    let damage_tracker = wrap(DamageTracker::new());
     Self {
       widgets: vec![],
       parents: vec![],
@@ -112,10 +160,11 @@ impl Ring {
 
   pub fn for_each<F>(&mut self, mut f: F)
   where
-    F: FnMut(RefMut<dyn Drawable>) -> (),
+    F: FnMut(Unwrapped<dyn Drawable>) -> (),
   {
     for (w, _, _, _) in self.widgets.iter_mut() {
-      f(w.borrow_mut());
+      let w = w.write().unwrap();
+      f(w);
     }
   }
 
@@ -138,17 +187,18 @@ impl Ring {
   }
 
   /// Draw all owned widgets, plotting if needed.
-  pub fn draw(&mut self, painter: &Painter) -> Vec<WidgetError> {
+  pub fn draw(&mut self, painter: &Painter) -> Vec<Error> {
     let p = self.widgets.iter().try_for_each(|(w, _m, p, n)| {
-      let mut w = w.borrow_mut();
+      let mut w = w.write().unwrap();
       if !w.plotted() {
         if *p != Mark::None {
           let o = self
             .pull_parent(p)
-            .ok_or(WidgetError::Unspecified("Invalid parent mark".to_owned()))?
-            .borrow()
+            .ok_or(Error::Unspecified("Invalid parent mark".to_owned()))?
+            .read()
+            .unwrap()
             .nth_child(*n)
-            .ok_or(WidgetError::Unspecified(format!(
+            .ok_or(Error::Unspecified(format!(
               "Child out of bounds: {}",
               n
             )))?;
@@ -167,7 +217,7 @@ impl Ring {
       .widgets
       .iter()
       .map(|(w, _, _, _)| {
-        let w = w.borrow_mut();
+        let w = w.write().unwrap();
         w.draw(painter)
       })
       .filter_map(|r| r.err())
@@ -181,7 +231,7 @@ impl Ring {
     let mut m = Mark::None;
 
     for (w, _m) in self.click_sinks.iter().rev() {
-      match w.borrow().handle_click(painter, p) {
+      match w.write().unwrap().handle_click(painter, p) {
         CallbackResult::Pass => continue,
         res => {
           r = res;
@@ -223,7 +273,7 @@ impl Ring {
       }
       CallbackResult::Push(x) => x.push_to_ring(self),
       CallbackResult::Modify(m, f) => f(self.pull(&m), p),
-      CallbackResult::Damage(f) => f(&mut self.damage_tracker.borrow_mut()),
+      CallbackResult::Damage(f) => f(&mut self.damage_tracker.write().unwrap()),
 
       _ => {}
     }
@@ -263,7 +313,7 @@ impl Ring {
   /// Push char to last input sink.
   pub fn catch_input_event(&self, p: &Painter, e: InputEvent) {
     self.input_sinks.last().iter().for_each(|(w, _)| {
-      match w.borrow_mut().handle_event(p, &e) {
+      match w.write().unwrap().handle_event(p, &e) {
         CallbackResult::Error(e) => {
           println!("Input callback failed: {}", e);
         }
@@ -284,12 +334,12 @@ impl Ring {
     if !self.transient.is_some() {
       return false;
     }
-    let (t, m) = self.transient.as_ref().unwrap();
+    let (trans, m) = self.transient.as_ref().unwrap();
     let m = m.clone();
 
     match e {
       WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
-        let r = t.borrow().handle_cancel(p);
+        let r = trans.write().unwrap().handle_cancel(p);
         self.delete(m);
         self.handle_callback_result_mut(p, r, "Cancel", m);
         true
@@ -297,7 +347,7 @@ impl Ring {
       WindowEvent::Key(Key::Enter | Key::KpEnter, _, Action::Press, mods)
         if !mods.contains(Modifiers::Control) =>
       {
-        let r = t.borrow().handle_accept(p);
+        let r = trans.write().unwrap().handle_accept(p);
         self.delete(m);
         self.handle_callback_result_mut(p, r, "Accept", m);
         true
@@ -311,7 +361,7 @@ impl Ring {
     let mut m = Mark::None;
 
     for (w, _m) in self.key_sinks.iter().rev() {
-      match w.borrow_mut().handle_key(p, e) {
+      match w.write().unwrap().handle_key(p, e) {
         CallbackResult::Pass => continue,
         res => {
           r = res;
@@ -326,7 +376,7 @@ impl Ring {
 
   pub fn drain_damage_tracker(&self, p: &Painter) {
     // I'm LAZY
-    let mut t = self.damage_tracker.borrow_mut();
+    let mut t = self.damage_tracker.write().unwrap();
     t.drain().for_each(|r| {
       self.handle_callback_result(p, r, "Damage", Mark::DamageTracker);
     });
@@ -335,11 +385,10 @@ impl Ring {
 
 #[cfg(test)]
 mod tests {
-  use std::{cell::RefCell, rc::Rc};
-
   use crate::{
+    logic::ring,
     render::painter::Painter,
-    widgets::traits::{widget::WidgetError, Drawable, Widget},
+    widgets::traits::{widget::Error, Drawable, Widget},
   };
 
   use super::Ring;
@@ -360,7 +409,7 @@ mod tests {
     }
 
     pub fn push_to_ring(self, ring: &mut crate::logic::Ring) {
-      let rc = Rc::new(RefCell::new(self));
+      let rc = ring::wrap(self);
       ring.push(
         rc,
         crate::logic::ring::Mark::Test,
@@ -385,17 +434,17 @@ mod tests {
   }
 
   impl Drawable for W {
-    unsafe fn plot(&mut self, _: &Painter) -> Result<(), WidgetError> {
+    unsafe fn plot(&mut self, _: &Painter) -> Result<(), Error> {
       if self.fail_plot {
-        Err(WidgetError::Unspecified("plot failed".to_owned()))
+        Err(Error::Unspecified("plot failed".to_owned()))
       } else {
         Ok(())
       }
     }
 
-    fn draw(&self, _: &Painter) -> Result<(), WidgetError> {
+    fn draw(&self, _: &Painter) -> Result<(), Error> {
       if self.fail_draw {
-        Err(WidgetError::Unspecified("draw failed".to_owned()))
+        Err(Error::Unspecified("draw failed".to_owned()))
       } else {
         Ok(())
       }
@@ -430,7 +479,7 @@ mod tests {
     assert_eq!(errors.len(), 1);
     assert_eq!(
       errors[0],
-      WidgetError::Unspecified("draw failed".to_owned())
+      Error::Unspecified("draw failed".to_owned())
     );
 
     // drawing doesn't fail fast
@@ -446,7 +495,7 @@ mod tests {
     assert_eq!(errors.len(), 1);
     assert_eq!(
       errors[0],
-      WidgetError::Unspecified("plot failed".to_owned())
+      Error::Unspecified("plot failed".to_owned())
     );
 
     // plotting fails fast

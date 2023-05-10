@@ -136,7 +136,8 @@ impl Core {
         .ring
         .pull(&crate::logic::ring::Mark::Spreadsheet)
         .expect("Spreadsheet should always be on the ring")
-        .borrow_mut()
+        .write()
+        .unwrap()
         .downcast_mut()
         .expect("Only spreadsheet should be marked as spreadsheet in the ring"),
       &b.painter,

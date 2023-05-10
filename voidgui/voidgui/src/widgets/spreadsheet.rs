@@ -1,17 +1,16 @@
-use std::{cell::RefCell, rc::Rc};
-
 use voidmacro::{ClickableMenu, DrawableMenu, Menu};
 
 use crate::{
-  logic::ring::{Mark, RingMember},
+  logic::{ring::{Mark, RingMember, self}, CallbackResult},
   render::{painter::Painter, Area, Origin, Point, TextTable},
   widgets::InputField,
 };
 
 use super::traits::{
-  widget::WidgetError, CallbackResult, ClickSink, Clickable, Drawable,
+  ClickSink, Clickable, Drawable,
   Transient, Widget,
 };
+use crate::widgets;
 
 #[derive(Menu, DrawableMenu, ClickableMenu)]
 pub struct Spreadsheet {
@@ -20,7 +19,7 @@ pub struct Spreadsheet {
 }
 
 impl Spreadsheet {
-  pub unsafe fn new(painter: &Painter) -> Result<Self, WidgetError> {
+  pub unsafe fn new(painter: &Painter) -> Result<Self, widgets::Error> {
     let n = "Name".to_owned();
     let p = "Phone".to_owned();
 
@@ -42,7 +41,7 @@ impl Spreadsheet {
     painter: &Painter,
     name: &str,
     phone: &str,
-  ) -> Result<(), WidgetError> {
+  ) -> Result<(), widgets::Error> {
     let n = name.to_owned();
     let p = phone.to_owned();
 
@@ -67,7 +66,7 @@ impl Spreadsheet {
   }
 
   pub fn push_to_ring(self, ring: &mut crate::logic::Ring) {
-    let rc = Rc::new(RefCell::new(self));
+    let rc = ring::wrap(self);
     ring.push_click_sink(rc.clone(), Mark::Spreadsheet);
     ring.push(rc, Mark::Spreadsheet, Mark::Window, 0);
   }
@@ -77,7 +76,7 @@ impl Spreadsheet {
     p: &Painter,
     n: usize,
     s: &str,
-  ) -> Result<(), WidgetError> {
+  ) -> Result<(), widgets::Error> {
     let s = s.to_string();
     self.table.update_cell(p, n + 2, &s)?;
     *self.records[n] = s;
@@ -93,7 +92,7 @@ impl ClickSink for Spreadsheet {
       _ => {
         let s = &self.records[i - 2];
         match unsafe { InputField::new(painter, s, (i - 2, s.clone())) } {
-          Ok(f) => CallbackResult::Push(Box::new(Rc::new(RefCell::new(f)))),
+          Ok(f) => CallbackResult::Push(Box::new(ring::wrap(f))),
           Err(e) => CallbackResult::Error(e),
         }
       }
@@ -113,7 +112,7 @@ impl Transient for InputField<SpreadsheetIF> {
   }
 }
 
-impl RingMember for Rc<RefCell<InputField<SpreadsheetIF>>> {
+impl RingMember for ring::Wrap<InputField<SpreadsheetIF>> {
   fn push_to_ring(&self, ring: &mut crate::logic::Ring) {
     ring.push_input_sink(self.clone(), Mark::SpreadsheetInputField);
     ring.replace_transient(self.clone(), Mark::SpreadsheetInputField);
