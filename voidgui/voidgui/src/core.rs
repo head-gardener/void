@@ -71,7 +71,9 @@ impl Core {
       // Resize
       WindowEvent::Size(w, h) => {
         p.resize(w as u16, h as u16);
-        self.ring.for_each(|mut w| w.request_plot());
+        self.ring.into_iter().for_each(|w| {
+          w.0.write().unwrap().request_plot();
+        });
         gl::Viewport(0, 0, w, h);
       }
 

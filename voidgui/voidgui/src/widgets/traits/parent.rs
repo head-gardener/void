@@ -7,6 +7,6 @@ use crate::render::Origin;
 /// a parent after certain events (window resizes or mouse drags). In that case
 /// note, however, that parent should be pushed to ring before children, since
 /// plotting and origin polling is performed in order from older to earlier.
-pub trait Parent {
+pub trait Parent: Send + Sync {
   fn nth_child(&self, n: usize) -> Option<Origin>;
 }

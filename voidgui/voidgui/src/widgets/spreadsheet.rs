@@ -1,7 +1,7 @@
 use voidmacro::{ClickableMenu, DrawableMenu, Menu};
 
 use crate::{
-  logic::{ring::{Mark, RingMember, self}, CallbackResult},
+  logic::{ring::{Mark, RingElement, self}, CallbackResult},
   render::{painter::Painter, Area, Origin, Point, TextTable},
   widgets::InputField,
 };
@@ -112,7 +112,7 @@ impl Transient for InputField<SpreadsheetIF> {
   }
 }
 
-impl RingMember for ring::Wrap<InputField<SpreadsheetIF>> {
+impl RingElement for ring::Wrap<InputField<SpreadsheetIF>> {
   fn push_to_ring(&self, ring: &mut crate::logic::Ring) {
     ring.push_input_sink(self.clone(), Mark::SpreadsheetInputField);
     ring.replace_transient(self.clone(), Mark::SpreadsheetInputField);

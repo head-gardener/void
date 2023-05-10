@@ -2,11 +2,15 @@ use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 use glfw::{Action, Key, Modifiers, WindowEvent};
 
+use rayon::prelude::*;
+
 use crate::{
   render::{painter::Painter, Point},
-  widgets::traits::{
-    ClickSink, Drawable, InputEvent, InputSink, KeySink,
-    Parent, Transient, Error,
+  widgets::{
+    self,
+    traits::{
+      ClickSink, Drawable, InputEvent, InputSink, KeySink, Parent, Transient,
+    },
   },
 };
 
@@ -33,16 +37,13 @@ pub enum CallbackResult {
   None,
 
   /// Callback failed.
-  Error(Error),
+  Error(widgets::Error),
 
   /// Push a widget to the ring.
-  Push(Box<dyn RingMember>),
+  Push(Box<dyn RingElement>),
 
   /// Modify a widget by mark.
-  Modify(
-    Mark,
-    Box<dyn FnOnce(Option<Wrap<dyn Drawable>>, &Painter)>,
-  ),
+  Modify(Mark, Box<dyn FnOnce(Option<Wrap<dyn Drawable>>, &Painter)>),
 
   /// Access damage tracker.
   Damage(Box<dyn FnOnce(&mut DamageTracker)>),
@@ -78,19 +79,21 @@ pub fn wrap<T: Send + Sync>(x: T) -> Wrap<T> {
   Arc::new(RwLock::new(x))
 }
 
-pub trait RingMember {
+pub trait RingElement {
   fn push_to_ring(&self, ring: &mut Ring);
 }
 
-// TODO: add pull cache?
-pub struct Ring {
-  widgets: Vec<(Wrap<dyn Drawable>, Mark, Mark, usize)>,
-  parents: Vec<(Wrap<dyn Parent>, Mark)>,
-  transient: Option<(Wrap<dyn Transient>, Mark)>,
+pub type WidgetElement = (Wrap<dyn Drawable>, Mark, Mark, usize);
+pub type Element<T> = (Wrap<T>, Mark);
 
-  click_sinks: Vec<(Wrap<dyn ClickSink>, Mark)>,
-  input_sinks: Vec<(Wrap<dyn InputSink>, Mark)>,
-  key_sinks: Vec<(Wrap<dyn KeySink>, Mark)>,
+pub struct Ring {
+  widgets: Vec<WidgetElement>,
+  parents: Vec<Element<dyn Parent>>,
+  transient: Option<Element<dyn Transient>>,
+
+  click_sinks: Vec<Element<dyn ClickSink>>,
+  input_sinks: Vec<Element<dyn InputSink>>,
+  key_sinks: Vec<Element<dyn KeySink>>,
 
   damage_tracker: Wrap<DamageTracker>,
 }
@@ -158,16 +161,6 @@ impl Ring {
       .map(|i| self.parents.get(i).unwrap().0.clone())
   }
 
-  pub fn for_each<F>(&mut self, mut f: F)
-  where
-    F: FnMut(Unwrapped<dyn Drawable>) -> (),
-  {
-    for (w, _, _, _) in self.widgets.iter_mut() {
-      let w = w.write().unwrap();
-      f(w);
-    }
-  }
-
   pub fn delete(&mut self, m: Mark) -> bool {
     let len = self.widgets.len();
 
@@ -187,30 +180,40 @@ impl Ring {
   }
 
   /// Draw all owned widgets, plotting if needed.
-  pub fn draw(&mut self, painter: &Painter) -> Vec<Error> {
-    let p = self.widgets.iter().try_for_each(|(w, _m, p, n)| {
-      let mut w = w.write().unwrap();
-      if !w.plotted() {
-        if *p != Mark::None {
-          let o = self
-            .pull_parent(p)
-            .ok_or(Error::Unspecified("Invalid parent mark".to_owned()))?
-            .read()
-            .unwrap()
-            .nth_child(*n)
-            .ok_or(Error::Unspecified(format!(
-              "Child out of bounds: {}",
-              n
-            )))?;
-          w.set_origin(&o);
+  pub fn draw(&mut self, painter: &Painter) -> Vec<widgets::Error> {
+    let parents = &self.parents;
+    let p: Vec<widgets::Error> = self
+      .widgets
+      .par_iter()
+      .map(|(w, _m, p, n)| {
+        let mut w = w.write().unwrap();
+        if !w.plotted() {
+          if *p != Mark::None {
+            let o = parents
+              .iter()
+              .position(|(_, m)| *m == *p)
+              .map(|i| self.parents.get(i).unwrap().0.clone())
+              .ok_or(widgets::Error::Unspecified(
+                "Invalid parent mark".to_owned(),
+              ))?
+              .read()
+              .unwrap()
+              .nth_child(*n)
+              .ok_or(widgets::Error::Unspecified(format!(
+                "Child out of bounds: {}",
+                n
+              )))?;
+            w.set_origin(&o);
+          }
+          unsafe { w.plot(painter) }
+        } else {
+          Ok(())
         }
-        unsafe { w.plot(painter) }
-      } else {
-        Ok(())
-      }
-    });
-    if let Err(e) = p {
-      return vec![e];
+      })
+      .filter_map(|r| r.err())
+      .collect();
+    if p.len() != 0 {
+      return p;
     }
 
     self
@@ -383,12 +386,33 @@ impl Ring {
   }
 }
 
+impl<'a> IntoIterator for &'a mut Ring {
+  type Item = &'a mut WidgetElement;
+  type IntoIter = std::slice::IterMut<'a, WidgetElement>;
+
+  fn into_iter(self) -> Self::IntoIter {
+    self.widgets.iter_mut()
+  }
+}
+
+impl<'a> IntoParallelIterator for &'a mut Ring {
+  type Item = &'a mut WidgetElement;
+  type Iter = rayon::slice::IterMut<'a, WidgetElement>;
+
+  fn into_par_iter(self) -> Self::Iter {
+    self.widgets.par_iter_mut()
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use crate::{
     logic::ring,
     render::painter::Painter,
-    widgets::traits::{widget::Error, Drawable, Widget},
+    widgets::{
+      self,
+      traits::{Drawable, Widget},
+    },
   };
 
   use super::Ring;
@@ -434,17 +458,17 @@ mod tests {
   }
 
   impl Drawable for W {
-    unsafe fn plot(&mut self, _: &Painter) -> Result<(), Error> {
+    unsafe fn plot(&mut self, _: &Painter) -> Result<(), widgets::Error> {
       if self.fail_plot {
-        Err(Error::Unspecified("plot failed".to_owned()))
+        Err(widgets::Error::Unspecified("plot failed".to_owned()))
       } else {
         Ok(())
       }
     }
 
-    fn draw(&self, _: &Painter) -> Result<(), Error> {
+    fn draw(&self, _: &Painter) -> Result<(), widgets::Error> {
       if self.fail_draw {
-        Err(Error::Unspecified("draw failed".to_owned()))
+        Err(widgets::Error::Unspecified("draw failed".to_owned()))
       } else {
         Ok(())
       }
@@ -479,7 +503,7 @@ mod tests {
     assert_eq!(errors.len(), 1);
     assert_eq!(
       errors[0],
-      Error::Unspecified("draw failed".to_owned())
+      widgets::Error::Unspecified("draw failed".to_owned())
     );
 
     // drawing doesn't fail fast
@@ -495,14 +519,14 @@ mod tests {
     assert_eq!(errors.len(), 1);
     assert_eq!(
       errors[0],
-      Error::Unspecified("plot failed".to_owned())
+      widgets::Error::Unspecified("plot failed".to_owned())
     );
 
-    // plotting fails fast
+    // plotting doesn't fail fast 
     let fail_plot = W::new(true, false, false);
     fail_plot.push_to_ring(&mut r);
     let errors = r.draw(&p);
-    assert_eq!(errors.len(), 1);
+    assert_eq!(errors.len(), 2);
   }
 
   #[test]

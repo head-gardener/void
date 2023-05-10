@@ -1,5 +1,7 @@
 use rand::Rng;
 
+// use rayon::prelude::*;
+
 use criterion::{criterion_group, criterion_main, Criterion};
 use voidgui::logic::ring::Mark;
 use voidgui::logic::CallbackResult;
@@ -97,6 +99,18 @@ pub fn draw_bench_plot_one(c: &mut Criterion) {
   });
 }
 
+pub fn maintenance_bench(c: &mut Criterion) {
+  let (_, mut core, _) = setup(false);
+
+  c.bench_function("request plot for all", |b| {
+    b.iter(|| {
+      core.ring_mut().into_iter().for_each(|w| {
+        w.0.write().unwrap().request_plot();
+      });
+    })
+  });
+}
+
 pub fn event_bench(c: &mut Criterion) {
   let (mut back, mut core, mut rng) = setup(false);
 
@@ -159,6 +173,6 @@ criterion_group! {
 criterion_group! {
     name = easy;
     config = Criterion::default().sample_size(500);
-    targets = event_bench
+    targets = event_bench, maintenance_bench
 }
 criterion_main!(hard, easy,);

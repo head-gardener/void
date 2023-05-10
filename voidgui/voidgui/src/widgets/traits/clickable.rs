@@ -10,7 +10,7 @@ pub trait Clickable {
 /// # Properties
 ///
 /// If a click sink rejects a click, it's passed to the previous (earlier) sink.
-pub trait ClickSink: Clickable {
+pub trait ClickSink: Send + Sync + Clickable {
   fn onclick(&self, painter: &Painter, p: Point) -> CallbackResult;
 
   fn handle_click(&self, painter: &Painter, p: Point) -> CallbackResult {

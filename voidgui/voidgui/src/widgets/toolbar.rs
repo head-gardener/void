@@ -1,5 +1,5 @@
 use crate::{
-  logic::{ring::{RingMember, self}, CallbackResult},
+  logic::{ring::{RingElement, self}, CallbackResult},
   render::{
     painter::Painter, text_table::Orientation, Area, Origin, Point, TextTable,
   }, widgets,
@@ -94,7 +94,7 @@ impl ToolbarTable {
   }
 }
 
-impl RingMember for ring::Wrap<ToolbarTable> {
+impl RingElement for ring::Wrap<ToolbarTable> {
   fn push_to_ring(&self, ring: &mut crate::logic::Ring) {
     // ring.push_clickable(rc.clone(), crate::logic::ring::Mark::Toolbar);
     ring.replace_transient(
