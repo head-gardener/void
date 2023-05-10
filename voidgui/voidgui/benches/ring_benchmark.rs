@@ -1,8 +1,10 @@
 use rand::Rng;
 
 use criterion::{criterion_group, criterion_main, Criterion};
+use voidgui::logic::ring::Mark;
 use voidgui::logic::CallbackResult;
 use voidgui::widgets;
+use voidgui::widgets::traits::Parent;
 use voidgui::{
   backend::Backend,
   core::Core,
@@ -17,10 +19,11 @@ use voidmacro::{ClickableMenu, Menu};
 #[derive(Menu, ClickableMenu)]
 struct W {
   table: TextTable,
+  _ind: usize,
 }
 
 impl W {
-  fn new(p: &Painter) -> Self {
+  fn new(ind: usize, p: &Painter) -> Self {
     Self {
       table: unsafe {
         TextTable::from_text(
@@ -32,12 +35,14 @@ impl W {
         )
         .unwrap()
       },
+      _ind: ind,
     }
   }
 }
 
 impl Drawable for W {
   unsafe fn plot(&mut self, painter: &Painter) -> Result<(), widgets::Error> {
+    // println!("plot {}", self.ind);
     let r = self.table.plot(painter);
     self.table.request_plot();
     r
@@ -54,10 +59,26 @@ impl ClickSink for W {
   }
 }
 
+impl Parent for W {
+  fn nth_child(&self, n: usize) -> Option<Origin> {
+    Some(Origin::new(
+      n as u16 * 10,
+      n as u16 * 10,
+      voidgui::render::OriginPole::TopLeft,
+    ))
+  }
+}
+
 pub fn draw_bench(c: &mut Criterion) {
   let (back, mut core, _) = setup();
 
-  c.bench_function("draw a lot", |b| b.iter(|| core.draw(&back)));
+  c.bench_function("draw a lot", |b| {
+    b.iter(|| {
+      // println!("from");
+      core.draw(&back);
+      // println!("to");
+    })
+  });
 }
 
 pub fn event_bench(c: &mut Criterion) {
@@ -87,27 +108,28 @@ pub fn event_bench(c: &mut Criterion) {
 }
 
 fn setup() -> (Backend, Core, rand::rngs::ThreadRng) {
-  let back = unsafe { Backend::new(200, 200) };
+  let back = unsafe { Backend::new(400, 400) };
   let mut core = Core::new();
   let rng = rand::thread_rng();
 
-  for i in 0..10 {
-    let mut w = W::new(&back.painter);
-    w.set_origin(&Origin::new(
-      10 * i,
-      10 * i,
-      voidgui::render::OriginPole::TopLeft,
-    ));
+  // push parents
+  for m in [Mark::_Test1, Mark::_Test2] {
+    let mut w = W::new(m as usize, &back.painter);
+    w.set_origin(&Origin::new(0, 0, voidgui::render::OriginPole::TopLeft));
+    unsafe { w.plot(&back.painter).unwrap() };
     let r = ring::wrap(w);
-    core
-      .ring_mut()
-      .push_click_sink(r.clone(), voidgui::logic::ring::Mark::None);
-    core.ring_mut().push(
-      r,
-      voidgui::logic::ring::Mark::None,
-      voidgui::logic::ring::Mark::None,
-      0,
-    );
+    core.ring_mut().push_click_sink(r.clone(), m);
+    core.ring_mut().push_parent(r.clone(), m);
+    core.ring_mut().push(r, m, Mark::None, 0);
+  }
+
+  for m in [Mark::_Test1, Mark::_Test2] {
+    for i in 0..6 {
+      let w = W::new(2 + i + 6 * m as usize, &back.painter);
+      let r = ring::wrap(w);
+      core.ring_mut().push_click_sink(r.clone(), Mark::None);
+      core.ring_mut().push(r, Mark::None, m, i as usize);
+    }
   }
 
   (back, core, rng)

@@ -14,8 +14,8 @@ use super::DamageTracker;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Mark {
-  #[cfg(test)]
-  Test,
+  _Test1,
+  _Test2,
   None,
   Window,
   Spreadsheet,
@@ -412,7 +412,7 @@ mod tests {
       let rc = ring::wrap(self);
       ring.push(
         rc,
-        crate::logic::ring::Mark::Test,
+        crate::logic::ring::Mark::_Test1,
         crate::logic::ring::Mark::None,
         0,
       );
@@ -457,8 +457,8 @@ mod tests {
     let w = W::new(false, false, false);
     w.push_to_ring(&mut r);
 
-    assert_eq!(r.delete(super::Mark::Test), true);
-    assert_eq!(r.delete(super::Mark::Test), false);
+    assert_eq!(r.delete(super::Mark::_Test1), true);
+    assert_eq!(r.delete(super::Mark::_Test1), false);
   }
 
   #[test]
