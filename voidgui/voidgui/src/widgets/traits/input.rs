@@ -1,4 +1,4 @@
-use crate::{render::painter::Painter, logic::CallbackResult};
+use crate::{render::painter::Drone, logic::CallbackResult};
 
 pub enum InputEvent {
   Char(char),
@@ -17,5 +17,5 @@ pub enum InputEvent {
 ///
 /// Only one input sink can be consuming text input at a time.
 pub trait InputSink {
-  fn handle_event(&mut self, p: &Painter, e: &InputEvent) -> CallbackResult;
+  fn handle_event(&mut self, p: &Drone, e: &InputEvent) -> CallbackResult;
 }

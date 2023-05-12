@@ -1,12 +1,12 @@
 use crate::render::Origin;
 
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {
-  InitFailure(&'static str),
+  InitFailure,
   Unspecified(String),
   Uninitialized(&'static str),
   Unplotted(&'static str),
+  SpawnFailure,
 }
 
 impl std::fmt::Display for Error {
@@ -21,8 +21,11 @@ impl std::fmt::Display for Error {
       Error::Unplotted(widget) => {
         write!(f, "Widget '{}' drawn before being plotted", widget)
       }
-      Error::InitFailure(what) => {
-        write!(f, "Component {} failed to initialize.", what)
+      Error::InitFailure => {
+        write!(f, "Initialization failure")
+      }
+      Error::SpawnFailure => {
+        write!(f, "Spawn failure")
       }
     }
   }

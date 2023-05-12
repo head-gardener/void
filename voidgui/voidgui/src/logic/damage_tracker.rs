@@ -2,7 +2,7 @@ use glfw::{Action, Key, Modifiers, WindowEvent};
 
 use crate::{
   logic::ring::Mark,
-  render::painter::Painter,
+  render::painter::Drone,
   widgets::{
     traits::{Drawable, KeySink},
     Spreadsheet,
@@ -31,7 +31,7 @@ impl Into<CallbackResult> for Damage {
     match self {
       Damage::Update(u, _, to) => CallbackResult::Modify(
         Mark::Spreadsheet,
-        with_spreadsheet(move |p: &Painter, s: &mut Spreadsheet| {
+        with_spreadsheet(move |p: &Drone, s: &mut Spreadsheet| {
           s.update_record(p, u, &to).unwrap();
         }),
       ),
@@ -40,8 +40,8 @@ impl Into<CallbackResult> for Damage {
 }
 
 fn with_spreadsheet(
-  f: impl FnOnce(&Painter, &mut Spreadsheet) + 'static,
-) -> Box<dyn FnOnce(Option<ring::Wrap<dyn Drawable>>, &Painter)> {
+  f: impl FnOnce(&Drone, &mut Spreadsheet) + 'static,
+) -> Box<dyn FnOnce(Option<ring::Wrap<dyn Drawable>>, &Drone)> {
   Box::new(move |s, p| {
     s.expect("Spreadsheet should always be in the ring")
       .write()
@@ -89,7 +89,7 @@ impl DamageTracker {
 impl KeySink for DamageTracker {
   fn handle_key(
     &mut self,
-    _: &crate::render::painter::Painter,
+    _: &crate::render::painter::Drone,
     e: &WindowEvent,
   ) -> CallbackResult {
     match e {

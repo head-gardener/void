@@ -117,6 +117,104 @@ impl Area {
       },
     )
   }
+
+  #[inline]
+  pub fn to_normalized(&self, outer: &Area) -> NormalizedArea {
+    let half_width = outer.width as f32 / 2.0;
+    let half_height = outer.height as f32 / 2.0;
+    let o_x = outer.x as f32 + half_width;
+    let o_y = outer.y as f32 + half_height;
+    let a_x = self.x as f32;
+    let a_y = self.y as f32;
+    let b_x = (self.x + self.width) as f32;
+    let b_y = (self.y + self.height) as f32;
+
+    NormalizedArea::new(
+      (a_x - o_x) / half_width,
+      -(a_y - o_y) / half_height,
+      (b_x - o_x) / half_width,
+      -(b_y - o_y) / half_height,
+    )
+  }
+
+  pub fn gridify(
+    &self,
+    outer: &Area,
+    rows: usize,
+    columns: usize,
+    row_ratio: &[f32],
+    column_ratio: &[f32],
+  ) -> Vec<f32> {
+    let norm = self.to_normalized(outer);
+    let vert_points = section(norm.a_y, norm.b_y, rows + 1, row_ratio);
+    let horiz_points = section(norm.a_x, norm.b_x, columns + 1, column_ratio);
+
+    let mut vertices = vec![];
+    for i in 0..=rows {
+      vertices.append(&mut vec![
+        horiz_points[0],
+        vert_points[i],
+        horiz_points[columns],
+        vert_points[i],
+      ]);
+    }
+    for i in 0..=columns {
+      vertices.append(&mut vec![
+        horiz_points[i],
+        vert_points[0],
+        horiz_points[i],
+        vert_points[rows],
+      ]);
+    }
+
+    vertices
+  }
+}
+
+pub struct NormalizedArea {
+  pub a_x: f32,
+  pub a_y: f32,
+  pub b_x: f32,
+  pub b_y: f32,
+}
+
+impl NormalizedArea {
+  pub fn new(a_x: f32, a_y: f32, b_x: f32, b_y: f32) -> Self {
+    Self { a_x, a_y, b_x, b_y }
+  }
+}
+
+pub fn section(a: f32, b: f32, n: usize, ratios: &[f32]) -> Vec<f32> {
+  let mut points = Vec::<f32>::with_capacity(n);
+  let d = (b - a) as f32;
+  points.push(a);
+  for i in 1..n {
+    points.push(points[i - 1] + d * ratios[i - 1]);
+  }
+  points
+}
+
+impl NormalizedArea {
+  #[inline]
+  pub fn to_coords(self) -> [f32; 8] {
+    [
+      self.a_x, self.a_y, // top-left
+      self.b_x, self.a_y, // top-right
+      self.b_x, self.b_y, // bottom-right
+      self.a_x, self.b_y, // bottom-left
+    ]
+  }
+
+#[inline]
+pub fn to_tex_coords(self) -> [f32; 16] {
+  [
+    self.a_x, self.a_y, 0.0, 0.0, // tl
+    self.b_x, self.a_y, 1.0, 0.0, // tr
+    self.b_x, self.b_y, 1.0, 1.0, // br
+    self.a_x, self.b_y, 0.0, 1.0, // bl
+  ]
+}
+
 }
 
 #[cfg(test)]

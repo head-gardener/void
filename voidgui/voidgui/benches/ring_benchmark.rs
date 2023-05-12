@@ -12,7 +12,7 @@ use voidgui::{
   core::Core,
   logic::ring,
   render::{
-    painter::Painter, text_table::CellStyle::Normal, Area, Origin, TextTable,
+    painter::Drone, text_table::CellStyle::Normal, Area, Origin, TextTable,
   },
   widgets::traits::{ClickSink, Clickable, Drawable, Widget},
 };
@@ -22,11 +22,10 @@ use voidmacro::{ClickableMenu, Menu};
 struct W {
   table: TextTable,
   _ind: usize,
-  unplottable: bool,
 }
 
 impl W {
-  fn new(ind: usize, unplottable: bool, p: &Painter) -> Self {
+  fn new(ind: usize, p: &Drone) -> Self {
     Self {
       table: unsafe {
         TextTable::from_text(
@@ -39,28 +38,23 @@ impl W {
         .unwrap()
       },
       _ind: ind,
-      unplottable,
     }
   }
 }
 
 impl Drawable for W {
-  unsafe fn plot(&mut self, painter: &Painter) -> Result<(), widgets::Error> {
+  fn plot(&mut self, painter: &Drone) -> Result<(), widgets::Error> {
     // println!("plot {}", self.ind);
-    let r = self.table.plot(painter);
-    if self.unplottable || self._ind == 3 {
-      self.table.request_plot();
-    }
-    r
+    self.table.plot(painter)
   }
 
-  fn draw(&self, _: &Painter) -> Result<(), widgets::Error> {
-    Ok(())
+  unsafe fn draw(&mut self, p: &Drone) -> Result<(), widgets::Error> {
+    self.table.draw(p)
   }
 }
 
 impl ClickSink for W {
-  fn onclick(&self, _: &Painter, _: voidgui::render::Point) -> CallbackResult {
+  fn onclick(&self, _: &Drone, _: voidgui::render::Point) -> CallbackResult {
     CallbackResult::None
   }
 }
@@ -76,11 +70,14 @@ impl Parent for W {
 }
 
 pub fn draw_bench_plot_all(c: &mut Criterion) {
-  let (back, mut core, _) = setup(true);
+  let (back, mut core, _) = setup();
 
   c.bench_function("plot a lot", |b| {
     b.iter(|| {
       // println!("from");
+      core.ring_mut().into_iter().for_each(|w| {
+        w.0.write().unwrap().request_plot();
+      });
       core.draw(&back);
       // println!("to");
     })
@@ -88,11 +85,19 @@ pub fn draw_bench_plot_all(c: &mut Criterion) {
 }
 
 pub fn draw_bench_plot_one(c: &mut Criterion) {
-  let (back, mut core, _) = setup(false);
+  let (back, mut core, mut rng) = setup();
 
   c.bench_function("plot one", |b| {
     b.iter(|| {
       // println!("from");
+      core
+        .ring_mut()
+        .into_iter()
+        .nth(rng.gen_range(0..=12 as usize))
+        .map(|w| {
+          w.0.write().unwrap().request_plot();
+        })
+        .unwrap();
       core.draw(&back);
       // println!("to");
     })
@@ -100,7 +105,7 @@ pub fn draw_bench_plot_one(c: &mut Criterion) {
 }
 
 pub fn maintenance_bench(c: &mut Criterion) {
-  let (_, mut core, _) = setup(false);
+  let (_, mut core, _) = setup();
 
   c.bench_function("request plot for all", |b| {
     b.iter(|| {
@@ -112,7 +117,7 @@ pub fn maintenance_bench(c: &mut Criterion) {
 }
 
 pub fn event_bench(c: &mut Criterion) {
-  let (mut back, mut core, mut rng) = setup(false);
+  let (mut back, mut core, mut rng) = setup();
 
   c.bench_function("handle click", |b| {
     b.iter(|| {
@@ -137,16 +142,16 @@ pub fn event_bench(c: &mut Criterion) {
   });
 }
 
-fn setup(unplottable: bool) -> (Backend, Core, rand::rngs::ThreadRng) {
+fn setup() -> (Backend, Core, rand::rngs::ThreadRng) {
   let back = unsafe { Backend::new(400, 400) };
   let mut core = Core::new();
   let rng = rand::thread_rng();
 
   // push parents
   for m in [Mark::_Test1, Mark::_Test2] {
-    let mut w = W::new(m as usize, unplottable, &back.painter);
+    let mut w = W::new(m as usize, &back.painter);
     w.set_origin(&Origin::new(0, 0, voidgui::render::OriginPole::TopLeft));
-    unsafe { w.plot(&back.painter).unwrap() };
+    w.plot(&back.painter).unwrap();
     let r = ring::wrap(w);
     core.ring_mut().push_click_sink(r.clone(), m);
     core.ring_mut().push_parent(r.clone(), m);
@@ -155,7 +160,7 @@ fn setup(unplottable: bool) -> (Backend, Core, rand::rngs::ThreadRng) {
 
   for m in [Mark::_Test1, Mark::_Test2] {
     for i in 0..6 {
-      let w = W::new(2 + i + 6 * m as usize, unplottable, &back.painter);
+      let w = W::new(2 + i + 6 * m as usize, &back.painter);
       let r = ring::wrap(w);
       core.ring_mut().push_click_sink(r.clone(), Mark::None);
       core.ring_mut().push(r, Mark::None, m, i as usize);

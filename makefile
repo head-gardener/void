@@ -9,7 +9,7 @@ HASKELL_SOURCES = $(wildcard void/app/**/*.hs) $(wildcard void/app/*.hs)
 RUST_SOURCES = $(wildcard voidgui/**/Cargo.toml) $(wildcard voidgui/**/src/**/*.rs) $(wildcard voidgui/**/src/*.rs)
 
 run: build
-	$(PROJECT_ROOT)/$(BINPATH)/void
+	RUST_BACKTRACE=1 $(PROJECT_ROOT)/$(BINPATH)/void
 
 debug: build
 	$(GDB) $(PROJECT_ROOT)/$(BINPATH)/void
@@ -26,21 +26,29 @@ clear:
 
 build: build/voidgui build/void
 
+release: build/voidgui-release build/void
+
 build/voidgui: $(RUST_SOURCES) $(GLSL_SOURCES)
 	cd voidgui && cargo build
+
+build/voidgui-release: $(RUST_SOURCES) $(GLSL_SOURCES)
+	cd voidgui && cargo build --release
 
 build/void: void/void.cabal $(HASKELL_SOURCES)
 	cd void && cabal build --builddir=../build/void
 
-link: uninstall
-	ln -sv $(PROJECT_ROOT)/voidgui/target/debug/libvoidgui.so /usr/lib/
+link_debug: uninstall
+	ln -sv $(PROJECT_ROOT)/voidgui/target/debug/libvoidcrm.so /usr/lib/
+
+link_release: uninstall
+	ln -sv $(PROJECT_ROOT)/voidgui/target/release/libvoidcrm.so /usr/lib/
 
 # FIXME: rework all this stuff idk
 install:
-	install voidgui/target/debug/libvoidgui.so /usr/lib/
+	install voidgui/target/debug/libvoidcrm.so /usr/lib/
 
 uninstall:
-	rm -f /usr/lib/libvoidgui.so
+	rm -f /usr/lib/libvoidcrm.so
 
 # configure: 
 # 	cd voidgui && meson setup ../build

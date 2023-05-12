@@ -1,16 +1,17 @@
+use std::sync::RwLockReadGuard;
+
 use crate::{
   colorscheme::CURSOR_COLOR,
+  logic::CallbackResult,
   render::{
-    painter::Painter,
-    shapes::{rectangle, texture::get_text_size, Rectangle},
+    painter::{Drone, DroneFeed, Painter},
+    shapes::{rectangle, Rectangle},
     text_table::{Orientation, OFFSET},
     Area, Origin, TextTable,
-  }, logic::CallbackResult,
+  },
 };
 
-use super::traits::{
-  widget::Error, Drawable, InputEvent, InputSink, Widget,
-};
+use super::traits::{widget::Error, Drawable, InputEvent, InputSink, Widget};
 
 use voidmacro::Menu;
 
@@ -24,11 +25,13 @@ pub struct InputField<T> {
 
 impl<T: Send> InputField<T> {
   pub unsafe fn new(
-    painter: &Painter,
+    painter: &RwLockReadGuard<Painter>,
+    drone: &mut Drone,
     s: &str,
     closure: T,
   ) -> Result<Self, Error> {
     let table = TextTable::make_static(
+      drone,
       painter,
       Orientation::Vertical,
       crate::render::text_table::CellStyle::Lighter,
@@ -48,7 +51,7 @@ impl<T: Send> InputField<T> {
 }
 
 impl<T> InputSink for InputField<T> {
-  fn handle_event(&mut self, p: &Painter, e: &InputEvent) -> CallbackResult {
+  fn handle_event(&mut self, p: &Drone, e: &InputEvent) -> CallbackResult {
     self.state.dispatch(e);
     match self.table.update_cell(p, 0, &self.state.to_string()) {
       Ok(()) => CallbackResult::None,
@@ -58,37 +61,48 @@ impl<T> InputSink for InputField<T> {
 }
 
 impl<T: Send + Sync + 'static> Drawable for InputField<T> {
-  unsafe fn plot(&mut self, painter: &Painter) -> Result<(), Error> {
-    self.table.plot(painter)?;
+  fn plot(
+    &mut self,
+    painter: RwLockReadGuard<Painter>,
+    mut feed: DroneFeed,
+  ) -> Result<(), Error> {
+    self.table.plot(&painter, &mut feed)?;
 
     // FIXME: wtf is this shit
-    let d = self.state.to_string();
-    let (o, s) = self.table.area().unwrap().to_prim();
-    let after = get_text_size(
-      painter,
-      &self.state.before_cursor().lines().last().unwrap_or(""),
-    )
-    .map_err(|e| Error::Unspecified(e.to_owned()))?
-    .width;
-    let c = d.lines().count();
-    let c = if c == 0 { 1 } else { c };
-    let l = s.height / c as u16;
-    let a = Area::new(
-      o.x + OFFSET + after,
-      o.y + OFFSET / 2 + s.height - l,
-      2,
-      l - OFFSET * 2,
-    );
-    self
-      .cursor
-      .plot(painter, &a)
-      .map_err(|e| Error::Unspecified(e.to_owned()))
+
+    // let d = self.state.to_string();
+    // let (o, s) = self.table.area().unwrap().to_prim();
+    // let after = unsafe {
+    //   get_text_size(
+    //     feed,
+    //     &self.state.before_cursor().lines().last().unwrap_or(""),
+    //   )
+    //   .map_err(|e| Error::Unspecified(e.to_owned()))
+    // }?
+    // .width;
+    // let c = d.lines().count();
+    // let c = if c == 0 { 1 } else { c };
+    // let l = s.height / c as u16;
+    // let a = Area::new(
+    //   o.x + OFFSET + after,
+    //   o.y + OFFSET / 2 + s.height - l,
+    //   2,
+    //   l - OFFSET * 2,
+    // );
+    // self
+    //   .cursor
+    //   .plot(feed, &a)
+    //   .map_err(|e| Error::Unspecified(e.to_owned()))
+    Ok(())
   }
 
-  fn draw(&self, painter: &Painter) -> Result<(), Error> {
-    self.table.draw(painter)?;
-    unsafe { self.cursor.draw(painter) }
-      .map_err(|e| Error::Unspecified(e.to_owned()))
+  unsafe fn draw(&mut self, mut feed: DroneFeed) -> Result<(), Error> {
+    self.table.draw(&mut feed)?;
+    // self
+    //   .cursor
+    //   .draw(painter)
+    //   .map_err(|e| Error::Unspecified(e.to_owned()))
+    Ok(())
   }
 }
 

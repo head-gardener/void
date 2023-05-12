@@ -1,13 +1,20 @@
+use std::sync::RwLockReadGuard;
+
 use crate::{
-  logic::{ring::{RingElement, self}, CallbackResult},
+  logic::{
+    ring::{self, RingElement},
+    CallbackResult,
+  },
   render::{
-    painter::Painter, text_table::Orientation, Area, Origin, Point, TextTable,
-  }, widgets,
+    painter::{Drone, DroneFeed, Painter},
+    text_table::Orientation,
+    Area, Origin, Point, TextTable,
+  },
+  widgets,
 };
 
 use super::traits::{
-  widget::Error, ClickSink, Clickable, Drawable, Parent,
-  Transient, Widget,
+  widget::Error, ClickSink, Clickable, Drawable, Parent, Transient, Widget,
 };
 
 use voidmacro::{ClickableMenu, DrawableMenu, Menu};
@@ -22,9 +29,13 @@ pub struct Toolbar {
 }
 
 impl Toolbar {
-  pub unsafe fn new(painter: &Painter) -> Result<Self, Error> {
+  pub unsafe fn new(
+    painter: &RwLockReadGuard<Painter>,
+    drone: &mut Drone,
+  ) -> Result<Self, Error> {
     Ok(Self {
       table: TextTable::make_static(
+        drone,
         painter,
         Orientation::Horizontal,
         crate::render::text_table::CellStyle::Normal,
@@ -47,13 +58,13 @@ impl Toolbar {
 }
 
 impl ClickSink for Toolbar {
-  fn onclick(&self, painter: &Painter, p: Point) -> CallbackResult {
+  fn onclick(&self, drone: &Drone, p: Point) -> CallbackResult {
     let i = self.table.catch_point(&p).unwrap();
     match i {
-      0 => unsafe { ToolbarTable::new(painter) }.map_or(
-        CallbackResult::Error(Error::InitFailure("ToolbarTable")),
-        |m| CallbackResult::Push(Box::new(ring::wrap(m))),
-      ),
+      // 0 => unsafe { ToolbarTable::new(drone) }.map_or(
+      //   CallbackResult::Error(Error::InitFailure("ToolbarTable")),
+      //   |m| CallbackResult::Push(Box::new(ring::wrap(m))),
+      // ),
       1 => {
         println!("Tools");
         CallbackResult::Pass
@@ -82,9 +93,13 @@ pub struct ToolbarTable {
 }
 
 impl ToolbarTable {
-  pub unsafe fn new(painter: &Painter) -> Result<Self, Error> {
+  pub unsafe fn new(
+    painter: &RwLockReadGuard<Painter>,
+    drone: &mut Drone,
+  ) -> Result<Self, Error> {
     Ok(Self {
       table: TextTable::make_static(
+        drone,
         painter,
         Orientation::Vertical,
         crate::render::text_table::CellStyle::Normal,

@@ -36,13 +36,18 @@ pub fn derive_draw_menu(input: TokenStream) -> TokenStream {
 
   let expanded = quote! {
     impl Drawable for #name {
-      unsafe fn plot(&mut self, painter: &Painter)
+      fn plot(
+        &mut self,
+        painter: RwLockReadGuard<Painter>,
+        mut feed: DroneFeed
+      ) -> Result<(), widgets::Error>
+      {
+        self.table.plot(&painter, &mut feed)
+      }
+      unsafe fn draw(&mut self, mut feed: DroneFeed)
         -> Result<(), widgets::Error>
       {
-        self.table.plot(painter)
-      }
-      fn draw(&self, painter: &Painter) -> Result<(), widgets::Error> {
-        self.table.draw(painter)
+        self.table.draw(&mut feed)
       }
     }
   };

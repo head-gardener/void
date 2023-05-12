@@ -1,6 +1,8 @@
+use std::sync::RwLockReadGuard;
+
 use crate::{
   logic::ring,
-  render::{Area, Origin, OriginPole},
+  render::{Area, Origin, OriginPole, painter::{Painter, Drone, DroneFeed}},
 };
 
 use super::traits::{Drawable, Parent, Widget};
@@ -11,7 +13,7 @@ pub struct Window {
 }
 
 impl Window {
-  pub fn new(painter: &crate::render::painter::Painter) -> Self {
+  pub fn new(painter: &RwLockReadGuard<Painter>) -> Self {
     Self {
       area: painter.window_area().clone(),
       plotted: false,
@@ -43,18 +45,19 @@ impl Widget for Window {
 }
 
 impl Drawable for Window {
-  unsafe fn plot(
+  fn plot(
     &mut self,
-    painter: &crate::render::painter::Painter,
+    painter: RwLockReadGuard<Painter>,
+    feed: DroneFeed,
   ) -> Result<(), super::traits::Error> {
     self.area = painter.window_area().clone();
     self.plotted = true;
     Ok(())
   }
 
-  fn draw(
-    &self,
-    _: &crate::render::painter::Painter,
+  unsafe fn draw(
+    &mut self,
+    _: DroneFeed,
   ) -> Result<(), super::traits::Error> {
     Ok(())
   }

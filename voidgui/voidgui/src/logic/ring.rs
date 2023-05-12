@@ -5,7 +5,10 @@ use glfw::{Action, Key, Modifiers, WindowEvent};
 use rayon::prelude::*;
 
 use crate::{
-  render::{painter::Painter, Point},
+  render::{
+    painter::{Drone, DroneFeed, Painter},
+    Point,
+  },
   widgets::{
     self,
     traits::{
@@ -43,7 +46,7 @@ pub enum CallbackResult {
   Push(Box<dyn RingElement>),
 
   /// Modify a widget by mark.
-  Modify(Mark, Box<dyn FnOnce(Option<Wrap<dyn Drawable>>, &Painter)>),
+  Modify(Mark, Box<dyn FnOnce(Option<Wrap<dyn Drawable>>, &Drone)>),
 
   /// Access damage tracker.
   Damage(Box<dyn FnOnce(&mut DamageTracker)>),
@@ -180,12 +183,25 @@ impl Ring {
   }
 
   /// Draw all owned widgets, plotting if needed.
-  pub fn draw(&mut self, painter: &Painter) -> Vec<widgets::Error> {
+  pub fn draw(
+    &mut self,
+    painter: Arc<RwLock<Painter>>,
+    drone: &mut Drone,
+  ) -> Vec<widgets::Error> {
     let parents = &self.parents;
     let p: Vec<widgets::Error> = self
       .widgets
-      .par_iter()
-      .map(|(w, _m, p, n)| {
+      .iter()
+      .zip(
+        self
+          .widgets
+          .iter()
+          .map(|w| drone.new_feed())
+          .collect::<Vec<DroneFeed>>()
+          .into_iter(),
+      )
+      .par_bridge()
+      .map(|((w, _m, p, n), feed)| {
         let mut w = w.write().unwrap();
         if !w.plotted() {
           if *p != Mark::None {
@@ -205,7 +221,7 @@ impl Ring {
               )))?;
             w.set_origin(&o);
           }
-          unsafe { w.plot(painter) }
+          w.plot(painter.read().unwrap(), feed)
         } else {
           Ok(())
         }
@@ -220,8 +236,8 @@ impl Ring {
       .widgets
       .iter()
       .map(|(w, _, _, _)| {
-        let w = w.write().unwrap();
-        w.draw(painter)
+        let mut w = w.write().unwrap();
+        unsafe { w.draw(drone.new_feed()) }
       })
       .filter_map(|r| r.err())
       .collect()
@@ -229,7 +245,7 @@ impl Ring {
 
   /// Push click event to all click sinks from last to first until one of them
   /// handles it.
-  pub fn catch_click(&mut self, painter: &Painter, p: Point) {
+  pub fn catch_click(&mut self, painter: &Drone, p: Point) {
     let mut r = CallbackResult::Pass;
     let mut m = Mark::None;
 
@@ -261,7 +277,7 @@ impl Ring {
   /// the callback.
   fn handle_callback_result_mut(
     &mut self,
-    p: &Painter,
+    p: &Drone,
     r: CallbackResult,
     what: &str,
     who: Mark,
@@ -287,7 +303,7 @@ impl Ring {
   /// and [CallbackResult::Damage] are considered errors.
   fn handle_callback_result(
     &self,
-    p: &Painter,
+    p: &Drone,
     r: CallbackResult,
     what: &str,
     who: Mark,
@@ -314,7 +330,7 @@ impl Ring {
   }
 
   /// Push char to last input sink.
-  pub fn catch_input_event(&self, p: &Painter, e: InputEvent) {
+  pub fn catch_input_event(&self, p: &Drone, e: InputEvent) {
     self.input_sinks.last().iter().for_each(|(w, _)| {
       match w.write().unwrap().handle_event(p, &e) {
         CallbackResult::Error(e) => {
@@ -331,7 +347,7 @@ impl Ring {
   /// Returns `true` if event was consumed, `false` otherwise.
   pub fn handle_transient_control_event(
     &mut self,
-    p: &Painter,
+    p: &Drone,
     e: &WindowEvent,
   ) -> bool {
     if !self.transient.is_some() {
@@ -359,7 +375,7 @@ impl Ring {
     }
   }
 
-  pub fn handle_key(&mut self, p: &Painter, e: &WindowEvent) -> bool {
+  pub fn handle_key(&mut self, p: &Drone, e: &WindowEvent) -> bool {
     let mut r = CallbackResult::Pass;
     let mut m = Mark::None;
 
@@ -377,8 +393,7 @@ impl Ring {
     self.handle_callback_result_mut(p, r, "Click", m)
   }
 
-  pub fn drain_damage_tracker(&self, p: &Painter) {
-    // I'm LAZY
+  pub fn drain_damage_tracker(&self, p: &Drone) {
     let mut t = self.damage_tracker.write().unwrap();
     t.drain().for_each(|r| {
       self.handle_callback_result(p, r, "Damage", Mark::DamageTracker);
@@ -408,7 +423,7 @@ impl<'a> IntoParallelIterator for &'a mut Ring {
 mod tests {
   use crate::{
     logic::ring,
-    render::painter::Painter,
+    render::painter::Drone,
     widgets::{
       self,
       traits::{Drawable, Widget},
@@ -458,7 +473,7 @@ mod tests {
   }
 
   impl Drawable for W {
-    unsafe fn plot(&mut self, _: &Painter) -> Result<(), widgets::Error> {
+    fn plot(&mut self, _: Drone) -> Result<(), widgets::Error> {
       if self.fail_plot {
         Err(widgets::Error::Unspecified("plot failed".to_owned()))
       } else {
@@ -466,7 +481,7 @@ mod tests {
       }
     }
 
-    fn draw(&self, _: &Painter) -> Result<(), widgets::Error> {
+    unsafe fn draw(&mut self, _: &Drone) -> Result<(), widgets::Error> {
       if self.fail_draw {
         Err(widgets::Error::Unspecified("draw failed".to_owned()))
       } else {
@@ -487,7 +502,7 @@ mod tests {
 
   #[test]
   fn error_handling() {
-    let p = Painter::new(0, 0);
+    let p = Drone::new(0, 0);
     let mut r = Ring::new();
 
     // all good
@@ -522,7 +537,7 @@ mod tests {
       widgets::Error::Unspecified("plot failed".to_owned())
     );
 
-    // plotting doesn't fail fast 
+    // plotting doesn't fail fast
     let fail_plot = W::new(true, false, false);
     fail_plot.push_to_ring(&mut r);
     let errors = r.draw(&p);
@@ -531,7 +546,7 @@ mod tests {
 
   #[test]
   fn checks_for_plotting() {
-    let p = Painter::new(0, 0);
+    let p = Drone::new(0, 0);
     let mut r = Ring::new();
     let norm = W::new(false, false, false);
     let plotted = W::new(true, false, true);

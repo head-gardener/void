@@ -3,7 +3,7 @@ use glfw::{Action, Key, Modifiers, MouseButton, WindowEvent};
 use crate::{
   backend::Backend,
   logic::Ring,
-  render::{painter::Painter, Point},
+  render::{painter::Drone, Point},
   widgets::{traits::InputEvent, Spreadsheet},
 };
 
@@ -24,30 +24,29 @@ impl Core {
 
   pub unsafe fn on_exec(&mut self, b: &mut Backend) -> u64 {
     loop {
-      if b.should_close() {
+      if b.drone.should_close() {
         return 1;
       }
 
-      b.poll_events();
+      b.drone.poll_events();
       let events = glfw::flush_messages(&b.events);
       for (_, event) in events {
-        let r = self.handle_event(&mut b.painter, event);
-        if r != 0 {
-          return r;
-        }
+        // let r = self.handle_event(&mut b.painter, event);
+        // if r != 0 {
+        //   return r;
+        // }
       }
       gl::Clear(gl::COLOR_BUFFER_BIT);
 
-      self.ring.drain_damage_tracker(&b.painter);
+      // self.ring.drain_damage_tracker(&b.painter);
       self.draw(b);
-      crate::render::painter::pop_gl_error();
-      b.swap_buffers();
+      b.drone.swap_buffers();
     }
   }
 
   pub unsafe fn handle_event(
     &mut self,
-    p: &mut Painter,
+    p: &mut Drone,
     event: WindowEvent,
   ) -> u64 {
     if self.ring.handle_transient_control_event(p, &event) {
@@ -70,7 +69,7 @@ impl Core {
 
       // Resize
       WindowEvent::Size(w, h) => {
-        p.resize(w as u16, h as u16);
+        // p.resize(w as u16, h as u16);
         self.ring.into_iter().for_each(|w| {
           w.0.write().unwrap().request_plot();
         });
@@ -129,27 +128,24 @@ impl Core {
     0
   }
 
-  pub fn with_ssheet_mut<F>(&mut self, b: &Backend, f: F)
+  pub fn with_ssheet_mut<F, R>(&mut self, f: F) -> R
   where
-    F: FnOnce(&mut Spreadsheet, &Painter),
+    F: FnOnce(&mut Spreadsheet) -> R,
   {
-    f(
-      self
-        .ring
-        .pull(&crate::logic::ring::Mark::Spreadsheet)
-        .expect("Spreadsheet should always be on the ring")
-        .write()
-        .unwrap()
-        .downcast_mut()
-        .expect("Only spreadsheet should be marked as spreadsheet in the ring"),
-      &b.painter,
-    )
+    f(self
+      .ring
+      .pull(&crate::logic::ring::Mark::Spreadsheet)
+      .expect("Spreadsheet should always be on the ring")
+      .write()
+      .unwrap()
+      .downcast_mut()
+      .expect("Only spreadsheet should be marked as spreadsheet in the ring"))
   }
 
-  pub fn draw(&mut self, b: &Backend) {
+  pub fn draw(&mut self, b: &mut Backend) {
     self
       .ring
-      .draw(&b.painter)
+      .draw(b.painter.clone(), &mut b.drone)
       .iter()
       .for_each(|e| println!("{}", e));
   }

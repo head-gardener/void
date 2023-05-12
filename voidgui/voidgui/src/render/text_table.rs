@@ -1,19 +1,22 @@
-use std::mem::swap;
+use std::{mem::swap, sync::RwLockReadGuard};
 
+use crate::render::shapes::{Grid, Texture};
+use crate::widgets::traits::widget;
 use crate::{
   colorscheme::{
     CELL_BG_COLOR_DARK, CELL_BG_COLOR_LGHT, CELL_BG_COLOR_NORM, GRID_COLOR,
   },
   logic::Layout,
-  render::{
-    painter::Painter,
-    shapes::{Grid, Rectangle, Texture},
-    Size,
-  },
+  render::{painter::Drone, shapes::Rectangle, Size},
   widgets::traits::widget::Error,
 };
 
-use super::{shapes::rectangle, Area, Origin, Point};
+use super::shapes::TextureData;
+use super::{
+  painter::{DroneFeed, Painter},
+  shapes::rectangle,
+  Area, Origin, Point,
+};
 
 #[derive(Debug)]
 enum State {
@@ -126,12 +129,12 @@ pub enum Orientation {
 }
 
 pub struct TextTable {
-  grid: Grid,
   rows: usize,
   columns: usize,
 
-  bg: Vec<Rectangle>,
-  textures: Vec<Texture>,
+  grid: usize,
+  bg: Vec<usize>,
+  textures: Vec<usize>,
 
   texture_sizes: Vec<Size>,
   cell_sizes: Vec<Size>,
@@ -144,7 +147,8 @@ pub struct TextTable {
 impl TextTable {
   /// Generate a text table of static layout.
   pub unsafe fn make_static(
-    painter: &Painter,
+    drone: &mut Drone,
+    painter: &RwLockReadGuard<Painter>,
     or: Orientation,
     style: CellStyle,
     items: &[&str],
@@ -154,12 +158,16 @@ impl TextTable {
       Orientation::Horizontal => (1, items.len()),
     };
 
-    let table = TextTable::from_text(painter, r, c, style, &items)?;
+    let table = TextTable::from_text(drone, painter, r, c, style, &items)?;
 
     Ok(table)
   }
 
-  pub unsafe fn new(rows: usize, columns: usize) -> Self {
+  pub unsafe fn new(
+    drone: &mut Drone,
+    rows: usize,
+    columns: usize,
+  ) -> Result<Self, widget::Error> {
     if rows != 0 && columns != 0 {
       panic!(
         "Either rows or columns should be zero when
@@ -167,10 +175,10 @@ impl TextTable {
       );
     }
 
-    Self {
+    Ok(Self {
       rows,
       columns,
-      grid: Grid::new(GRID_COLOR),
+      grid: drone.get_grids(1, GRID_COLOR).ok_or(Error::InitFailure)?[0],
       bg: vec![],
       textures: vec![],
       texture_sizes: vec![],
@@ -178,11 +186,12 @@ impl TextTable {
       constr: Size::new(0, 0),
       origin: None,
       state: State::None,
-    }
+    })
   }
 
   pub unsafe fn from_text<R>(
-    painter: &Painter,
+    drone: &mut Drone,
+    painter: &RwLockReadGuard<Painter>,
     rows: usize,
     columns: usize,
     style: CellStyle,
@@ -191,20 +200,18 @@ impl TextTable {
   where
     R: AsRef<str>,
   {
-    let textures = text
+    let data = text
       .iter()
-      .map(|s| {
-        let mut t = Texture::new();
-        t.bind_text(painter, s.as_ref())?;
-        Ok(t)
-      })
-      .collect::<Result<Vec<Texture>, String>>()
-      .map_err(|e| Error::Unspecified(e.to_owned()))?;
+      .map(|s| TextureData::from_text(painter.font(), s.as_ref()))
+      .collect::<Result<Vec<TextureData>, String>>()?;
 
-    let sizes = textures
+    let sizes = data.iter().map(|t| t.into()).collect::<Vec<Size>>();
+
+    let textures = drone.get_textures(text.len()).ok_or(Error::InitFailure)?;
+    textures
       .iter()
-      .map(|t| t.size().to_owned())
-      .collect::<Vec<Size>>();
+      .zip(data.into_iter())
+      .for_each(|(t, d)| drone.feed().bind_text(*t, d));
 
     let padded = sizes
       .iter()
@@ -213,15 +220,11 @@ impl TextTable {
 
     let layout = Layout::from_sizes(rows, columns, padded.as_slice());
 
-    let bg = (0..rows * columns)
-      .map(|_| Rectangle::new(style.into()))
-      .collect();
-
     Ok(Self {
-      grid: Grid::new(GRID_COLOR),
+      grid: drone.get_grids(1, GRID_COLOR).ok_or(Error::InitFailure)?[0],
       rows,
       columns,
-      bg,
+      bg: drone.get_rectangles(textures.len(), style.into()).unwrap(),
       textures,
       texture_sizes: sizes,
       cell_sizes: padded,
@@ -236,33 +239,38 @@ impl TextTable {
   /// # Errors
   ///
   /// Returns an error only if [Texture::bind_text] fails.
-  ///
-  /// # Safety
-  ///
-  /// Unsafe due to creating and rendering textures.
   pub unsafe fn add_row<'a, I>(
     &mut self,
-    painter: &Painter,
-    mut data: I,
-    color: CellStyle,
+    painter: &RwLockReadGuard<Painter>,
+    drone: &mut Drone,
+    data: I,
+    style: CellStyle,
   ) -> Result<(), Error>
   where
     I: std::iter::Iterator<Item = &'a &'a String>,
   {
+    let tex = drone
+      .get_textures(self.columns)
+      .ok_or(Error::SpawnFailure)?;
     data
-      .try_for_each(|s| -> Result<(), String> {
-        let mut t = Texture::new();
-        t.bind_text(painter, s)?;
+      .zip(tex.into_iter())
+      .try_for_each(|(s, t)| -> Result<(), String> {
+        let d: TextureData = TextureData::from_text(painter.font(), s)?;
+        let size: Size = (&d).into();
+        drone.feed().bind_text(t, d);
 
-        let size = t.size();
         self.texture_sizes.push(size.clone());
         self.cell_sizes.push(size.expand(OFFSET, OFFSET));
 
         self.textures.push(t);
-        self.bg.push(Rectangle::new(color.into()));
         Ok(())
-      })
-      .map_err(|e| Error::Unspecified(e.to_owned()))?;
+      })?;
+
+    self.bg.append(
+      &mut drone
+        .get_rectangles(self.columns, style.into())
+        .ok_or(Error::InitFailure)?,
+    );
 
     self.rows += 1;
     self.state = State::None;
@@ -278,52 +286,36 @@ impl TextTable {
   /// `Texture::bind_text` fails.
   pub fn update_cell(
     &mut self,
-    p: &Painter,
+    p: &Drone,
     n: usize,
     s: &str,
   ) -> Result<(), Error> {
-    unsafe {
-      self
-        .textures
-        .iter_mut()
-        .zip(self.texture_sizes.iter_mut())
-        .zip(self.cell_sizes.iter_mut())
-        .nth(n)
-        .map(|((t, ts), cs)| -> Result<(), String> {
-          t.bind_text(p, s)?;
+    // unsafe {
+    // self
+    // .textures
+    // .iter_mut()
+    // .zip(self.texture_sizes.iter_mut())
+    // .zip(self.cell_sizes.iter_mut())
+    // .nth(n)
+    // .map(|((t, ts), cs)| -> Result<(), String> {
+    //   t.bind_text(p, s)?;
 
-          let size = t.size();
-          *ts = size.clone();
-          *cs = size.expand(OFFSET, OFFSET);
+    //   let size = t.size();
+    //   *ts = size.clone();
+    //   *cs = size.expand(OFFSET, OFFSET);
 
-          Ok(())
-        })
-        .ok_or(Error::Unspecified(format!(
-          "n out of bounds in update_cell: {}",
-          n
-        )))?
-        .map_err(|e| Error::Unspecified(e.to_owned()))
-    }?;
+    // Ok(())
+    // })
+    // .ok_or(Error::Unspecified(format!(
+    //   "n out of bounds in update_cell: {}",
+    //   n
+    // )))?
+    // .map_err(|e| Error::Unspecified(e.to_owned()))
+    // }?;
 
     self.state = State::None;
 
     Ok(())
-  }
-
-  pub fn set_cell_color(
-    &mut self,
-    n: usize,
-    c: CellStyle,
-  ) -> Result<(), Error> {
-    self
-      .bg
-      .iter_mut()
-      .nth(n)
-      .map(|b| b.set_style(c.into()))
-      .ok_or(Error::Unspecified(format!(
-        "n out of bounds in update_cell: {}",
-        n
-      )))
   }
 
   /// Ensure this [TextTable] is has been committed, calculating
@@ -341,7 +333,7 @@ impl TextTable {
   }
 
   pub fn truncate(&mut self, len: usize) {
-    self.textures.truncate(len);
+    // self.textures.truncate(len);
     self.bg.truncate(len);
     self.texture_sizes.truncate(len);
     self.cell_sizes.truncate(len);
@@ -351,7 +343,11 @@ impl TextTable {
   }
 
   /// Plot this [TextTable], committing its layout if necessary.
-  pub unsafe fn plot(&mut self, painter: &Painter) -> Result<(), Error> {
+  pub fn plot(
+    &mut self,
+    painter: &RwLockReadGuard<Painter>,
+    feed: &mut DroneFeed,
+  ) -> Result<(), Error> {
     let origin = self.origin.ok_or(Error::Uninitialized("origin"))?;
 
     self.ensure_committed();
@@ -362,18 +358,61 @@ impl TextTable {
     let origin = origin.to_point(&layout.size());
     let cells = layout.plot(&origin);
 
-    self.do_plot(painter, origin, &layout, &cells)?;
+    let vs = Area::new(
+      origin.x,
+      origin.y,
+      layout.size().width,
+      layout.size().height,
+    )
+    .gridify(
+      painter.window_area(),
+      layout.rows(),
+      layout.columns(),
+      layout.row_ratio(),
+      layout.column_ratio(),
+    );
+    feed.plot_grid(self.grid, vs);
+
+    self
+      .textures
+      .iter()
+      .zip(self.texture_sizes.iter())
+      .zip(cells.iter())
+      .for_each(|((t, s), a)| {
+        feed.plot_tex(
+          *t,
+          Area::new(a.x + OFFSET, a.y + OFFSET, s.width, s.height)
+            .to_normalized(painter.window_area())
+            .to_tex_coords(),
+        );
+      });
+
+    self.bg.iter().zip(cells.iter()).for_each(|(r, a)| {
+      feed
+        .plot_rectangle(*r, a.to_normalized(painter.window_area()).to_coords())
+    });
 
     self.state = State::Plotted(layout, cells);
     Ok(())
   }
 
-  pub fn draw(&self, painter: &Painter) -> Result<(), Error> {
+  pub fn draw(&mut self, feed: &mut DroneFeed) -> Result<(), Error> {
     if !self.state.is_plotted() {
-      return Err(Error::Unplotted("spreadsheet"));
+      return Err(Error::Unplotted("table"));
     }
 
-    unsafe { self.do_draw(painter) }
+    self.bg.iter_mut().for_each(|r| feed.draw_rectangle(*r));
+    // self
+    //   .grid
+    //   .draw(p)
+    //   .map_err(|e| Error::Unspecified(e.to_owned()))
+    // self
+    //   .textures
+    //   .iter()
+    //   .map(|t| t.draw(p))
+    //   .collect::<Result<(), String>>()
+    //   .map_err(|e| Error::Unspecified(e.to_owned()))
+    Ok(())
   }
 
   pub fn catch_point(&self, p: &Point) -> Option<usize> {
@@ -418,88 +457,6 @@ impl TextTable {
   }
 }
 
-#[cfg(not(test))]
-impl TextTable {
-  unsafe fn do_draw(&self, p: &Painter) -> Result<(), Error> {
-    self
-      .bg
-      .iter()
-      .map(|r| r.draw(p))
-      .collect::<Result<(), String>>()
-      .map_err(|e| Error::Unspecified(e.to_owned()))?;
-    self
-      .grid
-      .draw(p)
-      .map_err(|e| Error::Unspecified(e.to_owned()))?;
-    self
-      .textures
-      .iter()
-      .map(|t| t.draw(p))
-      .collect::<Result<(), String>>()
-      .map_err(|e| Error::Unspecified(e.to_owned()))
-  }
-
-  unsafe fn do_plot(
-    &mut self,
-    p: &Painter,
-    o: Point,
-    l: &Layout,
-    cs: &Vec<Area>,
-  ) -> Result<(), Error> {
-    self
-      .grid
-      .plot(
-        p,
-        l.rows(),
-        l.columns(),
-        l.row_ratio(),
-        l.column_ratio(),
-        &Area::new(o.x, o.y, l.size().width, l.size().height),
-      )
-      .map_err(|e| Error::Unspecified(e.to_owned()))?;
-
-    self
-      .textures
-      .iter()
-      .zip(self.texture_sizes.iter())
-      .zip(cs.iter())
-      .map(|((t, s), a)| {
-        t.plot(p, &Area::new(a.x + OFFSET, a.y + OFFSET, s.width, s.height))
-      })
-      .collect::<Result<(), String>>()
-      .map_err(|e| Error::Unspecified(e.to_owned()))?;
-
-    self
-      .bg
-      .iter_mut()
-      .zip(cs.iter())
-      .map(|(r, a)| r.plot(p, a))
-      .collect::<Result<(), String>>()
-      .map_err(|e| Error::Unspecified(e.to_owned()))
-  }
-}
-
-#[cfg(test)]
-impl TextTable {
-  unsafe fn do_draw(&self, _: &Painter) -> Result<(), Error> {
-    Ok(())
-  }
-
-  unsafe fn do_plot(
-    &self,
-    _: &Painter,
-    _: Point,
-    _: &Layout,
-    _: &Vec<Area>,
-  ) -> Result<(), Error> {
-    Ok(())
-  }
-
-  fn state(&self) -> &State {
-    &self.state
-  }
-}
-
 #[cfg(test)]
 mod test {
   use super::*;
@@ -508,7 +465,7 @@ mod test {
   fn layout() {
     let offset = OFFSET * 2;
 
-    let p = unsafe { Painter::new(0, 0) };
+    let p = unsafe { Drone::new(0, 0) };
     let mut t = unsafe {
       TextTable::from_text(
         &p,
@@ -587,7 +544,7 @@ mod test {
 
   #[test]
   fn state_changes() {
-    let p = unsafe { Painter::new(0, 0) };
+    let p = unsafe { Drone::new(0, 0) };
 
     let mut t = unsafe { TextTable::new(0, 3) };
     assert!(

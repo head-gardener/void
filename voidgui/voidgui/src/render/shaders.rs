@@ -181,17 +181,17 @@ pub trait Shader {
   fn prog(&self) -> &Program;
   fn attribs(&self) -> Vec<i32>;
 
-  fn set_used(&self) -> () {
+  unsafe fn set_used(&self) -> () {
     unsafe {
       gl::UseProgram(self.prog().id);
     }
   }
 
-  fn enable_attribs(&self) -> () {
+  unsafe fn enable_attribs(&self) -> () {
     self
       .attribs()
       .iter()
-      .for_each(|a| unsafe { gl::EnableVertexAttribArray(*a as u32) });
+      .for_each(|a| gl::EnableVertexAttribArray(*a as u32));
   }
 }
 

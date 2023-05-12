@@ -1,15 +1,20 @@
+use std::sync::RwLockReadGuard;
+
 use voidmacro::{ClickableMenu, DrawableMenu, Menu};
 
 use crate::{
-  logic::{ring::{Mark, RingElement, self}, CallbackResult},
-  render::{painter::Painter, Area, Origin, Point, TextTable},
+  logic::{
+    ring::{self, Mark, RingElement},
+    CallbackResult,
+  },
+  render::{
+    painter::{Drone, DroneFeed, Painter},
+    Area, Origin, Point, TextTable,
+  },
   widgets::InputField,
 };
 
-use super::traits::{
-  ClickSink, Clickable, Drawable,
-  Transient, Widget,
-};
+use super::traits::{ClickSink, Clickable, Drawable, Transient, Widget};
 use crate::widgets;
 
 #[derive(Menu, DrawableMenu, ClickableMenu)]
@@ -19,13 +24,17 @@ pub struct Spreadsheet {
 }
 
 impl Spreadsheet {
-  pub unsafe fn new(painter: &Painter) -> Result<Self, widgets::Error> {
+  pub unsafe fn new(
+    painter: &RwLockReadGuard<Painter>,
+    drone: &mut Drone,
+  ) -> Result<Self, widgets::Error> {
     let n = "Name".to_owned();
     let p = "Phone".to_owned();
 
-    let mut table = TextTable::new(0, 2);
+    let mut table = TextTable::new(drone, 0, 2)?;
     table.add_row(
       painter,
+      drone,
       [&n, &p].iter(),
       crate::render::text_table::CellStyle::Lit,
     )?;
@@ -38,7 +47,8 @@ impl Spreadsheet {
 
   pub fn push(
     &mut self,
-    painter: &Painter,
+    painter: &RwLockReadGuard<Painter>,
+    drone: &mut Drone,
     name: &str,
     phone: &str,
   ) -> Result<(), widgets::Error> {
@@ -48,6 +58,7 @@ impl Spreadsheet {
     unsafe {
       self.table.add_row(
         painter,
+        drone,
         [&n, &p].iter(),
         crate::render::text_table::CellStyle::Normal,
       )?;
@@ -73,7 +84,7 @@ impl Spreadsheet {
 
   pub fn update_record(
     &mut self,
-    p: &Painter,
+    p: &Drone,
     n: usize,
     s: &str,
   ) -> Result<(), widgets::Error> {
@@ -85,16 +96,17 @@ impl Spreadsheet {
 }
 
 impl ClickSink for Spreadsheet {
-  fn onclick(&self, painter: &Painter, p: Point) -> CallbackResult {
+  fn onclick(&self, painter: &Drone, p: Point) -> CallbackResult {
     let i = self.table.catch_point(&p).unwrap();
     match i {
       0 | 1 => CallbackResult::Pass,
       _ => {
-        let s = &self.records[i - 2];
-        match unsafe { InputField::new(painter, s, (i - 2, s.clone())) } {
-          Ok(f) => CallbackResult::Push(Box::new(ring::wrap(f))),
-          Err(e) => CallbackResult::Error(e),
-        }
+        // let s = &self.records[i - 2];
+        // match unsafe { InputField::new(painter, s, (i - 2, s.clone())) } {
+        //   Ok(f) => CallbackResult::Push(Box::new(ring::wrap(f))),
+        //   Err(e) => CallbackResult::Error(e),
+        // }
+        CallbackResult::Pass
       }
     }
   }
@@ -103,7 +115,7 @@ impl ClickSink for Spreadsheet {
 type SpreadsheetIF = (usize, Box<String>);
 
 impl Transient for InputField<SpreadsheetIF> {
-  fn handle_accept(&self, _: &Painter) -> CallbackResult {
+  fn handle_accept(&self, _: &Drone) -> CallbackResult {
     let (c, from) = self.closure().clone();
     let to = self.to_string();
     CallbackResult::Damage(Box::new(move |t| {
