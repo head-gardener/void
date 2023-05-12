@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use pangocairo::cairo::ffi::cairo_image_surface_create;
 use pangocairo::cairo::Format::ARgb32;
 use pangocairo::pango::FontDescription;
@@ -39,6 +41,12 @@ impl Drop for Texture {
 }
 
 pub struct TextureData(pub i32, pub i32, pub Vec<u8>);
+
+impl Debug for TextureData {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "TextureData({}, {}, [...])", self.0, self.1)
+  }
+}
 
 impl TextureData {
   pub unsafe fn from_text(

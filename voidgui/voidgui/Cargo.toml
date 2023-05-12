@@ -3,6 +3,9 @@ name = "voidgui"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+debug_msgs = []
+
 [lib]
 name = "voidgui"
 path = "src/lib.rs"

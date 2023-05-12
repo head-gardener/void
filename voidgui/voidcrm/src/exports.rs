@@ -3,7 +3,7 @@ use std::ffi::{c_char, CStr};
 use voidgui::{
   backend::Backend,
   core::*,
-  widgets::{self, toolbar::Toolbar, traits::Error, Spreadsheet},
+  widgets::{self, toolbar::Toolbar, Spreadsheet},
 };
 
 struct Window {
@@ -16,23 +16,22 @@ extern "C" fn void_gui_init() -> Box<Window> {
   let w = unsafe {
     let mut b = Backend::new(800, 600);
     let mut c = Core::new();
-    populate(&mut c, &mut b).unwrap();
+    populate(&mut c, &mut b);
     Window { b, c }
   };
   Box::new(w)
 }
 
-unsafe fn populate(c: &mut Core, b: &mut Backend) -> Result<(), Error> {
-  let painter = b.painter.read().unwrap();
+unsafe fn populate(c: &mut Core, b: &mut Backend) {
+  let painter = b.desc.read().unwrap();
+
   let win = widgets::Window::new(&painter);
-  let ssheet = Spreadsheet::new(&painter, &mut b.drone)?;
-  let toolbar = Toolbar::new(&painter, &mut b.drone)?;
+  let ssheet = Spreadsheet::new(&painter, &mut b.drone).unwrap();
+  let toolbar = Toolbar::new(&painter, &mut b.drone).unwrap();
 
   win.push_to_ring(c.ring_mut());
   ssheet.push_to_ring(c.ring_mut());
   toolbar.push_to_ring(c.ring_mut());
-
-  Ok(())
 }
 
 #[no_mangle]
@@ -54,7 +53,7 @@ extern "C" fn void_gui_add(
 
   w.c.with_ssheet_mut(|ssheet| {
     if let Err(e) =
-      ssheet.push(&w.b.painter.read().unwrap(), &mut w.b.drone, &n, &p)
+      ssheet.push(&w.b.desc.read().unwrap(), &mut w.b.drone, &n, &p)
     {
       println!("Push failed: {}", e);
       ssheet.drop();

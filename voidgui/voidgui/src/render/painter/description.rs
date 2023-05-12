@@ -2,13 +2,13 @@ use pangocairo::pango::FontDescription;
 
 use crate::render::Area;
 
-pub struct Painter {
+pub struct Description {
   window_area: Area,
   font: FontDescription,
 }
 
-impl Painter {
-  /// Creates a new [`Painter`].
+impl Description {
+  /// Creates a new [`Description`].
   pub unsafe fn new(window_width: u16, window_height: u16) -> Self {
     let window_area = Area {
       x: 0,

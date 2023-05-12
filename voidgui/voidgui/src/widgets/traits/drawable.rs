@@ -2,7 +2,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 use downcast_rs::{impl_downcast, Downcast};
 
-use crate::render::painter::{Drone, DroneFeed, Painter};
+use crate::render::painter::{Description, Drone, DroneFeed};
 
 use super::{Error, Widget};
 
@@ -21,7 +21,7 @@ pub trait Drawable: Widget + Downcast + Send + Sync {
   /// unexpected exit.
   fn plot(
     &mut self,
-    painter: RwLockReadGuard<Painter>,
+    painter: RwLockReadGuard<Description>,
     feed: DroneFeed,
   ) -> Result<(), Error>;
 

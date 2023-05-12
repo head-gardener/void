@@ -1,5 +1,5 @@
 use crate::render::{
-  painter::{Drone, Painter},
+  painter::{Drone, Description},
   section,
   shaders::Shader,
   Area, Color,

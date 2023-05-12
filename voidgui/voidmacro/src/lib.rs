@@ -38,11 +38,11 @@ pub fn derive_draw_menu(input: TokenStream) -> TokenStream {
     impl Drawable for #name {
       fn plot(
         &mut self,
-        painter: RwLockReadGuard<Painter>,
+        desc: RwLockReadGuard<Description>,
         mut feed: DroneFeed
       ) -> Result<(), widgets::Error>
       {
-        self.table.plot(&painter, &mut feed)
+        self.table.plot(&desc, &mut feed)
       }
       unsafe fn draw(&mut self, mut feed: DroneFeed)
         -> Result<(), widgets::Error>
@@ -62,6 +62,7 @@ pub fn derive_clickable_menu(input: TokenStream) -> TokenStream {
 
   let expanded = quote! {
     impl Clickable for #name {
+      #[inline]
       fn click_area(&self) -> Option<Area> {
         self.table.area()
       }

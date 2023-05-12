@@ -6,7 +6,7 @@ use crate::{
     CallbackResult,
   },
   render::{
-    painter::{Drone, DroneFeed, Painter},
+    painter::{Description, Drone, DroneFeed},
     text_table::Orientation,
     Area, Origin, Point, TextTable,
   },
@@ -30,7 +30,7 @@ pub struct Toolbar {
 
 impl Toolbar {
   pub unsafe fn new(
-    painter: &RwLockReadGuard<Painter>,
+    painter: &RwLockReadGuard<Description>,
     drone: &mut Drone,
   ) -> Result<Self, Error> {
     Ok(Self {
@@ -58,13 +58,18 @@ impl Toolbar {
 }
 
 impl ClickSink for Toolbar {
-  fn onclick(&self, drone: &Drone, p: Point) -> CallbackResult {
+  fn onclick(
+    &self,
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
+    p: Point,
+  ) -> CallbackResult {
     let i = self.table.catch_point(&p).unwrap();
     match i {
-      // 0 => unsafe { ToolbarTable::new(drone) }.map_or(
-      //   CallbackResult::Error(Error::InitFailure("ToolbarTable")),
-      //   |m| CallbackResult::Push(Box::new(ring::wrap(m))),
-      // ),
+      0 => unsafe { ToolbarTable::new(desc, drone) }.map_or(
+        CallbackResult::Error(Error::InitFailure),
+        |m| CallbackResult::Push(Box::new(ring::wrap(m))),
+      ),
       1 => {
         println!("Tools");
         CallbackResult::Pass
@@ -94,8 +99,8 @@ pub struct ToolbarTable {
 
 impl ToolbarTable {
   pub unsafe fn new(
-    painter: &RwLockReadGuard<Painter>,
-    drone: &mut Drone,
+    painter: &RwLockReadGuard<Description>,
+    drone: &Drone,
   ) -> Result<Self, Error> {
     Ok(Self {
       table: TextTable::make_static(

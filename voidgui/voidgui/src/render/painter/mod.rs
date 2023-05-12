@@ -1,9 +1,7 @@
-mod painter;
+mod description;
 mod drone;
-mod parka;
 mod comres;
 mod buffer;
 
-pub use painter::*;
+pub use description::*;
 pub use drone::*;
-pub use parka::*;

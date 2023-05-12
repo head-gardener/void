@@ -13,7 +13,7 @@ use crate::{
 
 use super::shapes::TextureData;
 use super::{
-  painter::{DroneFeed, Painter},
+  painter::{DroneFeed, Description},
   shapes::rectangle,
   Area, Origin, Point,
 };
@@ -147,8 +147,8 @@ pub struct TextTable {
 impl TextTable {
   /// Generate a text table of static layout.
   pub unsafe fn make_static(
-    drone: &mut Drone,
-    painter: &RwLockReadGuard<Painter>,
+    drone: &Drone,
+    desc: &RwLockReadGuard<Description>,
     or: Orientation,
     style: CellStyle,
     items: &[&str],
@@ -158,13 +158,13 @@ impl TextTable {
       Orientation::Horizontal => (1, items.len()),
     };
 
-    let table = TextTable::from_text(drone, painter, r, c, style, &items)?;
+    let table = TextTable::from_text(drone, desc, r, c, style, &items)?;
 
     Ok(table)
   }
 
   pub unsafe fn new(
-    drone: &mut Drone,
+    drone: &Drone,
     rows: usize,
     columns: usize,
   ) -> Result<Self, widget::Error> {
@@ -190,8 +190,8 @@ impl TextTable {
   }
 
   pub unsafe fn from_text<R>(
-    drone: &mut Drone,
-    painter: &RwLockReadGuard<Painter>,
+    drone: &Drone,
+    desc: &RwLockReadGuard<Description>,
     rows: usize,
     columns: usize,
     style: CellStyle,
@@ -202,7 +202,7 @@ impl TextTable {
   {
     let data = text
       .iter()
-      .map(|s| TextureData::from_text(painter.font(), s.as_ref()))
+      .map(|s| TextureData::from_text(desc.font(), s.as_ref()))
       .collect::<Result<Vec<TextureData>, String>>()?;
 
     let sizes = data.iter().map(|t| t.into()).collect::<Vec<Size>>();
@@ -241,8 +241,8 @@ impl TextTable {
   /// Returns an error only if [Texture::bind_text] fails.
   pub unsafe fn add_row<'a, I>(
     &mut self,
-    painter: &RwLockReadGuard<Painter>,
-    drone: &mut Drone,
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
     data: I,
     style: CellStyle,
   ) -> Result<(), Error>
@@ -255,7 +255,7 @@ impl TextTable {
     data
       .zip(tex.into_iter())
       .try_for_each(|(s, t)| -> Result<(), String> {
-        let d: TextureData = TextureData::from_text(painter.font(), s)?;
+        let d: TextureData = TextureData::from_text(desc.font(), s)?;
         let size: Size = (&d).into();
         drone.feed().bind_text(t, d);
 
@@ -345,8 +345,8 @@ impl TextTable {
   /// Plot this [TextTable], committing its layout if necessary.
   pub fn plot(
     &mut self,
-    painter: &RwLockReadGuard<Painter>,
-    feed: &mut DroneFeed,
+    desc: &RwLockReadGuard<Description>,
+    feed: &DroneFeed,
   ) -> Result<(), Error> {
     let origin = self.origin.ok_or(Error::Uninitialized("origin"))?;
 
@@ -365,7 +365,7 @@ impl TextTable {
       layout.size().height,
     )
     .gridify(
-      painter.window_area(),
+      desc.window_area(),
       layout.rows(),
       layout.columns(),
       layout.row_ratio(),
@@ -382,21 +382,21 @@ impl TextTable {
         feed.plot_tex(
           *t,
           Area::new(a.x + OFFSET, a.y + OFFSET, s.width, s.height)
-            .to_normalized(painter.window_area())
+            .to_normalized(desc.window_area())
             .to_tex_coords(),
         );
       });
 
     self.bg.iter().zip(cells.iter()).for_each(|(r, a)| {
       feed
-        .plot_rectangle(*r, a.to_normalized(painter.window_area()).to_coords())
+        .plot_rectangle(*r, a.to_normalized(desc.window_area()).to_coords())
     });
 
     self.state = State::Plotted(layout, cells);
     Ok(())
   }
 
-  pub fn draw(&mut self, feed: &mut DroneFeed) -> Result<(), Error> {
+  pub fn draw(&mut self, feed: &DroneFeed) -> Result<(), Error> {
     if !self.state.is_plotted() {
       return Err(Error::Unplotted("table"));
     }

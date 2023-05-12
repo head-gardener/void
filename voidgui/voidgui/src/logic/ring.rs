@@ -6,7 +6,7 @@ use rayon::prelude::*;
 
 use crate::{
   render::{
-    painter::{Drone, DroneFeed, Painter},
+    painter::{Description, Drone, DroneFeed},
     Point,
   },
   widgets::{
@@ -185,7 +185,7 @@ impl Ring {
   /// Draw all owned widgets, plotting if needed.
   pub fn draw(
     &mut self,
-    painter: Arc<RwLock<Painter>>,
+    desc: Arc<RwLock<Description>>,
     drone: &mut Drone,
   ) -> Vec<widgets::Error> {
     let parents = &self.parents;
@@ -221,7 +221,7 @@ impl Ring {
               )))?;
             w.set_origin(&o);
           }
-          w.plot(painter.read().unwrap(), feed)
+          w.plot(desc.read().unwrap(), feed)
         } else {
           Ok(())
         }
@@ -232,7 +232,7 @@ impl Ring {
       return p;
     }
 
-    self
+    let res = self
       .widgets
       .iter()
       .map(|(w, _, _, _)| {
@@ -240,17 +240,27 @@ impl Ring {
         unsafe { w.draw(drone.new_feed()) }
       })
       .filter_map(|r| r.err())
-      .collect()
+      .collect();
+    res
   }
 
   /// Push click event to all click sinks from last to first until one of them
   /// handles it.
-  pub fn catch_click(&mut self, painter: &Drone, p: Point) {
+  pub fn catch_click(
+    &mut self,
+    desc: &Arc<RwLock<Description>>,
+    drone: &Drone,
+    p: Point,
+  ) {
     let mut r = CallbackResult::Pass;
     let mut m = Mark::None;
 
     for (w, _m) in self.click_sinks.iter().rev() {
-      match w.write().unwrap().handle_click(painter, p) {
+      match w
+        .write()
+        .unwrap()
+        .handle_click(&desc.read().unwrap(), drone, p)
+      {
         CallbackResult::Pass => continue,
         res => {
           r = res;
@@ -260,7 +270,7 @@ impl Ring {
       }
     }
 
-    self.handle_callback_result_mut(painter, r, "Click", m);
+    self.handle_callback_result_mut(drone, r, "Click", m);
   }
 
   /// Act on callback result.
@@ -290,7 +300,10 @@ impl Ring {
       CallbackResult::Error(e) => {
         println!("{} callback by {:?} failed: {}", what, who, e);
       }
-      CallbackResult::Push(x) => x.push_to_ring(self),
+      CallbackResult::Push(x) => {
+        println!("push");
+        x.push_to_ring(self)
+      },
       CallbackResult::Modify(m, f) => f(self.pull(&m), p),
       CallbackResult::Damage(f) => f(&mut self.damage_tracker.write().unwrap()),
 

@@ -1,11 +1,24 @@
+use std::sync::{Arc, RwLock};
+
 use glfw::{Action, Key, Modifiers, MouseButton, WindowEvent};
 
 use crate::{
   backend::Backend,
   logic::Ring,
-  render::{painter::Drone, Point},
+  render::{
+    painter::{Description, Drone},
+    Point,
+  },
   widgets::{traits::InputEvent, Spreadsheet},
 };
+
+#[macro_export]
+macro_rules! debug {
+  ($($arg: tt), *) => {
+    #[cfg(feature = "debug_msgs")]
+    println!($($arg,) *)
+  }
+}
 
 pub struct Core {
   ring: Ring,
@@ -24,28 +37,26 @@ impl Core {
 
   pub unsafe fn on_exec(&mut self, b: &mut Backend) -> u64 {
     loop {
-      if b.drone.should_close() {
+      if b.drone.step() {
         return 1;
       }
 
-      b.drone.poll_events();
       let events = glfw::flush_messages(&b.events);
       for (_, event) in events {
-        let r = self.handle_event(&b.drone, event);
+        let r = self.handle_event(&b.desc, &b.drone, event);
         if r != 0 {
           return r;
         }
       }
 
       // self.ring.drain_damage_tracker(&b.painter);
-      b.drone.clear();
       self.draw(b);
-      b.drone.swap_buffers();
     }
   }
 
   pub unsafe fn handle_event(
     &mut self,
+    desc: &Arc<RwLock<Description>>,
     drone: &Drone,
     event: WindowEvent,
   ) -> u64 {
@@ -82,7 +93,7 @@ impl Core {
         self.cursor = Point::new(x as u16, y as u16);
       }
       WindowEvent::MouseButton(MouseButton::Button1, Action::Press, _mods) => {
-        self.ring.catch_click(drone, self.cursor);
+        self.ring.catch_click(desc, drone, self.cursor);
       }
 
       // Text input
@@ -144,9 +155,10 @@ impl Core {
   }
 
   pub fn draw(&mut self, b: &mut Backend) {
+    b.drone.clear();
     self
       .ring
-      .draw(b.painter.clone(), &mut b.drone)
+      .draw(b.desc.clone(), &mut b.drone)
       .iter()
       .for_each(|e| println!("{}", e));
   }

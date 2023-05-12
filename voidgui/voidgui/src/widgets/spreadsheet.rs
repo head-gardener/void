@@ -8,7 +8,7 @@ use crate::{
     CallbackResult,
   },
   render::{
-    painter::{Drone, DroneFeed, Painter},
+    painter::{Description, Drone, DroneFeed},
     Area, Origin, Point, TextTable,
   },
   widgets::InputField,
@@ -25,7 +25,7 @@ pub struct Spreadsheet {
 
 impl Spreadsheet {
   pub unsafe fn new(
-    painter: &RwLockReadGuard<Painter>,
+    desc: &RwLockReadGuard<Description>,
     drone: &mut Drone,
   ) -> Result<Self, widgets::Error> {
     let n = "Name".to_owned();
@@ -33,7 +33,7 @@ impl Spreadsheet {
 
     let mut table = TextTable::new(drone, 0, 2)?;
     table.add_row(
-      painter,
+      desc,
       drone,
       [&n, &p].iter(),
       crate::render::text_table::CellStyle::Lit,
@@ -47,7 +47,7 @@ impl Spreadsheet {
 
   pub fn push(
     &mut self,
-    painter: &RwLockReadGuard<Painter>,
+    painter: &RwLockReadGuard<Description>,
     drone: &mut Drone,
     name: &str,
     phone: &str,
@@ -96,17 +96,21 @@ impl Spreadsheet {
 }
 
 impl ClickSink for Spreadsheet {
-  fn onclick(&self, painter: &Drone, p: Point) -> CallbackResult {
+  fn onclick(
+    &self,
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
+    p: Point,
+  ) -> CallbackResult {
     let i = self.table.catch_point(&p).unwrap();
     match i {
       0 | 1 => CallbackResult::Pass,
       _ => {
-        // let s = &self.records[i - 2];
-        // match unsafe { InputField::new(painter, s, (i - 2, s.clone())) } {
-        //   Ok(f) => CallbackResult::Push(Box::new(ring::wrap(f))),
-        //   Err(e) => CallbackResult::Error(e),
-        // }
-        CallbackResult::Pass
+        let s = &self.records[i - 2];
+        match unsafe { InputField::new(desc, drone, s, (i - 2, s.clone())) } {
+          Ok(f) => CallbackResult::Push(Box::new(ring::wrap(f))),
+          Err(e) => CallbackResult::Error(e),
+        }
       }
     }
   }

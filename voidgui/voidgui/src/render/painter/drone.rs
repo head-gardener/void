@@ -8,8 +8,6 @@ use std::{
 
 use glfw::{Context, Window};
 
-use crate::render::shapes::{Grid, TextureData};
-use crate::render::{painter::buffer::Buffer, shapes::Texture};
 use crate::render::{
   painter::comres::CommonResources,
   shaders::{Shader, Shaders},
@@ -19,13 +17,20 @@ use crate::render::{
   },
   Color,
 };
+use crate::{
+  colorscheme::BACKGROUND,
+  render::shapes::{Grid, TextureData},
+};
+use crate::{
+  debug,
+  render::{painter::buffer::Buffer, shapes::Texture},
+};
 
-use super::{Painter, Parka};
+use super::Description;
 
+#[derive(Debug)]
 enum Command {
-  PollEvents,
-  ShouldClose,
-  SwapBuffers,
+  Step,
   Clear,
   Kill,
 
@@ -44,10 +49,9 @@ enum Command {
 }
 
 enum Response {
-  InitComplete(Events, Arc<RwLock<Painter>>),
+  InitComplete(Events),
 
   ShouldClose(bool),
-  Polled,
 
   NewShapes(Vec<usize>),
 }
@@ -72,32 +76,93 @@ type Events = Receiver<(f64, glfw::WindowEvent)>;
 
 pub struct Drone {
   resp: Receiver<Response>,
-  feed: DroneFeed,
+  dir_feed: SyncSender<Command>,
+  ctr_feed: DroneFeed,
 }
 
 impl Drone {
   pub unsafe fn new(
-    parka: Parka,
-  ) -> Result<(Self, Events, Arc<RwLock<Painter>>), &'static str> {
-    let (feed, rx) = mpsc::sync_channel::<Command>(10);
+    desc: Arc<RwLock<Description>>,
+    w: u32,
+    h: u32,
+  ) -> Result<(Self, Events), &'static str> {
+    let (feed, rx) = mpsc::sync_channel::<Command>(100);
     let (tx, resp) = mpsc::channel();
+
+    let ctr = {
+      let (_tx, rx) = mpsc::sync_channel(100);
+      let tx = feed.clone();
+
+      thread::Builder::new()
+        .name("overseer".into())
+        .spawn(move || loop {
+          let c: Command = rx.try_recv().unwrap_or_else(|_| {
+            let _from = std::time::Instant::now();
+            debug!("overs idle...");
+            let c = rx.recv().unwrap();
+            debug!("overs idle for {:?}", (std::time::Instant::now() - _from));
+            c
+          });
+          if c.is_kill() {
+            break;
+          }
+          debug!("overs received {:?}", c);
+          tx.send(c).unwrap();
+        })
+        .unwrap();
+
+      _tx
+    };
 
     thread::Builder::new()
       .name("drone".into())
       .spawn(move || {
-        let (mut win, es, mut painter) = parka.tear();
+        let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
+
+        glfw.window_hint(glfw::WindowHint::ClientApi(
+          glfw::ClientApiHint::OpenGlEs,
+        ));
+        glfw.window_hint(glfw::WindowHint::ContextVersion(3, 2));
+        glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
+
+        let (mut win, events) = glfw
+          .create_window(w, h, "Void", glfw::WindowMode::Windowed)
+          .expect("Failed to create GLFW window.");
+
+        win.make_current();
+        win.set_key_polling(true);
+        win.set_size_polling(true);
+        win.set_char_polling(true);
+        win.set_mouse_button_polling(true);
+        win.set_cursor_pos_polling(true);
+
+        let _gl = gl::load_with(|s| glfw.get_proc_address_raw(s));
+
+        gl::Viewport(0, 0, w as i32, h as i32);
+        let (r, g, b, a) = BACKGROUND;
+        gl::ClearColor(r, g, b, a);
+        gl::Enable(gl::BLEND);
+        gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+
         let shaders = Shaders::new();
         let common = CommonResources::allocate();
         let mut resources = (Buffer::new(), Buffer::new(), Buffer::new());
 
-        tx.send(Response::InitComplete(es, painter.clone()))
-          .unwrap();
+        tx.send(Response::InitComplete(events)).unwrap();
 
-        for c in rx.iter() {
+        loop {
+          let c = rx.try_recv().unwrap_or_else(|_| {
+            let _from = std::time::Instant::now();
+            debug!("drone idle...");
+            let c = rx.recv().unwrap();
+            debug!("drone idle for {:?}", (std::time::Instant::now() - _from));
+            c
+          });
+          debug!("drone received {:?}", c);
           if c.is_kill() {
             break;
           }
-          c.handle(&shaders, &common, &mut painter, &mut resources, &mut win)
+          c.handle(&shaders, &common, &desc, &mut resources, &mut win)
             .map(|r| tx.send(r));
 
           let error = gl::GetError();
@@ -110,29 +175,30 @@ impl Drone {
 
     receive_or!(
       resp,
-      Response::InitComplete(_es, _painter),
+      Response::InitComplete(_es),
       Ok((
         Self {
-          feed: DroneFeed(feed),
+          dir_feed: feed,
+          ctr_feed: DroneFeed(ctr),
           resp,
         },
         _es,
-        _painter,
       )),
       Err("Drone start failed")
     )
   }
 
   pub fn new_feed(&self) -> DroneFeed {
-    self.feed.clone()
+    self.ctr_feed.clone()
   }
 
   pub fn feed(&self) -> &DroneFeed {
-    &self.feed
+    &self.ctr_feed
   }
 
   pub fn kill(&self) {
-    self.feed.0.send(Command::Kill).unwrap();
+    self.ctr_feed.0.send(Command::Kill).unwrap();
+    self.dir_feed.send(Command::Kill).unwrap();
   }
 
   pub fn get_rectangles(
@@ -140,36 +206,31 @@ impl Drone {
     n: usize,
     style: rectangle::Style,
   ) -> Option<Vec<usize>> {
-    self.feed.0.send(Command::NewRectangles(n, style)).unwrap();
+    self
+      .dir_feed
+      .send(Command::NewRectangles(n, style))
+      .unwrap();
     receive_or!(self.resp, Response::NewShapes(_ids), Some(_ids), None)
   }
 
   pub fn get_grids(&self, n: usize, color: Color) -> Option<Vec<usize>> {
-    self.feed.0.send(Command::NewGrids(n, color)).unwrap();
+    self.dir_feed.send(Command::NewGrids(n, color)).unwrap();
     receive_or!(self.resp, Response::NewShapes(_ids), Some(_ids), None)
   }
 
   pub fn get_textures(&self, n: usize) -> Option<Vec<usize>> {
-    self.feed.0.send(Command::NewTextures(n)).unwrap();
+    self.dir_feed.send(Command::NewTextures(n)).unwrap();
     receive_or!(self.resp, Response::NewShapes(_ids), Some(_ids), None)
   }
 
-  pub fn should_close(&self) -> bool {
-    self.feed.0.send(Command::ShouldClose).unwrap();
-    receive!(self.resp, Response::ShouldClose(_should), _should)
-  }
-
-  pub fn swap_buffers(&self) {
-    self.feed.0.send(Command::SwapBuffers).unwrap();
-  }
-
-  pub fn poll_events(&self) {
-    self.feed.0.send(Command::PollEvents).unwrap();
-    assert!(matches!(self.resp.recv().unwrap(), Response::Polled));
+  pub fn step(&self) -> bool {
+    self.ctr_feed.0.send(Command::Step).unwrap();
+    let s = receive!(self.resp, Response::ShouldClose(_should), _should);
+    s
   }
 
   pub fn clear(&self) {
-    self.feed.0.send(Command::Clear).unwrap();
+    self.dir_feed.send(Command::Clear).unwrap();
   }
 }
 
@@ -177,31 +238,34 @@ pub struct DroneFeed(SyncSender<Command>);
 
 impl DroneFeed {
   pub fn plot_rectangle(&self, rect: usize, coords: [f32; 8]) {
-    self.0.send(Command::PlotRectangle(rect, coords)).unwrap();
+    self
+      .0
+      .try_send(Command::PlotRectangle(rect, coords))
+      .unwrap();
   }
 
   pub fn draw_rectangle(&self, rect: usize) {
-    self.0.send(Command::DrawRectangle(rect)).unwrap();
+    self.0.try_send(Command::DrawRectangle(rect)).unwrap();
   }
 
   pub fn plot_grid(&self, grid: usize, coords: Vec<f32>) {
-    self.0.send(Command::PlotGrid(grid, coords)).unwrap();
+    self.0.try_send(Command::PlotGrid(grid, coords)).unwrap();
   }
 
   pub fn draw_grid(&self, grid: usize) {
-    self.0.send(Command::DrawGrid(grid)).unwrap();
+    self.0.try_send(Command::DrawGrid(grid)).unwrap();
   }
 
-  pub fn plot_tex(&self, grid: usize, coords: [f32; 16]) {
-    self.0.send(Command::PlotTexture(grid, coords)).unwrap();
+  pub fn plot_tex(&self, tex: usize, coords: [f32; 16]) {
+    self.0.try_send(Command::PlotTexture(tex, coords)).unwrap();
   }
 
-  pub fn bind_text(&self, grid: usize, data: TextureData) {
-    self.0.send(Command::WriteTexture(grid, data)).unwrap();
+  pub fn bind_text(&self, tex: usize, data: TextureData) {
+    self.0.try_send(Command::WriteTexture(tex, data)).unwrap();
   }
 
-  pub fn draw_tex(&self, grid: usize) {
-    self.0.send(Command::DrawTexture(grid)).unwrap();
+  pub fn draw_tex(&self, tex: usize) {
+    self.0.try_send(Command::DrawTexture(tex)).unwrap();
   }
 }
 
@@ -217,15 +281,11 @@ impl Command {
     self,
     shaders: &Shaders,
     common: &CommonResources,
-    _: &mut Arc<RwLock<Painter>>,
+    _: &Arc<RwLock<Description>>,
     res: &mut (Buffer<Rectangle>, Buffer<Texture>, Buffer<Grid>),
     win: &mut Window,
   ) -> Option<Response> {
     match self {
-      Command::PollEvents => {
-        win.glfw.poll_events();
-        Some(Response::Polled)
-      }
       Command::NewRectangles(n, style) => Some(Response::NewShapes(
         (0..n)
           .map(|_| res.0.put(Rectangle::new(style.clone())))
@@ -405,10 +465,10 @@ impl Command {
 
         None
       }
-      Command::ShouldClose => Some(Response::ShouldClose(win.should_close())),
-      Command::SwapBuffers => {
+      Command::Step => {
         win.swap_buffers();
-        None
+        win.glfw.poll_events();
+        Some(Response::ShouldClose(win.should_close()))
       }
       Command::Kill => panic!(),
       Command::Clear => {

@@ -4,7 +4,7 @@ use crate::{
   colorscheme::CURSOR_COLOR,
   logic::CallbackResult,
   render::{
-    painter::{Drone, DroneFeed, Painter},
+    painter::{Drone, DroneFeed, Description},
     shapes::{rectangle, Rectangle},
     text_table::{Orientation, OFFSET},
     Area, Origin, TextTable,
@@ -25,8 +25,8 @@ pub struct InputField<T> {
 
 impl<T: Send> InputField<T> {
   pub unsafe fn new(
-    painter: &RwLockReadGuard<Painter>,
-    drone: &mut Drone,
+    painter: &RwLockReadGuard<Description>,
+    drone: &Drone,
     s: &str,
     closure: T,
   ) -> Result<Self, Error> {
@@ -63,7 +63,7 @@ impl<T> InputSink for InputField<T> {
 impl<T: Send + Sync + 'static> Drawable for InputField<T> {
   fn plot(
     &mut self,
-    painter: RwLockReadGuard<Painter>,
+    painter: RwLockReadGuard<Description>,
     mut feed: DroneFeed,
   ) -> Result<(), Error> {
     self.table.plot(&painter, &mut feed)?;
