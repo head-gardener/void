@@ -31,10 +31,10 @@ impl Core {
       b.drone.poll_events();
       let events = glfw::flush_messages(&b.events);
       for (_, event) in events {
-        // let r = self.handle_event(&mut b.painter, event);
-        // if r != 0 {
-        //   return r;
-        // }
+        let r = self.handle_event(&b.drone, event);
+        if r != 0 {
+          return r;
+        }
       }
       gl::Clear(gl::COLOR_BUFFER_BIT);
 
@@ -46,19 +46,20 @@ impl Core {
 
   pub unsafe fn handle_event(
     &mut self,
-    p: &mut Drone,
+    drone: &Drone,
     event: WindowEvent,
   ) -> u64 {
-    if self.ring.handle_transient_control_event(p, &event) {
+    if self.ring.handle_transient_control_event(drone, &event) {
       return 0;
     }
-    if self.ring.handle_key(p, &event) {
+    if self.ring.handle_key(drone, &event) {
       return 0;
     }
 
     match event {
       // Hotkeys
       WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
+        drone.kill();
         return 1;
       }
       WindowEvent::Key(Key::P, _, Action::Press, m)
@@ -81,18 +82,18 @@ impl Core {
         self.cursor = Point::new(x as u16, y as u16);
       }
       WindowEvent::MouseButton(MouseButton::Button1, Action::Press, _mods) => {
-        self.ring.catch_click(p, self.cursor);
+        self.ring.catch_click(drone, self.cursor);
       }
 
       // Text input
       WindowEvent::Char(c) => {
-        self.ring.catch_input_event(p, InputEvent::Char(c));
+        self.ring.catch_input_event(drone, InputEvent::Char(c));
       }
       WindowEvent::Key(Key::Left, _, Action::Press | Action::Repeat, _) => {
-        self.ring.catch_input_event(p, InputEvent::Left);
+        self.ring.catch_input_event(drone, InputEvent::Left);
       }
       WindowEvent::Key(Key::Right, _, Action::Press | Action::Repeat, _) => {
-        self.ring.catch_input_event(p, InputEvent::Right);
+        self.ring.catch_input_event(drone, InputEvent::Right);
       }
       WindowEvent::Key(
         Key::Backspace,
@@ -100,16 +101,16 @@ impl Core {
         Action::Press | Action::Repeat,
         _,
       ) => {
-        self.ring.catch_input_event(p, InputEvent::Backspace);
+        self.ring.catch_input_event(drone, InputEvent::Backspace);
       }
       WindowEvent::Key(Key::Delete, _, Action::Press | Action::Repeat, _) => {
-        self.ring.catch_input_event(p, InputEvent::Delete);
+        self.ring.catch_input_event(drone, InputEvent::Delete);
       }
       WindowEvent::Key(Key::Home, _, Action::Press | Action::Repeat, _) => {
-        self.ring.catch_input_event(p, InputEvent::Home);
+        self.ring.catch_input_event(drone, InputEvent::Home);
       }
       WindowEvent::Key(Key::End, _, Action::Press | Action::Repeat, _) => {
-        self.ring.catch_input_event(p, InputEvent::End);
+        self.ring.catch_input_event(drone, InputEvent::End);
       }
       WindowEvent::Key(
         Key::Enter,
@@ -117,7 +118,7 @@ impl Core {
         Action::Press | Action::Repeat,
         Modifiers::Control,
       ) => {
-        self.ring.catch_input_event(p, InputEvent::Newline);
+        self.ring.catch_input_event(drone, InputEvent::Newline);
       }
 
       _ => {

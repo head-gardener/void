@@ -26,6 +26,7 @@ enum Command {
   PollEvents,
   ShouldClose,
   SwapBuffers,
+  Kill,
 
   NewRectangles(usize, rectangle::Style),
   PlotRectangle(usize, [f32; 8]),
@@ -90,12 +91,12 @@ impl Drone {
 
         tx.send(Response::InitComplete(es, painter.clone()))
           .unwrap();
-        println!("started :)");
 
-        loop {
-          rx.recv()
-            .unwrap()
-            .handle(&shaders, &common, &mut painter, &mut resources, &mut win)
+        for c in rx.iter() {
+          if c.is_kill() {
+            break;
+          }
+          c.handle(&shaders, &common, &mut painter, &mut resources, &mut win)
             .map(|r| tx.send(r));
 
           let error = gl::GetError();
@@ -125,6 +126,10 @@ impl Drone {
     self.feed.clone()
   }
 
+  pub fn kill(&self) {
+    self.feed.0.send(Command::Kill).unwrap();
+  }
+
   pub fn get_rectangles(
     &self,
     n: usize,
@@ -134,12 +139,12 @@ impl Drone {
     receive_or!(self.resp, Response::NewShapes(_ids), Some(_ids), None)
   }
 
-  pub fn get_grids(&mut self, n: usize, color: Color) -> Option<Vec<usize>> {
+  pub fn get_grids(&self, n: usize, color: Color) -> Option<Vec<usize>> {
     self.feed.0.send(Command::NewGrids(n, color)).unwrap();
     receive_or!(self.resp, Response::NewShapes(_ids), Some(_ids), None)
   }
 
-  pub fn get_textures(&mut self, n: usize) -> Option<Vec<usize>> {
+  pub fn get_textures(&self, n: usize) -> Option<Vec<usize>> {
     self.feed.0.send(Command::NewTextures(n)).unwrap();
     receive_or!(self.resp, Response::NewShapes(_ids), Some(_ids), None)
   }
@@ -149,14 +154,13 @@ impl Drone {
     receive!(self.resp, Response::ShouldClose(_should), _should)
   }
 
-  pub fn swap_buffers(&mut self) {
+  pub fn swap_buffers(&self) {
     self.feed.0.send(Command::SwapBuffers).unwrap();
   }
 
-  pub fn poll_events(&mut self) {
+  pub fn poll_events(&self) {
     self.feed.0.send(Command::PollEvents).unwrap();
     assert!(matches!(self.resp.recv().unwrap(), Response::Polled));
-    println!("poll received");
   }
 
   pub fn feed(&self) -> &DroneFeed {
@@ -215,7 +219,6 @@ impl Command {
     match self {
       Command::PollEvents => {
         win.glfw.poll_events();
-        println!("polled :)");
         Some(Response::Polled)
       }
       Command::NewRectangles(n, style) => Some(Response::NewShapes(
@@ -402,6 +405,15 @@ impl Command {
         win.swap_buffers();
         None
       }
+      Command::Kill => panic!(),
     }
+  }
+
+  /// Returns `true` if the command is [`Kill`].
+  ///
+  /// [`Kill`]: Command::Kill
+  #[must_use]
+  fn is_kill(&self) -> bool {
+    matches!(self, Self::Kill)
   }
 }

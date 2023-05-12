@@ -2,7 +2,10 @@ use std::sync::RwLockReadGuard;
 
 use crate::{
   logic::ring,
-  render::{Area, Origin, OriginPole, painter::{Painter, Drone, DroneFeed}},
+  render::{
+    painter::{Drone, DroneFeed, Painter},
+    Area, Origin, OriginPole,
+  },
 };
 
 use super::traits::{Drawable, Parent, Widget};
@@ -55,10 +58,7 @@ impl Drawable for Window {
     Ok(())
   }
 
-  unsafe fn draw(
-    &mut self,
-    _: DroneFeed,
-  ) -> Result<(), super::traits::Error> {
+  unsafe fn draw(&mut self, _: DroneFeed) -> Result<(), super::traits::Error> {
     Ok(())
   }
 }
