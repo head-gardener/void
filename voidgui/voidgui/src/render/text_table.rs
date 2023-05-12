@@ -401,17 +401,9 @@ impl TextTable {
       return Err(Error::Unplotted("table"));
     }
 
-    self.bg.iter_mut().for_each(|r| feed.draw_rectangle(*r));
-    // self
-    //   .grid
-    //   .draw(p)
-    //   .map_err(|e| Error::Unspecified(e.to_owned()))
-    // self
-    //   .textures
-    //   .iter()
-    //   .map(|t| t.draw(p))
-    //   .collect::<Result<(), String>>()
-    //   .map_err(|e| Error::Unspecified(e.to_owned()))
+    self.bg.iter().for_each(|r| feed.draw_rectangle(*r));
+    feed.draw_grid(self.grid);
+    self.textures.iter().for_each(|t| feed.draw_tex(*t));
     Ok(())
   }
 

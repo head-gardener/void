@@ -36,9 +36,9 @@ impl Core {
           return r;
         }
       }
-      gl::Clear(gl::COLOR_BUFFER_BIT);
 
       // self.ring.drain_damage_tracker(&b.painter);
+      b.drone.clear();
       self.draw(b);
       b.drone.swap_buffers();
     }

@@ -26,6 +26,7 @@ enum Command {
   PollEvents,
   ShouldClose,
   SwapBuffers,
+  Clear,
   Kill,
 
   NewRectangles(usize, rectangle::Style),
@@ -126,6 +127,10 @@ impl Drone {
     self.feed.clone()
   }
 
+  pub fn feed(&self) -> &DroneFeed {
+    &self.feed
+  }
+
   pub fn kill(&self) {
     self.feed.0.send(Command::Kill).unwrap();
   }
@@ -163,8 +168,8 @@ impl Drone {
     assert!(matches!(self.resp.recv().unwrap(), Response::Polled));
   }
 
-  pub fn feed(&self) -> &DroneFeed {
-    &self.feed
+  pub fn clear(&self) {
+    self.feed.0.send(Command::Clear).unwrap();
   }
 }
 
@@ -406,6 +411,10 @@ impl Command {
         None
       }
       Command::Kill => panic!(),
+      Command::Clear => {
+        gl::Clear(gl::COLOR_BUFFER_BIT);
+        None
+      }
     }
   }
 
