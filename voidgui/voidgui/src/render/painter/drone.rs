@@ -32,6 +32,7 @@ use super::Description;
 enum Command {
   Step,
   Clear,
+  Sync,
   Kill,
 
   NewRectangles(usize, rectangle::Style),
@@ -52,6 +53,7 @@ enum Response {
   InitComplete(Events),
 
   ShouldClose(bool),
+  Sync,
 
   NewShapes(Vec<usize>),
 }
@@ -86,11 +88,11 @@ impl Drone {
     w: u32,
     h: u32,
   ) -> Result<(Self, Events), &'static str> {
-    let (feed, rx) = mpsc::sync_channel::<Command>(100);
+    let (feed, rx) = mpsc::sync_channel::<Command>(500);
     let (tx, resp) = mpsc::channel();
 
     let ctr = {
-      let (_tx, rx) = mpsc::sync_channel(100);
+      let (_tx, rx) = mpsc::sync_channel(500);
       let tx = feed.clone();
 
       thread::Builder::new()
@@ -188,6 +190,70 @@ impl Drone {
     )
   }
 
+  #[cfg(test)]
+  pub fn mock() -> Self {
+    let (feed, rx) = mpsc::sync_channel::<Command>(100);
+    let (tx, resp) = mpsc::channel();
+
+    let ctr = {
+      let (_tx, rx) = mpsc::sync_channel(100);
+      let tx = feed.clone();
+
+      thread::Builder::new()
+        .name("overseer".into())
+        .spawn(move || loop {
+          let c: Command = rx.try_recv().unwrap_or_else(|_| {
+            let _from = std::time::Instant::now();
+            debug!("overs idle...");
+            let c = rx.recv().unwrap();
+            debug!("overs idle for {:?}", (std::time::Instant::now() - _from));
+            c
+          });
+          if c.is_kill() {
+            break;
+          }
+          debug!("overs received {:?}", c);
+          tx.send(c).unwrap();
+        })
+        .unwrap();
+
+      _tx
+    };
+
+    thread::Builder::new()
+      .name("drone".into())
+      .spawn(move || {
+        let (_, events) = mpsc::channel();
+        tx.send(Response::InitComplete(events)).unwrap();
+
+        loop {
+          let c = rx.try_recv().unwrap_or_else(|_| {
+            let _from = std::time::Instant::now();
+            debug!("drone idle...");
+            let c = rx.recv().unwrap();
+            debug!("drone idle for {:?}", (std::time::Instant::now() - _from));
+            c
+          });
+          debug!("drone received {:?}", c);
+          if c.is_kill() {
+            break;
+          }
+          c.handle_mock().map(|r| tx.send(r));
+        }
+      })
+      .unwrap();
+
+    receive!(
+      resp,
+      Response::InitComplete(_es),
+      Self {
+        dir_feed: feed,
+        ctr_feed: DroneFeed(ctr),
+        resp,
+      }
+    )
+  }
+
   pub fn new_feed(&self) -> DroneFeed {
     self.ctr_feed.clone()
   }
@@ -199,6 +265,11 @@ impl Drone {
   pub fn kill(&self) {
     self.ctr_feed.0.send(Command::Kill).unwrap();
     self.dir_feed.send(Command::Kill).unwrap();
+  }
+
+  pub fn sync(&self) {
+    self.ctr_feed.0.send(Command::Sync).unwrap();
+    receive!(self.resp, Response::Sync, {});
   }
 
   pub fn get_rectangles(
@@ -225,12 +296,17 @@ impl Drone {
 
   pub fn step(&self) -> bool {
     self.ctr_feed.0.send(Command::Step).unwrap();
-    let s = receive!(self.resp, Response::ShouldClose(_should), _should);
-    s
+    receive!(self.resp, Response::ShouldClose(_should), _should)
   }
 
   pub fn clear(&self) {
     self.dir_feed.send(Command::Clear).unwrap();
+  }
+}
+
+impl Drop for Drone {
+  fn drop(&mut self) {
+    self.kill()
   }
 }
 
@@ -475,6 +551,17 @@ impl Command {
         gl::Clear(gl::COLOR_BUFFER_BIT);
         None
       }
+      Command::Sync => Some(Response::Sync),
+    }
+  }
+
+  #[cfg(test)]
+  fn handle_mock(self) -> Option<Response> {
+    match self {
+      Command::NewRectangles(n, _)
+      | Command::NewGrids(n, _)
+      | Command::NewTextures(n) => Some(Response::NewShapes((0..n).collect())),
+      _ => None,
     }
   }
 

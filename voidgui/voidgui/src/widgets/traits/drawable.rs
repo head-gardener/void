@@ -21,7 +21,7 @@ pub trait Drawable: Widget + Downcast + Send + Sync {
   /// unexpected exit.
   fn plot(
     &mut self,
-    painter: RwLockReadGuard<Description>,
+    desc: RwLockReadGuard<Description>,
     feed: DroneFeed,
   ) -> Result<(), Error>;
 

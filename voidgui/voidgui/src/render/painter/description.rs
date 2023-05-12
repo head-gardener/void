@@ -9,7 +9,7 @@ pub struct Description {
 
 impl Description {
   /// Creates a new [`Description`].
-  pub unsafe fn new(window_width: u16, window_height: u16) -> Self {
+  pub fn new(window_width: u16, window_height: u16) -> Self {
     let window_area = Area {
       x: 0,
       y: 0,

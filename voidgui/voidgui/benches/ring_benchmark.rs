@@ -1,3 +1,5 @@
+use std::sync::RwLockReadGuard;
+
 use rand::Rng;
 
 // use rayon::prelude::*;
@@ -5,6 +7,8 @@ use rand::Rng;
 use criterion::{criterion_group, criterion_main, Criterion};
 use voidgui::logic::ring::Mark;
 use voidgui::logic::CallbackResult;
+use voidgui::render::painter::{Description, DroneFeed};
+use voidgui::render::Point;
 use voidgui::widgets;
 use voidgui::widgets::traits::Parent;
 use voidgui::{
@@ -25,11 +29,16 @@ struct W {
 }
 
 impl W {
-  fn new(ind: usize, p: &Drone) -> Self {
+  fn new(
+    ind: usize,
+    desc: RwLockReadGuard<Description>,
+    drone: &Drone,
+  ) -> Self {
     Self {
       table: unsafe {
         TextTable::from_text(
-          p,
+          &desc,
+          drone,
           5,
           2,
           Normal,
@@ -43,18 +52,27 @@ impl W {
 }
 
 impl Drawable for W {
-  fn plot(&mut self, painter: &Drone) -> Result<(), widgets::Error> {
+  fn plot(
+    &mut self,
+    desc: RwLockReadGuard<Description>,
+    feed: DroneFeed,
+  ) -> Result<(), widgets::Error> {
     // println!("plot {}", self.ind);
-    self.table.plot(painter)
+    self.table.plot(&desc, &feed)
   }
 
-  unsafe fn draw(&mut self, p: &Drone) -> Result<(), widgets::Error> {
-    self.table.draw(p)
+  unsafe fn draw(&mut self, feed: DroneFeed) -> Result<(), widgets::Error> {
+    self.table.draw(&feed)
   }
 }
 
 impl ClickSink for W {
-  fn onclick(&self, _: &Drone, _: voidgui::render::Point) -> CallbackResult {
+  fn onclick(
+    &self,
+    _: &RwLockReadGuard<Description>,
+    _: &Drone,
+    _: Point,
+  ) -> CallbackResult {
     CallbackResult::None
   }
 }
@@ -74,12 +92,12 @@ pub fn draw_bench_plot_all(c: &mut Criterion) {
 
   c.bench_function("plot a lot", |b| {
     b.iter(|| {
-      // println!("from");
       core.ring_mut().into_iter().for_each(|w| {
         w.0.write().unwrap().request_plot();
       });
       core.draw(&back);
-      // println!("to");
+
+      back.drone.sync();
     })
   });
 }
@@ -89,17 +107,16 @@ pub fn draw_bench_plot_one(c: &mut Criterion) {
 
   c.bench_function("plot one", |b| {
     b.iter(|| {
-      // println!("from");
       core
         .ring_mut()
         .into_iter()
-        .nth(rng.gen_range(0..=12 as usize))
+        .nth(rng.gen_range(0..10 as usize))
         .map(|w| {
           w.0.write().unwrap().request_plot();
         })
         .unwrap();
       core.draw(&back);
-      // println!("to");
+      back.drone.sync();
     })
   });
 }
@@ -117,20 +134,22 @@ pub fn maintenance_bench(c: &mut Criterion) {
 }
 
 pub fn event_bench(c: &mut Criterion) {
-  let (mut back, mut core, mut rng) = setup();
+  let (back, mut core, mut rng) = setup();
 
   c.bench_function("handle click", |b| {
     b.iter(|| {
       unsafe {
         core.handle_event(
-          &mut back.painter,
+          &back.desc,
+          &back.drone,
           glfw::WindowEvent::CursorPos(
             rng.gen_range(0..=200) as f64,
             rng.gen_range(0..=200) as f64,
           ),
         );
         core.handle_event(
-          &mut back.painter,
+          &back.desc,
+          &back.drone,
           glfw::WindowEvent::MouseButton(
             glfw::MouseButton::Button1,
             glfw::Action::Press,
@@ -149,9 +168,8 @@ fn setup() -> (Backend, Core, rand::rngs::ThreadRng) {
 
   // push parents
   for m in [Mark::_Test1, Mark::_Test2] {
-    let mut w = W::new(m as usize, &back.painter);
+    let mut w = W::new(m as usize, back.desc.read().unwrap(), &back.drone);
     w.set_origin(&Origin::new(0, 0, voidgui::render::OriginPole::TopLeft));
-    w.plot(&back.painter).unwrap();
     let r = ring::wrap(w);
     core.ring_mut().push_click_sink(r.clone(), m);
     core.ring_mut().push_parent(r.clone(), m);
@@ -159,8 +177,12 @@ fn setup() -> (Backend, Core, rand::rngs::ThreadRng) {
   }
 
   for m in [Mark::_Test1, Mark::_Test2] {
-    for i in 0..6 {
-      let w = W::new(2 + i + 6 * m as usize, &back.painter);
+    for i in 0..4 {
+      let w = W::new(
+        2 + i + 4 * m as usize,
+        back.desc.read().unwrap(),
+        &back.drone,
+      );
       let r = ring::wrap(w);
       core.ring_mut().push_click_sink(r.clone(), Mark::None);
       core.ring_mut().push(r, Mark::None, m, i as usize);
@@ -173,7 +195,7 @@ fn setup() -> (Backend, Core, rand::rngs::ThreadRng) {
 criterion_group! {
     name = hard;
     config = Criterion::default().significance_level(0.08).sample_size(5000);
-    targets = draw_bench_plot_all, draw_bench_plot_one
+    targets = draw_bench_plot_one, draw_bench_plot_all
 }
 criterion_group! {
     name = easy;

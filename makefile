@@ -11,8 +11,8 @@ RUST_SOURCES = $(wildcard voidgui/**/Cargo.toml) $(wildcard voidgui/**/src/**/*.
 run: build
 	RUST_BACKTRACE=1 $(PROJECT_ROOT)/$(BINPATH)/void
 
-verbose: build/voidgui-verbose build/void
-	RUST_BACKTRACE=1 $(PROJECT_ROOT)/$(BINPATH)/void
+verbose: build/voidgui build/void
+	DEBUG_MSGS=1 RUST_BACKTRACE=1 $(PROJECT_ROOT)/$(BINPATH)/void
 
 debug: build
 	$(GDB) $(PROJECT_ROOT)/$(BINPATH)/void
@@ -36,9 +36,6 @@ build/voidgui: $(RUST_SOURCES) $(GLSL_SOURCES)
 
 build/voidgui-release: $(RUST_SOURCES) $(GLSL_SOURCES)
 	cd voidgui && cargo build --release
-
-build/voidgui-verbose: $(RUST_SOURCES) $(GLSL_SOURCES)
-	cd voidgui && cargo build --features "debug_msgs"
 
 build/void: void/void.cabal $(HASKELL_SOURCES)
 	cd void && cabal build --builddir=../build/void

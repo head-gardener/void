@@ -1,13 +1,12 @@
 use std::{mem::swap, sync::RwLockReadGuard};
 
-use crate::render::shapes::{Grid, Texture};
 use crate::widgets::traits::widget;
 use crate::{
   colorscheme::{
     CELL_BG_COLOR_DARK, CELL_BG_COLOR_LGHT, CELL_BG_COLOR_NORM, GRID_COLOR,
   },
   logic::Layout,
-  render::{painter::Drone, shapes::Rectangle, Size},
+  render::{painter::Drone, Size},
   widgets::traits::widget::Error,
 };
 
@@ -147,8 +146,8 @@ pub struct TextTable {
 impl TextTable {
   /// Generate a text table of static layout.
   pub unsafe fn make_static(
-    drone: &Drone,
     desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
     or: Orientation,
     style: CellStyle,
     items: &[&str],
@@ -158,7 +157,7 @@ impl TextTable {
       Orientation::Horizontal => (1, items.len()),
     };
 
-    let table = TextTable::from_text(drone, desc, r, c, style, &items)?;
+    let table = TextTable::from_text(desc, drone, r, c, style, &items)?;
 
     Ok(table)
   }
@@ -190,8 +189,8 @@ impl TextTable {
   }
 
   pub unsafe fn from_text<R>(
-    drone: &Drone,
     desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
     rows: usize,
     columns: usize,
     style: CellStyle,
@@ -452,16 +451,20 @@ impl TextTable {
 
 #[cfg(test)]
 mod test {
+  use crate::backend::Backend;
+
   use super::*;
 
   #[test]
   fn layout() {
     let offset = OFFSET * 2;
+    let b = Backend::mock(200, 200);
+    let desc_lock = b.desc.read().unwrap();
 
-    let p = unsafe { Drone::new(0, 0) };
     let mut t = unsafe {
       TextTable::from_text(
-        &p,
+        &desc_lock,
+        &b.drone,
         2,
         2,
         CellStyle::Normal,
@@ -471,7 +474,7 @@ mod test {
     };
 
     t.set_origin(Origin::new(100, 100, crate::render::OriginPole::TopLeft));
-    unsafe { t.plot(&p).unwrap() };
+    t.plot(&desc_lock, &b.drone.feed()).unwrap();
     assert_eq!(
       *t.cells().unwrap(),
       {
@@ -489,8 +492,8 @@ mod test {
       "textures are arranged correctly"
     );
 
-    t.update_cell(&p, 1, "abc\nabc").unwrap();
-    unsafe { t.plot(&p).unwrap() };
+    t.update_cell(&desc_lock, &b.drone, 1, "abc\nabc").unwrap();
+    t.plot(&desc_lock, &b.drone.feed()).unwrap();
     assert_eq!(
       *t.cells().unwrap(),
       {
@@ -510,9 +513,14 @@ mod test {
 
     unsafe {
       t.set_origin(Origin::new(100, 100, crate::render::OriginPole::TopLeft));
-      t.add_row(&p, vec![&"abcd".to_owned(); 2].iter(), CellStyle::Normal)
-        .unwrap();
-      t.plot(&p).unwrap();
+      t.add_row(
+        &desc_lock,
+        &b.drone,
+        vec![&"abcd".to_owned(); 2].iter(),
+        CellStyle::Normal,
+      )
+      .unwrap();
+      t.plot(&desc_lock, &b.drone.feed()).unwrap();
     };
     assert_eq!(
       *t.cells().unwrap(),
@@ -537,73 +545,81 @@ mod test {
 
   #[test]
   fn state_changes() {
-    let p = unsafe { Drone::new(0, 0) };
+    let b = Backend::mock(200, 200);
+    let desc_lock = b.desc.read().unwrap();
 
-    let mut t = unsafe { TextTable::new(0, 3) };
-    assert!(
-      matches!(t.state(), State::None),
-      "table starts with no state"
-    );
+    let mut t = unsafe { TextTable::new(&b.drone, 0, 3) }.unwrap();
+    assert!(matches!(t.state, State::None), "table starts with no state");
 
     assert!(
-      matches!(unsafe { t.plot(&p) }, Err(_)),
+      matches!(t.plot(&desc_lock, &b.drone.feed()), Err(_)),
       "`plot` errors when called before commit"
     );
 
     unsafe {
-      t.add_row(&p, vec![&"".to_owned(); 3].iter(), CellStyle::Normal)
-        .unwrap();
-      t.add_row(&p, vec![&"".to_owned(); 3].iter(), CellStyle::Normal)
-        .unwrap();
+      t.add_row(
+        &desc_lock,
+        &b.drone,
+        vec![&"".to_owned(); 3].iter(),
+        CellStyle::Normal,
+      )
+      .unwrap();
+      t.add_row(
+        &desc_lock,
+        &b.drone,
+        vec![&"".to_owned(); 3].iter(),
+        CellStyle::Normal,
+      )
+      .unwrap();
     };
     assert!(
-      matches!(t.state(), State::None),
+      matches!(t.state, State::None),
       "`add_row` resets state to none"
     );
 
     t.ensure_committed();
     assert!(
-      matches!(t.state(), State::Committed(_)),
+      matches!(t.state, State::Committed(_)),
       "committing works for no state and makes state committed"
     );
 
     t.truncate(3);
     assert!(
-      matches!(t.state(), State::None),
+      matches!(t.state, State::None),
       "`truncate` resets state to none"
     );
 
     t.ensure_committed();
     assert_eq!(
-      unsafe { t.plot(&p) },
+      t.plot(&desc_lock, &b.drone.feed()),
       Err(Error::Uninitialized("origin")),
       "`plot` errors when origin isn't set"
     );
     assert!(
-      matches!(t.state(), State::Committed(_)),
+      matches!(t.state, State::Committed(_)),
       "`plot` called without origin doesn't reset state"
     );
 
     t.set_origin(Origin::new(0, 0, crate::render::OriginPole::TopLeft));
     assert!(
-      matches!(t.state(), State::Committed(_)),
+      matches!(t.state, State::Committed(_)),
       "`set_origin` doesn't affect state when it's committed"
     );
 
     assert_eq!(
-      unsafe { t.plot(&p) },
+      t.plot(&desc_lock, &b.drone.feed()),
       Ok(()),
       "`plot` works when state is committed and origin is set"
     );
 
     assert!(
-      matches!(t.state(), State::Plotted(_, _)),
+      matches!(t.state, State::Plotted(_, _)),
       "`plot` sets state to plotted"
     );
 
     t.ensure_committed();
     assert!(
-      matches!(t.state(), State::Plotted(_, _)),
+      matches!(t.state, State::Plotted(_, _)),
       "`ensure_committed` is a no-op when state table is plotted"
     );
 
@@ -611,20 +627,20 @@ mod test {
 
     t.set_origin(Origin::new(0, 0, crate::render::OriginPole::TopLeft));
     assert!(
-      matches!(t.state(), State::Plotted(_, _)),
+      matches!(t.state, State::Plotted(_, _)),
       "`set_origin` is a no-op when origin remains the same after the call"
     );
 
     t.set_origin(Origin::new(100, 0, crate::render::OriginPole::TopLeft));
     assert!(
-      matches!(t.state(), State::Committed(_)),
+      matches!(t.state, State::Committed(_)),
       "`set_origin` downgrades state to committed from plotted"
     );
 
-    unsafe { t.plot(&p).unwrap() };
+    t.plot(&desc_lock, &b.drone.feed()).unwrap();
     t.request_plot();
     assert!(
-      matches!(t.state(), State::Committed(_)),
+      matches!(t.state, State::Committed(_)),
       "`request_plot` downgrades state to committed from plotted"
     );
   }

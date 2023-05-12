@@ -19,4 +19,19 @@ impl Backend {
       drone,
     }
   }
+
+  #[cfg(test)]
+  pub fn mock(w: u16, h: u16) -> Self {
+    use std::sync::mpsc;
+
+    let desc = Arc::new(RwLock::new(Description::new(w, h)));
+    let drone = Drone::mock();
+    let (_, events) = mpsc::channel();
+
+    Self {
+      desc,
+      events,
+      drone,
+    }
+  }
 }

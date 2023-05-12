@@ -25,14 +25,14 @@ pub struct InputField<T> {
 
 impl<T: Send> InputField<T> {
   pub unsafe fn new(
-    painter: &RwLockReadGuard<Description>,
+    desc: &RwLockReadGuard<Description>,
     drone: &Drone,
     s: &str,
     closure: T,
   ) -> Result<Self, Error> {
     let table = TextTable::make_static(
+      desc,
       drone,
-      painter,
       Orientation::Vertical,
       crate::render::text_table::CellStyle::Lighter,
       &[&s],

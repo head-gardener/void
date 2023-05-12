@@ -195,7 +195,7 @@ impl Ring {
   pub fn draw(
     &mut self,
     desc: Arc<RwLock<Description>>,
-    drone: &mut Drone,
+    drone: &Drone,
   ) -> Vec<widgets::Error> {
     let parents = &self.parents;
     let p: Vec<widgets::Error> = self
@@ -205,7 +205,7 @@ impl Ring {
         self
           .widgets
           .iter()
-          .map(|w| drone.new_feed())
+          .map(|_| drone.new_feed())
           .collect::<Vec<DroneFeed>>()
           .into_iter(),
       )
@@ -265,11 +265,7 @@ impl Ring {
     let mut m = Mark::None;
 
     for (w, _m) in self.click_sinks.iter().rev() {
-      match w
-        .write()
-        .unwrap()
-        .handle_click(desc, drone, p)
-      {
+      match w.write().unwrap().handle_click(desc, drone, p) {
         CallbackResult::Pass => continue,
         res => {
           r = res;
@@ -435,7 +431,13 @@ impl Ring {
   ) {
     let mut t = self.damage_tracker.write().unwrap();
     t.drain().for_each(|r| {
-      self.handle_callback_result(desc, drone, r, "Damage", Mark::DamageTracker);
+      self.handle_callback_result(
+        desc,
+        drone,
+        r,
+        "Damage",
+        Mark::DamageTracker,
+      );
     });
   }
 }
@@ -460,9 +462,12 @@ impl<'a> IntoParallelIterator for &'a mut Ring {
 
 #[cfg(test)]
 mod tests {
+  use std::sync::RwLockReadGuard;
+
   use crate::{
+    backend::Backend,
     logic::ring,
-    render::painter::Drone,
+    render::painter::{Description, DroneFeed},
     widgets::{
       self,
       traits::{Drawable, Widget},
@@ -512,7 +517,11 @@ mod tests {
   }
 
   impl Drawable for W {
-    fn plot(&mut self, _: Drone) -> Result<(), widgets::Error> {
+    fn plot(
+      &mut self,
+      desc: RwLockReadGuard<Description>,
+      feed: DroneFeed,
+    ) -> Result<(), widgets::Error> {
       if self.fail_plot {
         Err(widgets::Error::Unspecified("plot failed".to_owned()))
       } else {
@@ -520,7 +529,7 @@ mod tests {
       }
     }
 
-    unsafe fn draw(&mut self, _: &Drone) -> Result<(), widgets::Error> {
+    unsafe fn draw(&mut self, feed: DroneFeed) -> Result<(), widgets::Error> {
       if self.fail_draw {
         Err(widgets::Error::Unspecified("draw failed".to_owned()))
       } else {
@@ -541,19 +550,19 @@ mod tests {
 
   #[test]
   fn error_handling() {
-    let p = Drone::new(0, 0);
+    let b = unsafe { Backend::mock(200, 200) };
     let mut r = Ring::new();
 
     // all good
     let norm = W::new(false, false, false);
     norm.push_to_ring(&mut r);
-    let errors = r.draw(&p);
+    let errors = r.draw(b.desc.clone(), &b.drone);
     assert_eq!(errors.len(), 0);
 
     // drawing failed
     let fail_draw = W::new(false, true, false);
     fail_draw.push_to_ring(&mut r);
-    let errors = r.draw(&p);
+    let errors = r.draw(b.desc.clone(), &b.drone);
     assert_eq!(errors.len(), 1);
     assert_eq!(
       errors[0],
@@ -563,13 +572,13 @@ mod tests {
     // drawing doesn't fail fast
     let fail_draw = W::new(false, true, false);
     fail_draw.push_to_ring(&mut r);
-    let errors = r.draw(&p);
+    let errors = r.draw(b.desc.clone(), &b.drone);
     assert_eq!(errors.len(), 2);
 
     // plotting failed, drawing never tried
     let fail_plot = W::new(true, false, false);
     fail_plot.push_to_ring(&mut r);
-    let errors = r.draw(&p);
+    let errors = r.draw(b.desc.clone(), &b.drone);
     assert_eq!(errors.len(), 1);
     assert_eq!(
       errors[0],
@@ -579,18 +588,18 @@ mod tests {
     // plotting doesn't fail fast
     let fail_plot = W::new(true, false, false);
     fail_plot.push_to_ring(&mut r);
-    let errors = r.draw(&p);
+    let errors = r.draw(b.desc.clone(), &b.drone);
     assert_eq!(errors.len(), 2);
   }
 
   #[test]
   fn checks_for_plotting() {
-    let p = Drone::new(0, 0);
+    let b = unsafe { Backend::mock(200, 200) };
     let mut r = Ring::new();
     let norm = W::new(false, false, false);
     let plotted = W::new(true, false, true);
     norm.push_to_ring(&mut r);
     plotted.push_to_ring(&mut r);
-    assert_eq!(r.draw(&p).len(), 0);
+    assert_eq!(r.draw(b.desc.clone(), &b.drone).len(), 0);
   }
 }

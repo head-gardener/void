@@ -15,8 +15,9 @@ use crate::{
 #[macro_export]
 macro_rules! debug {
   ($($arg: tt), *) => {
-    #[cfg(feature = "debug_msgs")]
-    println!($($arg,) *)
+    if std::env::var("DEBUG_MSGS").is_ok() {
+      println!($($arg,) *);
+    }
   }
 }
 
@@ -48,7 +49,9 @@ impl Core {
           return r;
         }
       }
-      self.ring.drain_damage_tracker(&b.desc.read().unwrap(), &b.drone);
+      self
+        .ring
+        .drain_damage_tracker(&b.desc.read().unwrap(), &b.drone);
 
       self.draw(b);
     }
@@ -62,7 +65,10 @@ impl Core {
   ) -> u64 {
     let desc_lock = desc.read().unwrap();
 
-    if self.ring.handle_transient_control_event(&desc_lock, drone, &event) {
+    if self
+      .ring
+      .handle_transient_control_event(&desc_lock, drone, &event)
+    {
       return 0;
     }
     if self.ring.handle_key(&desc_lock, drone, &event) {
@@ -72,7 +78,6 @@ impl Core {
     match event {
       // Hotkeys
       WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
-        drone.kill();
         return 1;
       }
       WindowEvent::Key(Key::P, _, Action::Press, m)
@@ -172,11 +177,11 @@ impl Core {
       .expect("Only spreadsheet should be marked as spreadsheet in the ring"))
   }
 
-  pub fn draw(&mut self, b: &mut Backend) {
+  pub fn draw(&mut self, b: &Backend) {
     b.drone.clear();
     self
       .ring
-      .draw(b.desc.clone(), &mut b.drone)
+      .draw(b.desc.clone(), &b.drone)
       .iter()
       .for_each(|e| println!("{}", e));
   }

@@ -30,13 +30,13 @@ pub struct Toolbar {
 
 impl Toolbar {
   pub unsafe fn new(
-    painter: &RwLockReadGuard<Description>,
+    desc: &RwLockReadGuard<Description>,
     drone: &mut Drone,
   ) -> Result<Self, Error> {
     Ok(Self {
       table: TextTable::make_static(
+        desc,
         drone,
-        painter,
         Orientation::Horizontal,
         crate::render::text_table::CellStyle::Normal,
         &TOOLBAR_ITEMS,
@@ -99,13 +99,13 @@ pub struct ToolbarTable {
 
 impl ToolbarTable {
   pub unsafe fn new(
-    painter: &RwLockReadGuard<Description>,
+    desc: &RwLockReadGuard<Description>,
     drone: &Drone,
   ) -> Result<Self, Error> {
     Ok(Self {
       table: TextTable::make_static(
+        desc,
         drone,
-        painter,
         Orientation::Vertical,
         crate::render::text_table::CellStyle::Normal,
         &TOOLBAR_TABLE_ITEMS,
