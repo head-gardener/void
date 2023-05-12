@@ -84,12 +84,13 @@ impl Spreadsheet {
 
   pub fn update_record(
     &mut self,
-    p: &Drone,
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
     n: usize,
     s: &str,
   ) -> Result<(), widgets::Error> {
     let s = s.to_string();
-    self.table.update_cell(p, n + 2, &s)?;
+    self.table.update_cell(desc, drone, n + 2, &s)?;
     *self.records[n] = s;
     Ok(())
   }

@@ -90,3 +90,19 @@ impl Into<Size> for &TextureData {
     }
   }
 }
+
+impl Into<Size> for TextureData {
+  fn into(self) -> Size {
+    Size {
+      width: self.0 as u16,
+      height: self.1 as u16,
+    }
+  }
+}
+
+pub unsafe fn get_text_size(
+  font: &FontDescription,
+  s: &str,
+) -> Result<Size, String> {
+  Ok(TextureData::from_text(font, s)?.into())
+}

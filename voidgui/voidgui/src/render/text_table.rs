@@ -13,7 +13,7 @@ use crate::{
 
 use super::shapes::TextureData;
 use super::{
-  painter::{DroneFeed, Description},
+  painter::{Description, DroneFeed},
   shapes::rectangle,
   Area, Origin, Point,
 };
@@ -286,32 +286,34 @@ impl TextTable {
   /// `Texture::bind_text` fails.
   pub fn update_cell(
     &mut self,
-    p: &Drone,
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
     n: usize,
     s: &str,
   ) -> Result<(), Error> {
-    // unsafe {
-    // self
-    // .textures
-    // .iter_mut()
-    // .zip(self.texture_sizes.iter_mut())
-    // .zip(self.cell_sizes.iter_mut())
-    // .nth(n)
-    // .map(|((t, ts), cs)| -> Result<(), String> {
-    //   t.bind_text(p, s)?;
+    unsafe {
+      self
+        .textures
+        .iter_mut()
+        .zip(self.texture_sizes.iter_mut())
+        .zip(self.cell_sizes.iter_mut())
+        .nth(n)
+        .map(|((t, ts), cs)| -> Result<(), String> {
+          let d = TextureData::from_text(&desc.font(), s)?;
+          let size: Size = (&d).into();
+          drone.feed().bind_text(*t, d);
 
-    //   let size = t.size();
-    //   *ts = size.clone();
-    //   *cs = size.expand(OFFSET, OFFSET);
+          *ts = size.clone();
+          *cs = size.expand(OFFSET, OFFSET);
 
-    // Ok(())
-    // })
-    // .ok_or(Error::Unspecified(format!(
-    //   "n out of bounds in update_cell: {}",
-    //   n
-    // )))?
-    // .map_err(|e| Error::Unspecified(e.to_owned()))
-    // }?;
+          Ok(())
+        })
+        .ok_or(Error::Unspecified(format!(
+          "n out of bounds in update_cell: {}",
+          n
+        )))?
+        .map_err(|e| Error::Unspecified(e.to_owned()))
+    }?;
 
     self.state = State::None;
 
@@ -388,8 +390,7 @@ impl TextTable {
       });
 
     self.bg.iter().zip(cells.iter()).for_each(|(r, a)| {
-      feed
-        .plot_rectangle(*r, a.to_normalized(desc.window_area()).to_coords())
+      feed.plot_rectangle(*r, a.to_normalized(desc.window_area()).to_coords())
     });
 
     self.state = State::Plotted(layout, cells);

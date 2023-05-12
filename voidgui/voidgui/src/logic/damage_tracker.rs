@@ -1,15 +1,17 @@
+use std::sync::RwLockReadGuard;
+
 use glfw::{Action, Key, Modifiers, WindowEvent};
 
 use crate::{
   logic::ring::Mark,
-  render::painter::Drone,
+  render::painter::{Description, Drone},
   widgets::{
     traits::{Drawable, KeySink},
     Spreadsheet,
   },
 };
 
-use super::{CallbackResult, ring};
+use super::{ring, CallbackResult};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Damage {
@@ -31,23 +33,33 @@ impl Into<CallbackResult> for Damage {
     match self {
       Damage::Update(u, _, to) => CallbackResult::Modify(
         Mark::Spreadsheet,
-        with_spreadsheet(move |p: &Drone, s: &mut Spreadsheet| {
-          s.update_record(p, u, &to).unwrap();
-        }),
+        with_spreadsheet(
+          move |desc: &RwLockReadGuard<Description>,
+                drone: &Drone,
+                s: &mut Spreadsheet| {
+            s.update_record(desc, drone, u, &to).unwrap();
+          },
+        ),
       ),
     }
   }
 }
 
 fn with_spreadsheet(
-  f: impl FnOnce(&Drone, &mut Spreadsheet) + 'static,
-) -> Box<dyn FnOnce(Option<ring::Wrap<dyn Drawable>>, &Drone)> {
-  Box::new(move |s, p| {
+  f: impl FnOnce(&RwLockReadGuard<Description>, &Drone, &mut Spreadsheet) + 'static,
+) -> Box<
+  dyn FnOnce(
+    Option<ring::Wrap<dyn Drawable>>,
+    &RwLockReadGuard<Description>,
+    &Drone,
+  ),
+> {
+  Box::new(move |s, desc, drone| {
     s.expect("Spreadsheet should always be in the ring")
       .write()
       .unwrap()
       .downcast_mut()
-      .map(|s| f(p, s));
+      .map(|s| f(desc, drone, s));
   })
 }
 

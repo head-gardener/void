@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock, RwLockWriteGuard};
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use glfw::{Action, Key, Modifiers, WindowEvent};
 
@@ -46,7 +46,16 @@ pub enum CallbackResult {
   Push(Box<dyn RingElement>),
 
   /// Modify a widget by mark.
-  Modify(Mark, Box<dyn FnOnce(Option<Wrap<dyn Drawable>>, &Drone)>),
+  Modify(
+    Mark,
+    Box<
+      dyn FnOnce(
+        Option<Wrap<dyn Drawable>>,
+        &RwLockReadGuard<Description>,
+        &Drone,
+      ),
+    >,
+  ),
 
   /// Access damage tracker.
   Damage(Box<dyn FnOnce(&mut DamageTracker)>),
@@ -248,7 +257,7 @@ impl Ring {
   /// handles it.
   pub fn catch_click(
     &mut self,
-    desc: &Arc<RwLock<Description>>,
+    desc: &RwLockReadGuard<Description>,
     drone: &Drone,
     p: Point,
   ) {
@@ -259,7 +268,7 @@ impl Ring {
       match w
         .write()
         .unwrap()
-        .handle_click(&desc.read().unwrap(), drone, p)
+        .handle_click(desc, drone, p)
       {
         CallbackResult::Pass => continue,
         res => {
@@ -270,7 +279,7 @@ impl Ring {
       }
     }
 
-    self.handle_callback_result_mut(drone, r, "Click", m);
+    self.handle_callback_result_mut(desc, drone, r, "Click", m);
   }
 
   /// Act on callback result.
@@ -287,7 +296,8 @@ impl Ring {
   /// the callback.
   fn handle_callback_result_mut(
     &mut self,
-    p: &Drone,
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
     r: CallbackResult,
     what: &str,
     who: Mark,
@@ -303,8 +313,8 @@ impl Ring {
       CallbackResult::Push(x) => {
         println!("push");
         x.push_to_ring(self)
-      },
-      CallbackResult::Modify(m, f) => f(self.pull(&m), p),
+      }
+      CallbackResult::Modify(m, f) => f(self.pull(&m), desc, drone),
       CallbackResult::Damage(f) => f(&mut self.damage_tracker.write().unwrap()),
 
       _ => {}
@@ -316,7 +326,8 @@ impl Ring {
   /// and [CallbackResult::Damage] are considered errors.
   fn handle_callback_result(
     &self,
-    p: &Drone,
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
     r: CallbackResult,
     what: &str,
     who: Mark,
@@ -335,7 +346,7 @@ impl Ring {
       CallbackResult::Push(_) => {
         println!("{} immutable callback by {:?} returned Push", what, who);
       }
-      CallbackResult::Modify(m, f) => f(self.pull(&m), p),
+      CallbackResult::Modify(m, f) => f(self.pull(&m), desc, drone),
 
       _ => {}
     }
@@ -343,9 +354,14 @@ impl Ring {
   }
 
   /// Push char to last input sink.
-  pub fn catch_input_event(&self, p: &Drone, e: InputEvent) {
+  pub fn catch_input_event(
+    &self,
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
+    e: InputEvent,
+  ) {
     self.input_sinks.last().iter().for_each(|(w, _)| {
-      match w.write().unwrap().handle_event(p, &e) {
+      match w.write().unwrap().handle_event(desc, drone, &e) {
         CallbackResult::Error(e) => {
           println!("Input callback failed: {}", e);
         }
@@ -360,7 +376,8 @@ impl Ring {
   /// Returns `true` if event was consumed, `false` otherwise.
   pub fn handle_transient_control_event(
     &mut self,
-    p: &Drone,
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
     e: &WindowEvent,
   ) -> bool {
     if !self.transient.is_some() {
@@ -371,29 +388,34 @@ impl Ring {
 
     match e {
       WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
-        let r = trans.write().unwrap().handle_cancel(p);
+        let r = trans.write().unwrap().handle_cancel(drone);
         self.delete(m);
-        self.handle_callback_result_mut(p, r, "Cancel", m);
+        self.handle_callback_result_mut(desc, drone, r, "Cancel", m);
         true
       }
       WindowEvent::Key(Key::Enter | Key::KpEnter, _, Action::Press, mods)
         if !mods.contains(Modifiers::Control) =>
       {
-        let r = trans.write().unwrap().handle_accept(p);
+        let r = trans.write().unwrap().handle_accept(drone);
         self.delete(m);
-        self.handle_callback_result_mut(p, r, "Accept", m);
+        self.handle_callback_result_mut(desc, drone, r, "Accept", m);
         true
       }
       _ => false,
     }
   }
 
-  pub fn handle_key(&mut self, p: &Drone, e: &WindowEvent) -> bool {
+  pub fn handle_key(
+    &mut self,
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
+    e: &WindowEvent,
+  ) -> bool {
     let mut r = CallbackResult::Pass;
     let mut m = Mark::None;
 
     for (w, _m) in self.key_sinks.iter().rev() {
-      match w.write().unwrap().handle_key(p, e) {
+      match w.write().unwrap().handle_key(drone, e) {
         CallbackResult::Pass => continue,
         res => {
           r = res;
@@ -403,13 +425,17 @@ impl Ring {
       }
     }
 
-    self.handle_callback_result_mut(p, r, "Click", m)
+    self.handle_callback_result_mut(desc, drone, r, "Click", m)
   }
 
-  pub fn drain_damage_tracker(&self, p: &Drone) {
+  pub fn drain_damage_tracker(
+    &self,
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
+  ) {
     let mut t = self.damage_tracker.write().unwrap();
     t.drain().for_each(|r| {
-      self.handle_callback_result(p, r, "Damage", Mark::DamageTracker);
+      self.handle_callback_result(desc, drone, r, "Damage", Mark::DamageTracker);
     });
   }
 }
