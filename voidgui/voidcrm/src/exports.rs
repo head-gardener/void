@@ -43,7 +43,7 @@ unsafe extern "C" fn void_gui_exec(w: &mut Window) -> u64 {
 struct CStringLen(u32, *mut u8);
 
 #[no_mangle]
-unsafe extern "C" fn void_gui_pull_damage(w: &mut Window) -> Box<CStringLen> {
+extern "C" fn void_gui_pull_damage(w: &mut Window) -> Box<CStringLen> {
   let mut xs = w.c.pull_damage();
   let len = xs.len();
   let res = xs.as_mut_ptr();
@@ -52,7 +52,14 @@ unsafe extern "C" fn void_gui_pull_damage(w: &mut Window) -> Box<CStringLen> {
 }
 
 #[no_mangle]
-extern "C" fn void_gui_finish(_: Box<Window>) {}
+unsafe extern "C" fn void_gui_free_damage(_: Box<CStringLen>) -> u64 {
+  0
+}
+
+#[no_mangle]
+extern "C" fn void_gui_finish(_: Box<Window>) -> u64 {
+  0
+}
 
 #[no_mangle]
 extern "C" fn void_gui_add(

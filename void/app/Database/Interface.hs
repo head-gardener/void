@@ -2,27 +2,22 @@
 
 module Database.Interface (connection, pull) where
 
-import Entry
+import Control.Exception (try, SomeException)
+import Control.Exception.Base (Exception)
 import Database.PostgreSQL.Simple as PG
+import Entry
 
 localPG :: ConnectInfo
 localPG =
   defaultConnectInfo
-    { connectHost = "127.0.0.1",
-      connectDatabase = "postgres",
-      connectUser = "postgres",
-      connectPassword = "postgres"
+    { connectHost = "127.0.0.1"
+    , connectDatabase = "postgres"
+    , connectUser = "postgres"
+    , connectPassword = "postgres"
     }
 
-connection :: Maybe (IO Connection)
-connection =
-  let conn = PG.connect localPG
-   in Just conn
+connection :: IO (Either SomeException Connection)
+connection = try $ PG.connect localPG
 
-pull :: IO Connection -> Maybe (IO [Entry])
-pull conn =
-  let q = "select * from clients"
-      res = do
-        c <- conn
-        PG.query_ c q :: IO [Entry]
-   in Just res
+pull :: Connection -> IO [Entry]
+pull conn = PG.query_ conn "select * from clients"

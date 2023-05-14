@@ -37,6 +37,9 @@ foreign import ccall "void_gui_drop"
 foreign import ccall "void_gui_pull_damage"
   void_gui_pull_damage :: VoidWindow -> Ptr CInt
 
+foreign import ccall "void_gui_free_damage"
+  void_gui_free_damage :: Ptr CInt -> CInt
+
 -- compiler might decide to free this object at any point which would be a
 -- real nuisance
 newtype VoidWindow = VoidWindow (Ptr VoidWindow) deriving (Eq)
@@ -57,12 +60,11 @@ nullWindow = VoidWindow nullPtr
 
 withNewWindow :: (VoidWindow -> IO ()) -> IO ()
 withNewWindow f =
-  let exec (Just w) = do
-        f w
-        void_gui_finish w `seq` return ()
-      exec Nothing = putStrLn "Initialization failure"
-   in do
-        exec newWindow
+  case newWindow of
+    Just w -> do
+      f w
+      void_gui_finish w `seq` return ()
+    Nothing -> putStrLn "Initialization failure"
 
 newWindow :: Maybe VoidWindow
 newWindow = void_gui_init `seq` checkWindow void_gui_init
@@ -90,8 +92,8 @@ drop = void_gui_drop
 
 pull :: VoidWindow -> IO [Damage]
 pull w = do
-  cs <- behead $ void_gui_pull_damage w
-  bs <- BL.fromStrict <$> B.packCStringLen cs 
+  cs <- withDamage behead
+  bs <- BL.fromStrict <$> B.packCStringLen cs
   return $ Codec.Serialise.deserialise bs
  where
   behead :: Ptr CInt -> IO CStringLen
@@ -99,3 +101,9 @@ pull w = do
     len <- peek ptr
     xs <- peek $ castPtr $ plusPtr ptr 8 -- why?
     return (xs, fromIntegral len)
+
+  withDamage :: (Ptr CInt -> IO a) -> IO a
+  withDamage f =
+    let ptr = void_gui_pull_damage w
+     in f ptr >>= \x ->
+          x `seq` void_gui_free_damage ptr `seq` return x
