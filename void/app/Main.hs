@@ -8,18 +8,25 @@ import Text.Printf
 
 main :: IO ()
 main =
-  G.withNewWindow $ \w -> do
+  G.withNewInstance $ \w -> do
     fill w
     exec w
  where
-  pull :: G.VoidWindow -> IO ()
+  pull :: G.VoidInstance -> IO ()
   pull w = do
     conn <- DB.connection
     case conn of
       Left e -> putStrLn $ "Connection error: " ++ show e
-      Right conn -> DB.pull conn >>= (G.drop `seq` G.push w)
+      Right conn -> DB.pull conn >>= (G.drop w `seq` G.push w)
 
-  fill :: G.VoidWindow -> IO ()
+  push :: G.VoidInstance -> IO ()
+  push w = do
+    conn <- DB.connection
+    case conn of
+      Left e -> putStrLn $ "Connection error: " ++ show e
+      Right conn -> G.pull w >>= DB.push conn
+
+  fill :: G.VoidInstance -> IO ()
   fill w =
     G.push
       w
@@ -27,17 +34,12 @@ main =
       , Entry "Ivan" "228"
       ]
 
-  exec :: G.VoidWindow -> IO ()
+  exec :: G.VoidInstance -> IO ()
   exec window = do_exec window 0
 
-  do_exec :: G.VoidWindow -> CInt -> IO ()
+  do_exec :: G.VoidInstance -> CInt -> IO ()
   do_exec w 0 = do_exec w $ G.wait w
-  do_exec w 2 = do
-    pull w
-    do_exec w 0
-  do_exec w 1 = do
-    s <- G.pull w
-    print s
-  do_exec w code = do
-    putStrLn $ "Unexpected code " ++ show code
-    do_exec w 0
+  do_exec w 3 = push w >> do_exec w (G.wait w)
+  do_exec w 2 = pull w >> do_exec w (G.wait w)
+  do_exec w 1 = return ()
+  do_exec w code = putStrLn ("Unexpected code " ++ show code) >> do_exec w (G.wait w)

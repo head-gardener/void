@@ -2,7 +2,7 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE OverloadedStrings #-}
 
--- module GUI (push, GUI.drop, withNewWindow, wait, VoidWindow) where
+-- module GUI (push, GUI.drop, withNewWindow, wait, VoidInstance) where
 module GUI where
 
 import Codec.Serialise (Serialise, deserialise)
@@ -20,29 +20,29 @@ import Foreign.C.Types
 import GHC.Generics
 
 foreign import ccall "void_gui_init"
-  void_gui_init :: VoidWindow
+  void_gui_init :: VoidInstance
 
 foreign import ccall "void_gui_exec"
-  void_gui_exec :: VoidWindow -> CInt
+  void_gui_exec :: VoidInstance -> CInt
 
 foreign import ccall "void_gui_finish"
-  void_gui_finish :: VoidWindow -> CInt
+  void_gui_finish :: VoidInstance -> CInt
 
 foreign import ccall "void_gui_add"
-  void_gui_add :: Ptr CChar -> Ptr CChar -> VoidWindow -> CInt
+  void_gui_add :: Ptr CChar -> Ptr CChar -> VoidInstance -> CInt
 
 foreign import ccall "void_gui_drop"
-  void_gui_drop :: VoidWindow -> CInt
+  void_gui_drop :: VoidInstance -> CInt
 
 foreign import ccall "void_gui_pull_damage"
-  void_gui_pull_damage :: VoidWindow -> Ptr CInt
+  void_gui_pull_damage :: VoidInstance -> Ptr CInt
 
 foreign import ccall "void_gui_free_damage"
   void_gui_free_damage :: Ptr CInt -> CInt
 
 -- compiler might decide to free this object at any point which would be a
 -- real nuisance
-newtype VoidWindow = VoidWindow (Ptr VoidWindow) deriving (Eq)
+newtype VoidInstance = VoidInstance (Ptr VoidInstance) deriving (Eq)
 
 data Damage = Update Int String String deriving (Eq, Show, Generic)
 instance Serialise Damage where
@@ -55,42 +55,40 @@ instance Serialise Damage where
       ("Update", 3) -> Update <$> decode <*> decode <*> decode
       _ -> fail $ "unexpected (tag, len): " ++ show (tag, len)
 
-nullWindow :: VoidWindow
-nullWindow = VoidWindow nullPtr
+nullWindow :: VoidInstance
+nullWindow = VoidInstance nullPtr
 
-withNewWindow :: (VoidWindow -> IO ()) -> IO ()
-withNewWindow f =
+withNewInstance :: (VoidInstance -> IO ()) -> IO ()
+withNewInstance f =
   case newWindow of
     Just w -> do
       f w
       void_gui_finish w `seq` return ()
     Nothing -> putStrLn "Initialization failure"
 
-newWindow :: Maybe VoidWindow
+newWindow :: Maybe VoidInstance
 newWindow = void_gui_init `seq` checkWindow void_gui_init
  where
-  checkWindow :: VoidWindow -> Maybe VoidWindow
+  checkWindow :: VoidInstance -> Maybe VoidInstance
   checkWindow x
     | x == nullWindow = Nothing
     | otherwise = Just x
 
-wait :: VoidWindow -> CInt
+wait :: VoidInstance -> CInt
 wait = void_gui_exec
 
 -- not super efficient cause of marshalling and all.
-push :: VoidWindow -> [Entry] -> IO ()
-push window (e : es) =
-  withCString (name e) $ \cn ->
-    withCString (phone e) $ \ct -> do
-      let code = void_gui_add cn ct window
-      code `seq` push window es
-push window [] =
-  return ()
+push :: VoidInstance -> [Entry] -> IO ()
+push window =
+  mapM_ $
+    \x -> withCString (name x) $ \cn ->
+      withCString (phone x) $ \ct -> do
+        void_gui_add cn ct window `seq` return ()
 
-drop :: VoidWindow -> CInt
+drop :: VoidInstance -> CInt
 drop = void_gui_drop
 
-pull :: VoidWindow -> IO [Damage]
+pull :: VoidInstance -> IO [Damage]
 pull w = do
   cs <- withDamage behead
   bs <- BL.fromStrict <$> B.packCStringLen cs
@@ -105,5 +103,4 @@ pull w = do
   withDamage :: (Ptr CInt -> IO a) -> IO a
   withDamage f =
     let ptr = void_gui_pull_damage w
-     in f ptr >>= \x ->
-          x `seq` void_gui_free_damage ptr `seq` return x
+     in f ptr >>= \x -> x `seq` void_gui_free_damage ptr `seq` return x

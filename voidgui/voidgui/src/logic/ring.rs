@@ -320,7 +320,6 @@ impl Ring {
         println!("{} callback by {:?} failed: {}", what, who, e);
       }
       CallbackResult::Push(x) => {
-        println!("push");
         x.push_to_ring(self)
       }
       CallbackResult::Modify(m, f) => f(self.pull(&m), desc, drone),
