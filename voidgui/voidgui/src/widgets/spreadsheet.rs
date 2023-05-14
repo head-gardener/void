@@ -47,7 +47,7 @@ impl Spreadsheet {
 
   pub fn push(
     &mut self,
-    painter: &RwLockReadGuard<Description>,
+    desc: &RwLockReadGuard<Description>,
     drone: &mut Drone,
     name: &str,
     phone: &str,
@@ -57,7 +57,7 @@ impl Spreadsheet {
 
     unsafe {
       self.table.add_row(
-        painter,
+        desc,
         drone,
         [&n, &p].iter(),
         crate::render::text_table::CellStyle::Normal,

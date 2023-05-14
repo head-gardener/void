@@ -17,6 +17,9 @@ verbose: build/voidgui build/void
 debug: build
 	$(GDB) $(PROJECT_ROOT)/$(BINPATH)/void
 
+debug_verbose: build
+	DEBUG_MSGS=1 $(GDB) $(PROJECT_ROOT)/$(BINPATH)/void
+
 test:
 	cd voidgui && RUST_BACKTRACE=1 cargo test
 	cd void && cabal test

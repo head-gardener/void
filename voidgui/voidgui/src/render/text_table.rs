@@ -334,7 +334,7 @@ impl TextTable {
   }
 
   pub fn truncate(&mut self, len: usize) {
-    // self.textures.truncate(len);
+    self.textures.truncate(len);
     self.bg.truncate(len);
     self.texture_sizes.truncate(len);
     self.cell_sizes.truncate(len);

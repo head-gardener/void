@@ -66,10 +66,10 @@ impl ClickSink for Toolbar {
   ) -> CallbackResult {
     let i = self.table.catch_point(&p).unwrap();
     match i {
-      0 => unsafe { ToolbarTable::new(desc, drone) }.map_or(
-        CallbackResult::Error(Error::InitFailure),
-        |m| CallbackResult::Push(Box::new(ring::wrap(m))),
-      ),
+      0 => unsafe { ToolbarTable::new(desc, drone) }
+        .map_or(CallbackResult::Error(Error::InitFailure), |m| {
+          CallbackResult::Push(Box::new(ring::wrap(m)))
+        }),
       1 => {
         println!("Tools");
         CallbackResult::Pass
@@ -116,7 +116,7 @@ impl ToolbarTable {
 
 impl RingElement for ring::Wrap<ToolbarTable> {
   fn push_to_ring(&self, ring: &mut crate::logic::Ring) {
-    // ring.push_clickable(rc.clone(), crate::logic::ring::Mark::Toolbar);
+    ring.push_click_sink(self.clone(), crate::logic::ring::Mark::Toolbar);
     ring.replace_transient(
       self.clone(),
       crate::logic::ring::Mark::ToolbarDropdown,
@@ -132,16 +132,23 @@ impl RingElement for ring::Wrap<ToolbarTable> {
 
 impl Transient for ToolbarTable {}
 
-// impl ClickableWidget for ToolbarTable {
-//   fn onclick(&self, painter: &Painter, p: Point) -> CallbackResult {
-//     let i = self.table.catch_point(&p).unwrap();
-//     match i {
-//       0 => println!("Table"),
-//       1 => println!("Tools"),
-//       _ => { panic!("unexpected ind: {}", i) }
-//     }
-//   }
-// }
+impl ClickSink for ToolbarTable {
+  fn onclick(
+    &self,
+    _: &RwLockReadGuard<Description>,
+    _: &Drone,
+    p: Point,
+  ) -> CallbackResult {
+    let i = self.table.catch_point(&p).unwrap();
+    match i {
+      0 => CallbackResult::ExitCode(2),
+      1 => CallbackResult::ExitCode(3),
+      _ => {
+        panic!("unexpected ind: {}", i);
+      }
+    }
+  }
+}
 
 // #[derive(Menu, ClickableMenu)]
 // pub struct ToolbarTools {

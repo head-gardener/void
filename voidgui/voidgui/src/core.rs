@@ -1,7 +1,4 @@
-use std::{
-  ffi::CString,
-  sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use glfw::{Action, Key, Modifiers, MouseButton, WindowEvent};
 
@@ -74,8 +71,10 @@ impl Core {
     {
       return 0;
     }
-    if self.ring.handle_key(&desc_lock, drone, &event) {
-      return 0;
+    match self.ring.handle_key(&desc_lock, drone, &event) {
+      Ok(true) => return 0,
+      Err(c) => return c,
+      _ => {}
     }
 
     match event {
@@ -103,7 +102,9 @@ impl Core {
         self.cursor = Point::new(x as u16, y as u16);
       }
       WindowEvent::MouseButton(MouseButton::Button1, Action::Press, _mods) => {
-        self.ring.catch_click(&desc_lock, drone, self.cursor);
+        if let Some(c) = self.ring.catch_click(&desc_lock, drone, self.cursor) {
+          return c;
+        }
       }
 
       // Text input

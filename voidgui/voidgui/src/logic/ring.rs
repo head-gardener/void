@@ -1,4 +1,7 @@
-use std::{sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard}, io::Cursor};
+use std::{
+  io::Cursor,
+  sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
+};
 
 use glfw::{Action, Key, Modifiers, WindowEvent};
 
@@ -59,6 +62,9 @@ pub enum CallbackResult {
 
   /// Access damage tracker.
   Damage(Box<dyn FnOnce(&mut DamageTracker)>),
+
+  /// Exit codes for interacting with external caller. Can't be 0.
+  ExitCode(u64),
 }
 
 impl std::fmt::Debug for CallbackResult {
@@ -70,6 +76,7 @@ impl std::fmt::Debug for CallbackResult {
       CallbackResult::Push(_) => write!(f, "Push(_)"),
       CallbackResult::Modify(m, _) => write!(f, "Modify({:?}, _)", m),
       CallbackResult::Damage(_) => write!(f, "Damage(_)"),
+      CallbackResult::ExitCode(c) => write!(f, "ExitCode({})", c),
     }
   }
 }
@@ -255,12 +262,16 @@ impl Ring {
 
   /// Push click event to all click sinks from last to first until one of them
   /// handles it.
+  ///
+  /// # Return
+  ///
+  /// Returns `Some(code)` if click callback returned an exit code.
   pub fn catch_click(
     &mut self,
     desc: &RwLockReadGuard<Description>,
     drone: &Drone,
     p: Point,
-  ) {
+  ) -> Option<u64> {
     let mut r = CallbackResult::Pass;
     let mut m = Mark::None;
 
@@ -275,7 +286,7 @@ impl Ring {
       }
     }
 
-    self.handle_callback_result_mut(desc, drone, r, "Click", m);
+    self.handle_callback_result_mut(desc, drone, r, "Click", m).err()
   }
 
   /// Act on callback result.
@@ -286,7 +297,9 @@ impl Ring {
   ///
   /// # Return
   ///
-  /// Returns `false` if `r` is [CallbackResult::Pass], `true otherwise`.
+  /// Returns `Ok(false)` if `r` is [CallbackResult::Pass], `Ok(true)` otherwise.
+  /// `Err(code)` is returned wher `r` is [CallbackResult::ExitCode(code)],
+  /// specifically `code` will never be 0.
   /// `what` and `who` are used to describe callback in case of error:
   /// `what` describes the type of callback, `who` - marked object, sourcing
   /// the callback.
@@ -297,9 +310,9 @@ impl Ring {
     r: CallbackResult,
     what: &str,
     who: Mark,
-  ) -> bool {
+  ) -> Result<bool, u64> {
     if r.is_pass() {
-      return false;
+      return Ok(false);
     }
 
     match r {
@@ -312,10 +325,14 @@ impl Ring {
       }
       CallbackResult::Modify(m, f) => f(self.pull(&m), desc, drone),
       CallbackResult::Damage(f) => f(&mut self.damage_tracker.write().unwrap()),
+      CallbackResult::ExitCode(c) => {
+        debug_assert_ne!(c, 0);
+        return Err(c);
+      }
 
       _ => {}
     }
-    return true;
+    return Ok(true);
   }
 
   /// Same as [Ring::handle_callback_result_mut], but [CallbackResult::Push]
@@ -327,9 +344,9 @@ impl Ring {
     r: CallbackResult,
     what: &str,
     who: Mark,
-  ) -> bool {
+  ) -> Result<bool, u64> {
     if r.is_pass() {
-      return false;
+      return Ok(false);
     }
 
     match r {
@@ -343,10 +360,14 @@ impl Ring {
         println!("{} immutable callback by {:?} returned Push", what, who);
       }
       CallbackResult::Modify(m, f) => f(self.pull(&m), desc, drone),
+      CallbackResult::ExitCode(c) => {
+        debug_assert_ne!(c, 0);
+        return Err(c);
+      }
 
       _ => {}
     }
-    return true;
+    return Ok(true);
   }
 
   /// Push char to last input sink.
@@ -386,7 +407,7 @@ impl Ring {
       WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
         let r = trans.write().unwrap().handle_cancel(drone);
         self.delete(m);
-        self.handle_callback_result_mut(desc, drone, r, "Cancel", m);
+        self.handle_callback_result_mut(desc, drone, r, "Cancel", m).unwrap();
         true
       }
       WindowEvent::Key(Key::Enter | Key::KpEnter, _, Action::Press, mods)
@@ -394,7 +415,7 @@ impl Ring {
       {
         let r = trans.write().unwrap().handle_accept(drone);
         self.delete(m);
-        self.handle_callback_result_mut(desc, drone, r, "Accept", m);
+        self.handle_callback_result_mut(desc, drone, r, "Accept", m).unwrap();
         true
       }
       _ => false,
@@ -406,7 +427,7 @@ impl Ring {
     desc: &RwLockReadGuard<Description>,
     drone: &Drone,
     e: &WindowEvent,
-  ) -> bool {
+  ) -> Result<bool, u64> {
     let mut r = CallbackResult::Pass;
     let mut m = Mark::None;
 
@@ -437,7 +458,7 @@ impl Ring {
         r,
         "Damage",
         Mark::DamageTracker,
-      );
+      ).unwrap();
     });
   }
 
@@ -525,8 +546,8 @@ mod tests {
   impl Drawable for W {
     fn plot(
       &mut self,
-      desc: RwLockReadGuard<Description>,
-      feed: DroneFeed,
+      _: RwLockReadGuard<Description>,
+      _: DroneFeed,
     ) -> Result<(), widgets::Error> {
       if self.fail_plot {
         Err(widgets::Error::Unspecified("plot failed".to_owned()))
@@ -535,7 +556,7 @@ mod tests {
       }
     }
 
-    unsafe fn draw(&mut self, feed: DroneFeed) -> Result<(), widgets::Error> {
+    unsafe fn draw(&mut self, _: DroneFeed) -> Result<(), widgets::Error> {
       if self.fail_draw {
         Err(widgets::Error::Unspecified("draw failed".to_owned()))
       } else {
@@ -556,7 +577,7 @@ mod tests {
 
   #[test]
   fn error_handling() {
-    let b = unsafe { Backend::mock(200, 200) };
+    let b = Backend::mock(200, 200);
     let mut r = Ring::new();
 
     // all good
@@ -600,7 +621,7 @@ mod tests {
 
   #[test]
   fn checks_for_plotting() {
-    let b = unsafe { Backend::mock(200, 200) };
+    let b = Backend::mock(200, 200);
     let mut r = Ring::new();
     let norm = W::new(false, false, false);
     let plotted = W::new(true, false, true);

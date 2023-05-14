@@ -99,8 +99,8 @@ impl DamageTracker {
   }
 
   pub fn serialize<W: Write>(&self, w: &mut W) {
-    let file = std::fs::File::create("obj.cbor").unwrap();
-    ciborium::ser::into_writer(&self.undo, file).unwrap();
+    // let file = std::fs::File::create("obj.cbor").unwrap();
+    // ciborium::ser::into_writer(&self.undo, file).unwrap();
     ciborium::ser::into_writer(&self.undo, w).unwrap();
   }
 }
