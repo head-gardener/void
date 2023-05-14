@@ -1,10 +1,16 @@
-use std::sync::{Arc, RwLock};
+use std::{
+  io::Cursor,
+  sync::{Arc, RwLock, RwLockReadGuard},
+};
 
 use glfw::{Action, Key, Modifiers, MouseButton, WindowEvent};
 
 use crate::{
   backend::Backend,
-  logic::Ring,
+  logic::{
+    ring::{self, CallbackResult, Mark, Wrap},
+    DamageTracker, Ring,
+  },
   render::{
     painter::{Description, Drone},
     Point,
@@ -24,6 +30,8 @@ macro_rules! debug {
 pub struct Core {
   ring: Ring,
   cursor: Point,
+
+  damage_tracker: Wrap<DamageTracker>,
 }
 
 impl Core {
@@ -33,6 +41,7 @@ impl Core {
     Self {
       ring,
       cursor: Point::new(0, 0),
+      damage_tracker: ring::wrap(DamageTracker::new()),
     }
   }
 
@@ -49,9 +58,7 @@ impl Core {
           return r;
         }
       }
-      self
-        .ring
-        .drain_damage_tracker(&b.desc.read().unwrap(), &b.drone);
+      self.drain_damage_tracker(&b.desc.read().unwrap(), &b.drone);
 
       self.draw(b);
     }
@@ -65,13 +72,21 @@ impl Core {
   ) -> u64 {
     let desc_lock = desc.read().unwrap();
 
-    if self
+    let res = self
       .ring
-      .handle_transient_control_event(&desc_lock, drone, &event)
-    {
-      return 0;
+      .catch_transient_control_event(&desc_lock, drone, &event);
+    match self.handle_callback_result_mut(
+      &desc_lock,
+      drone,
+      res,
+      "Transient control",
+    ) {
+      Ok(true) => return 0,
+      Err(c) => return c,
+      _ => {}
     }
-    match self.ring.handle_key(&desc_lock, drone, &event) {
+    let res = self.ring.catch_key(&desc_lock, drone, &event);
+    match self.handle_callback_result_mut(&desc_lock, drone, res, "Click") {
       Ok(true) => return 0,
       Err(c) => return c,
       _ => {}
@@ -102,7 +117,10 @@ impl Core {
         self.cursor = Point::new(x as u16, y as u16);
       }
       WindowEvent::MouseButton(MouseButton::Button1, Action::Press, _mods) => {
-        if let Some(c) = self.ring.catch_click(&desc_lock, drone, self.cursor) {
+        let res = self.ring.catch_click(&desc_lock, drone, self.cursor);
+        if let Err(c) =
+          self.handle_callback_result_mut(&desc_lock, drone, res, "Click")
+        {
           return c;
         }
       }
@@ -199,6 +217,97 @@ impl Core {
   }
 
   pub fn pull_damage(&self) -> Vec<u8> {
-    self.ring.pull_damage()
+    let mut buf = Cursor::new(vec![]);
+    self.damage_tracker.read().unwrap().serialize(&mut buf);
+    buf.into_inner()
+  }
+
+  pub fn drain_damage_tracker(
+    &mut self,
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
+  ) {
+    let mut t = self.damage_tracker.write().unwrap();
+    t.drain().for_each(|r| {
+      self
+        .handle_callback_result(desc, drone, (r, Mark::DamageTracker), "Damage")
+        .unwrap();
+    });
+  }
+
+  pub fn wipe_damage_tracker(&mut self) {
+    self.damage_tracker.write().unwrap().wipe();
+  }
+
+  /// Act on callback result.
+  ///
+  /// # Return
+  ///
+  /// Returns `Ok(false)` if `r` is [CallbackResult::Pass], `Ok(true)` otherwise.
+  /// `Err(code)` is returned wher `r` is [CallbackResult::ExitCode(code)],
+  /// specifically `code` will never be 0.
+  /// `what` and `who` are used to describe callback in case of error:
+  /// `what` describes the type of callback, `who` - marked object, sourcing
+  /// the callback.
+  fn handle_callback_result_mut(
+    &mut self,
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
+    (r, who): (CallbackResult, Mark),
+    what: &str,
+  ) -> Result<bool, u64> {
+    if r.is_pass() {
+      return Ok(false);
+    }
+
+    match r {
+      CallbackResult::Error(e) => {
+        println!("{} callback by {:?} failed: {}", what, who, e);
+      }
+      CallbackResult::Push(x) => x.push_to_ring(&mut self.ring),
+      CallbackResult::Modify(m, f) => f(self.ring.pull(&m), desc, drone),
+      CallbackResult::Damage(f) => f(&mut self.damage_tracker.write().unwrap()),
+      CallbackResult::ExitCode(c) => {
+        debug_assert_ne!(c, 0);
+        return Err(c);
+      }
+
+      _ => {}
+    }
+    return Ok(true);
+  }
+
+  /// Same as [Ring::handle_callback_result_mut], but [CallbackResult::Push]
+  /// and [CallbackResult::Damage] are considered errors.
+  fn handle_callback_result(
+    &self,
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
+    (r, who): (CallbackResult, Mark),
+    what: &str,
+  ) -> Result<bool, u64> {
+    if r.is_pass() {
+      return Ok(false);
+    }
+
+    match r {
+      CallbackResult::Error(e) => {
+        println!("{} callback by {:?} failed: {}", what, who, e);
+      }
+      CallbackResult::Damage(_) => {
+        println!("{} immutable callback by {:?} returned Damage", what, who);
+      }
+      CallbackResult::Push(_) => {
+        println!("{} immutable callback by {:?} returned Push", what, who);
+      }
+      CallbackResult::Modify(m, f) => f(self.ring.pull(&m), desc, drone),
+      CallbackResult::ExitCode(c) => {
+        debug_assert_ne!(c, 0);
+        return Err(c);
+      }
+
+      _ => {}
+    }
+    return Ok(true);
   }
 }

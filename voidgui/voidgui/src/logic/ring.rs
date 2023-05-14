@@ -1,7 +1,4 @@
-use std::{
-  io::Cursor,
-  sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
-};
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use glfw::{Action, Key, Modifiers, WindowEvent};
 
@@ -113,21 +110,17 @@ pub struct Ring {
   click_sinks: Vec<Element<dyn ClickSink>>,
   input_sinks: Vec<Element<dyn InputSink>>,
   key_sinks: Vec<Element<dyn KeySink>>,
-
-  damage_tracker: Wrap<DamageTracker>,
 }
 
 impl Ring {
   pub fn new() -> Self {
-    let damage_tracker = wrap(DamageTracker::new());
     Self {
       widgets: vec![],
       parents: vec![],
       transient: None,
       click_sinks: vec![],
       input_sinks: vec![],
-      key_sinks: vec![(damage_tracker.clone(), Mark::DamageTracker)],
-      damage_tracker,
+      key_sinks: vec![],
     }
   }
 
@@ -262,111 +255,19 @@ impl Ring {
 
   /// Push click event to all click sinks from last to first until one of them
   /// handles it.
-  ///
-  /// # Return
-  ///
-  /// Returns `Some(code)` if click callback returned an exit code.
   pub fn catch_click(
     &mut self,
     desc: &RwLockReadGuard<Description>,
     drone: &Drone,
     p: Point,
-  ) -> Option<u64> {
-    let mut r = CallbackResult::Pass;
-    let mut m = Mark::None;
-
-    for (w, _m) in self.click_sinks.iter().rev() {
+  ) -> (CallbackResult, Mark) {
+    for (w, m) in self.click_sinks.iter().rev() {
       match w.write().unwrap().handle_click(desc, drone, p) {
         CallbackResult::Pass => continue,
-        res => {
-          r = res;
-          m = *_m;
-          break;
-        }
+        res => return (res, *m),
       }
     }
-
-    self.handle_callback_result_mut(desc, drone, r, "Click", m).err()
-  }
-
-  /// Act on callback result.
-  ///
-  /// # Alternatives
-  ///
-  /// See [Ring::handle_callback_result] for immutable version.
-  ///
-  /// # Return
-  ///
-  /// Returns `Ok(false)` if `r` is [CallbackResult::Pass], `Ok(true)` otherwise.
-  /// `Err(code)` is returned wher `r` is [CallbackResult::ExitCode(code)],
-  /// specifically `code` will never be 0.
-  /// `what` and `who` are used to describe callback in case of error:
-  /// `what` describes the type of callback, `who` - marked object, sourcing
-  /// the callback.
-  fn handle_callback_result_mut(
-    &mut self,
-    desc: &RwLockReadGuard<Description>,
-    drone: &Drone,
-    r: CallbackResult,
-    what: &str,
-    who: Mark,
-  ) -> Result<bool, u64> {
-    if r.is_pass() {
-      return Ok(false);
-    }
-
-    match r {
-      CallbackResult::Error(e) => {
-        println!("{} callback by {:?} failed: {}", what, who, e);
-      }
-      CallbackResult::Push(x) => {
-        x.push_to_ring(self)
-      }
-      CallbackResult::Modify(m, f) => f(self.pull(&m), desc, drone),
-      CallbackResult::Damage(f) => f(&mut self.damage_tracker.write().unwrap()),
-      CallbackResult::ExitCode(c) => {
-        debug_assert_ne!(c, 0);
-        return Err(c);
-      }
-
-      _ => {}
-    }
-    return Ok(true);
-  }
-
-  /// Same as [Ring::handle_callback_result_mut], but [CallbackResult::Push]
-  /// and [CallbackResult::Damage] are considered errors.
-  fn handle_callback_result(
-    &self,
-    desc: &RwLockReadGuard<Description>,
-    drone: &Drone,
-    r: CallbackResult,
-    what: &str,
-    who: Mark,
-  ) -> Result<bool, u64> {
-    if r.is_pass() {
-      return Ok(false);
-    }
-
-    match r {
-      CallbackResult::Error(e) => {
-        println!("{} callback by {:?} failed: {}", what, who, e);
-      }
-      CallbackResult::Damage(_) => {
-        println!("{} immutable callback by {:?} returned Damage", what, who);
-      }
-      CallbackResult::Push(_) => {
-        println!("{} immutable callback by {:?} returned Push", what, who);
-      }
-      CallbackResult::Modify(m, f) => f(self.pull(&m), desc, drone),
-      CallbackResult::ExitCode(c) => {
-        debug_assert_ne!(c, 0);
-        return Err(c);
-      }
-
-      _ => {}
-    }
-    return Ok(true);
+    (CallbackResult::Pass, Mark::None)
   }
 
   /// Push char to last input sink.
@@ -381,7 +282,9 @@ impl Ring {
         CallbackResult::Error(e) => {
           println!("Input callback failed: {}", e);
         }
-        _ => {}
+        CallbackResult::None | CallbackResult::Pass => {}
+
+        r => panic!("Unexpected callback result: {:?}", r),
       }
     });
   }
@@ -389,15 +292,15 @@ impl Ring {
   /// Checks event for being a control event: `cancel` (Esc, click off, etc.)
   /// or `accept` (Enter, "ok" button, etc.) and passes it to last transient
   /// if it is.
-  /// Returns `true` if event was consumed, `false` otherwise.
-  pub fn handle_transient_control_event(
+  /// Return [CallbackResult::Pass] if event wasn't consumed.
+  pub fn catch_transient_control_event(
     &mut self,
-    desc: &RwLockReadGuard<Description>,
+    _: &RwLockReadGuard<Description>,
     drone: &Drone,
     e: &WindowEvent,
-  ) -> bool {
+  ) -> (CallbackResult, Mark) {
     if !self.transient.is_some() {
-      return false;
+      return (CallbackResult::Pass, Mark::None);
     }
     let (trans, m) = self.transient.as_ref().unwrap();
     let m = m.clone();
@@ -406,65 +309,32 @@ impl Ring {
       WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
         let r = trans.write().unwrap().handle_cancel(drone);
         self.delete(m);
-        self.handle_callback_result_mut(desc, drone, r, "Cancel", m).unwrap();
-        true
+        (r, m)
       }
       WindowEvent::Key(Key::Enter | Key::KpEnter, _, Action::Press, mods)
         if !mods.contains(Modifiers::Control) =>
       {
         let r = trans.write().unwrap().handle_accept(drone);
         self.delete(m);
-        self.handle_callback_result_mut(desc, drone, r, "Accept", m).unwrap();
-        true
+        (r, m)
       }
-      _ => false,
+      _ => (CallbackResult::Pass, Mark::None),
     }
   }
 
-  pub fn handle_key(
+  pub fn catch_key(
     &mut self,
-    desc: &RwLockReadGuard<Description>,
+    _: &RwLockReadGuard<Description>,
     drone: &Drone,
     e: &WindowEvent,
-  ) -> Result<bool, u64> {
-    let mut r = CallbackResult::Pass;
-    let mut m = Mark::None;
-
-    for (w, _m) in self.key_sinks.iter().rev() {
+  ) -> (CallbackResult, Mark) {
+    for (w, m) in self.key_sinks.iter().rev() {
       match w.write().unwrap().handle_key(drone, e) {
         CallbackResult::Pass => continue,
-        res => {
-          r = res;
-          m = *_m;
-          break;
-        }
+        res => return (res, *m),
       }
     }
-
-    self.handle_callback_result_mut(desc, drone, r, "Click", m)
-  }
-
-  pub fn drain_damage_tracker(
-    &self,
-    desc: &RwLockReadGuard<Description>,
-    drone: &Drone,
-  ) {
-    let mut t = self.damage_tracker.write().unwrap();
-    t.drain().for_each(|r| {
-      self.handle_callback_result(
-        desc,
-        drone,
-        r,
-        "Damage",
-        Mark::DamageTracker,
-      ).unwrap();
-    });
-  }
-
-  pub fn pull_damage(&self) -> Vec<u8> {
-    let mut buf = Cursor::new(vec![]);
-    self.damage_tracker.read().unwrap().serialize(&mut buf);
-    buf.into_inner()
+    (CallbackResult::Pass, Mark::None)
   }
 }
 

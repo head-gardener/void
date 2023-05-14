@@ -118,5 +118,8 @@ extern "C" fn void_gui_drop(w: &mut Instance) -> u64 {
   w.c.with_ssheet_mut(|s| {
     s.drop();
     0
-  })
+  });
+  w.c.wipe_damage_tracker();
+
+  0
 }
