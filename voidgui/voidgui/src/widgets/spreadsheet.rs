@@ -20,10 +20,11 @@ use crate::widgets;
 /// An entry in a spreadsheet. Implement with `Entry` derive macro.
 /// When doing so, prefix all data field with `d_` and give them `&'a str` type.
 /// Those fields will be used when displaying data.
-pub trait Entry<'a>: Send + Sync {
+pub trait Entry<'a>: Default + Send + Sync {
   const N_FIELDS: usize;
 
   fn fields(self) -> Vec<&'a str>;
+  fn uuid(&self) -> &u64;
   // fn ntn_mut(&mut self) -> &mut String;
 }
 
@@ -31,25 +32,26 @@ pub trait Entry<'a>: Send + Sync {
 pub struct Spreadsheet {
   table: TextTable,
   records: Vec<Box<String>>,
+  uuids: Vec<u64>,
 }
 
 impl Spreadsheet {
   pub unsafe fn new<'a, E: Entry<'a>>(
     desc: &RwLockReadGuard<Description>,
     drone: &mut Drone,
-    header: E,
   ) -> Result<Self, widgets::Error> {
     let mut table = TextTable::new(drone, 0, E::N_FIELDS)?;
     table.add_row(
       desc,
       drone,
-      header.fields().into_iter(),
+      E::default().fields().into_iter(),
       crate::render::text_table::CellStyle::Lit,
     )?;
 
     Ok(Self {
       table,
       records: vec![],
+      uuids: vec![],
     })
   }
 
@@ -59,6 +61,7 @@ impl Spreadsheet {
     drone: &mut Drone,
     e: E,
   ) -> Result<(), widgets::Error> {
+    self.uuids.push(*e.uuid());
     let fs = e.fields();
     fs.iter().for_each(|f| {
       self.records.push(Box::new(f.to_string()));
@@ -78,6 +81,7 @@ impl Spreadsheet {
 
   pub fn drop(&mut self) {
     self.records.clear();
+    self.uuids.clear();
 
     self.table.truncate(self.table.columns());
   }
@@ -92,10 +96,18 @@ impl Spreadsheet {
     &mut self,
     desc: &RwLockReadGuard<Description>,
     drone: &Drone,
+    uuid: u64,
     n: usize,
     s: &str,
   ) -> Result<(), widgets::Error> {
     let s = s.to_string();
+    let n = n
+      + self.uuids.iter().position(|i| *i == uuid).ok_or(
+        widgets::Error::Unspecified(format!(
+          "UUID {} not found in spreadsheet",
+          uuid,
+        )),
+      )? * self.table.columns();
     self
       .table
       .update_cell(desc, drone, n + self.table.columns(), &s)?;
@@ -115,9 +127,20 @@ impl ClickSink for Spreadsheet {
     match i {
       0 | 1 => CallbackResult::Pass,
       _ => {
+        print!("{} in ", self.uuids[i / self.table.columns() - 1]);
+        println!("self.uuids = {:?}", self.uuids);
         let s = &self.records[i - self.table.columns()];
         match unsafe {
-          InputField::new(desc, drone, s, (i - self.table.columns(), s.clone()))
+          InputField::new(
+            desc,
+            drone,
+            s,
+            (
+              self.uuids[i / self.table.columns() - 1],
+              i % self.table.columns(),
+              s.clone(),
+            ),
+          )
         } {
           Ok(f) => CallbackResult::Push(Box::new(ring::wrap(f))),
           Err(e) => CallbackResult::Error(e),
@@ -127,14 +150,14 @@ impl ClickSink for Spreadsheet {
   }
 }
 
-type SpreadsheetIF = (usize, Box<String>);
+type SpreadsheetIF = (u64, usize, Box<String>);
 
 impl Transient for InputField<SpreadsheetIF> {
   fn handle_accept(&self, _: &Drone) -> CallbackResult {
-    let (c, from) = self.closure().clone();
+    let (uuid, c, from) = self.closure().clone();
     let to = self.to_string();
     CallbackResult::Damage(Box::new(move |t| {
-      t.push(crate::logic::Damage::Update(c, *from, to))
+      t.push(crate::logic::Damage::Update(uuid, c, *from, to))
     }))
   }
 }

@@ -6,7 +6,8 @@ import Database.PostgreSQL.Simple as PG
 import GHC.Generics
 
 data Entry = Entry
-  { name :: String,
+  { uuid :: Int,
+    name :: String,
     phone :: String
   }
   deriving (Eq, Show, Generic)

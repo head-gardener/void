@@ -520,7 +520,7 @@ mod test {
       t.add_row(
         &desc_lock,
         &b.drone,
-        vec!["abcd".to_owned(); 2].iter(),
+        vec!["abcd"; 2].into_iter(),
         CellStyle::Normal,
       )
       .unwrap();
@@ -564,14 +564,14 @@ mod test {
       t.add_row(
         &desc_lock,
         &b.drone,
-        vec!["".to_owned(); 3].iter(),
+        vec![""; 3].into_iter(),
         CellStyle::Normal,
       )
       .unwrap();
       t.add_row(
         &desc_lock,
         &b.drone,
-        vec!["".to_owned(); 3].iter(),
+        vec![""; 3].into_iter(),
         CellStyle::Normal,
       )
       .unwrap();

@@ -29,7 +29,7 @@ foreign import ccall "void_gui_finish"
   void_gui_finish :: VoidInstance -> CInt
 
 foreign import ccall "void_gui_add"
-  void_gui_add :: Ptr CChar -> Ptr CChar -> VoidInstance -> CInt
+  void_gui_add :: CUInt -> Ptr CChar -> Ptr CChar -> VoidInstance -> CInt
 
 foreign import ccall "void_gui_drop"
   void_gui_drop :: VoidInstance -> CInt
@@ -44,7 +44,7 @@ foreign import ccall "void_gui_free_damage"
 -- real nuisance
 newtype VoidInstance = VoidInstance (Ptr VoidInstance) deriving (Eq)
 
-data Damage = Update Int String String deriving (Eq, Show, Generic)
+data Damage = Update Int Int String String deriving (Eq, Show, Generic)
 instance Serialise Damage where
   decode = do
     len <- decodeMapLen
@@ -52,7 +52,7 @@ instance Serialise Damage where
     tag <- decodeString
     len <- decodeListLen
     case (tag, len) of
-      ("Update", 3) -> Update <$> decode <*> decode <*> decode
+      ("Update", 4) -> Update <$> decode <*> decode <*> decode <*> decode
       _ -> fail $ "unexpected (tag, len): " ++ show (tag, len)
 
 nullWindow :: VoidInstance
@@ -83,7 +83,7 @@ push window =
   mapM_ $
     \x -> withCString (name x) $ \cn ->
       withCString (phone x) $ \ct -> do
-        void_gui_add cn ct window `seq` return ()
+        void_gui_add (fromIntegral $ uuid x) cn ct window `seq` return ()
 
 drop :: VoidInstance -> CInt
 drop = void_gui_drop

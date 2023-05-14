@@ -29,7 +29,7 @@ push c xs = do
   mapM_ f xs
  where
   f :: Damage -> IO ()
-  f (Update n _ to) =
+  f (Update uuid n _ to) =
     trace q return ()
    where
-    q = show n ++ " to " ++ to
+    q = show uuid ++ ": " ++ show n ++ " to " ++ to

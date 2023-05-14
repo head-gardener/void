@@ -113,6 +113,10 @@ pub fn derive_entry(input: TokenStream) -> TokenStream {
       fn fields(self) -> Vec<&'a str> {
         vec![#(self.#fields),*]
       }
+
+      fn uuid(&self) -> &u64 {
+        &self.uuid
+      }
     }
   };
 

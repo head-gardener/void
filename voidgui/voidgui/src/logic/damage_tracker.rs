@@ -16,7 +16,7 @@ use super::{ring, CallbackResult};
 
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
 pub enum Damage {
-  Update(usize, String, String),
+  Update(u64, usize, String, String),
 }
 
 /// Describes a change that is going to happen once the damage object is
@@ -24,7 +24,7 @@ pub enum Damage {
 impl Damage {
   pub fn invert(self) -> Self {
     match self {
-      Damage::Update(n, from, to) => Damage::Update(n, to, from),
+      Damage::Update(uuid, n, from, to) => Damage::Update(uuid, n, to, from),
     }
   }
 }
@@ -32,13 +32,13 @@ impl Damage {
 impl Into<CallbackResult> for Damage {
   fn into(self) -> CallbackResult {
     match self {
-      Damage::Update(u, _, to) => CallbackResult::Modify(
+      Damage::Update(uuid, n, _, to) => CallbackResult::Modify(
         Mark::Spreadsheet,
         with_spreadsheet(
           move |desc: &RwLockReadGuard<Description>,
                 drone: &Drone,
                 s: &mut Spreadsheet| {
-            s.update_record(desc, drone, u, &to).unwrap();
+            s.update_record(desc, drone, uuid, n, &to).unwrap();
           },
         ),
       ),
@@ -103,6 +103,12 @@ impl DamageTracker {
     // ciborium::ser::into_writer(&self.undo, file).unwrap();
     ciborium::ser::into_writer(&self.undo, w).unwrap();
   }
+
+  pub fn wipe(&mut self) {
+    self.undo.clear();
+    self.redo.clear();
+    self.pending.clear();
+  }
 }
 
 impl KeySink for DamageTracker {
@@ -142,7 +148,7 @@ mod test_damage_tracker {
 
   #[test]
   fn damage() {
-    let d1 = Damage::Update(0, "hi".to_string(), "hello".to_string());
+    let d1 = Damage::Update(0, 0, "hi".to_string(), "hello".to_string());
     assert_eq!(d1, d1.clone().invert().invert())
   }
 
@@ -150,8 +156,8 @@ mod test_damage_tracker {
   fn tracker_state() {
     let mut t = DamageTracker::new();
 
-    let d1 = Damage::Update(0, "hi".to_string(), "hello".to_string());
-    let d2 = Damage::Update(3, "ops".to_string(), "oops".to_string());
+    let d1 = Damage::Update(0, 0, "hi".to_string(), "hello".to_string());
+    let d2 = Damage::Update(3, 1, "ops".to_string(), "oops".to_string());
     let d1r = d1.clone().invert();
     let d2r = d2.clone().invert();
     t.push(d1r.clone());
