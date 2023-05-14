@@ -1,4 +1,7 @@
-use std::sync::{Arc, RwLock};
+use std::{
+  ffi::CString,
+  sync::{Arc, RwLock},
+};
 
 use glfw::{Action, Key, Modifiers, MouseButton, WindowEvent};
 
@@ -192,5 +195,9 @@ impl Core {
 
   pub fn ring_mut(&mut self) -> &mut Ring {
     &mut self.ring
+  }
+
+  pub fn pull_damage(&self) -> Vec<u8> {
+    self.ring.pull_damage()
   }
 }

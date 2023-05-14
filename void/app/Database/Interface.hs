@@ -2,7 +2,7 @@
 
 module Database.Interface (connection, pull) where
 
-import Data
+import Entry
 import Database.PostgreSQL.Simple as PG
 
 localPG :: ConnectInfo

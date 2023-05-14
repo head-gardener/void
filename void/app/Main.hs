@@ -1,6 +1,6 @@
 module Main where
 
-import Data
+import Entry
 import Database.Interface as DB
 import Foreign.C.Types
 import qualified GUI as G
@@ -40,7 +40,9 @@ main =
     do_exec w 2 = do
       pull w
       do_exec w 0
-    do_exec w 1 = return ()
+    do_exec w 1 =  do
+      s <- G.pull w
+      print s
     do_exec w code = do
       putStrLn $ "Unexpected code " ++ show code
       do_exec w 0

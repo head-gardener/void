@@ -14,6 +14,8 @@ glfw = ">=0.51"
 pangocairo = ">=0.17"
 downcast-rs = ">=1.2"
 rayon = ">=1.7"
+serde = ">=1.0"
+ciborium = ">=0.2"
 voidmacro = { path = "../voidmacro" }
 
 [dev-dependencies]

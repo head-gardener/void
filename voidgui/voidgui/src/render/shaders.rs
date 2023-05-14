@@ -182,9 +182,7 @@ pub trait Shader {
   fn attribs(&self) -> Vec<i32>;
 
   unsafe fn set_used(&self) -> () {
-    unsafe {
-      gl::UseProgram(self.prog().id);
-    }
+    gl::UseProgram(self.prog().id);
   }
 
   unsafe fn enable_attribs(&self) -> () {

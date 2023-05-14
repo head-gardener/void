@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::{sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard}, io::Cursor};
 
 use glfw::{Action, Key, Modifiers, WindowEvent};
 
@@ -439,6 +439,12 @@ impl Ring {
         Mark::DamageTracker,
       );
     });
+  }
+
+  pub fn pull_damage(&self) -> Vec<u8> {
+    let mut buf = Cursor::new(vec![]);
+    self.damage_tracker.read().unwrap().serialize(&mut buf);
+    buf.into_inner()
   }
 }
 

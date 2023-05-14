@@ -1,6 +1,7 @@
-use std::sync::RwLockReadGuard;
+use std::{sync::RwLockReadGuard, io::Write};
 
 use glfw::{Action, Key, Modifiers, WindowEvent};
+use serde::Serialize;
 
 use crate::{
   logic::ring::Mark,
@@ -13,7 +14,7 @@ use crate::{
 
 use super::{ring, CallbackResult};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
 pub enum Damage {
   Update(usize, String, String),
 }
@@ -95,6 +96,12 @@ impl DamageTracker {
 
   pub fn push(&mut self, d: Damage) {
     self.pending.push(d);
+  }
+
+  pub fn serialize<W: Write>(&self, w: &mut W) {
+    let file = std::fs::File::create("obj.cbor").unwrap();
+    ciborium::ser::into_writer(&self.undo, file).unwrap();
+    ciborium::ser::into_writer(&self.undo, w).unwrap();
   }
 }
 
