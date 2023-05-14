@@ -4,29 +4,55 @@ use voidgui::{
   backend::Backend,
   core::*,
   widgets::{self, toolbar::Toolbar, Spreadsheet},
+  Entry,
 };
 
-struct Window {
+struct Instance {
   c: Core,
   b: Backend,
 }
 
+#[derive(Entry)]
+struct Entry<'a> {
+  d_name: &'a str,
+  d_phone: &'a str,
+}
+
+impl<'a> Entry<'a> {
+  fn new(name: &'a str, phone: &'a str) -> Self {
+    Self {
+      d_name: name,
+      d_phone: phone,
+    }
+  }
+}
+
+// impl<'a> voidgui::widgets::spreadsheet::Entry<'a> for Entry<'a> {
+//   const N_FIELDS: usize = 2;
+
+//   fn fields(self) -> Vec<&'a str> {
+//     vec![self.name, self.phone]
+//   }
+// }
+
 #[no_mangle]
-extern "C" fn void_gui_init() -> Box<Window> {
+extern "C" fn void_gui_init() -> Box<Instance> {
   let w = unsafe {
     let mut b = Backend::new(800, 600);
     let mut c = Core::new();
     populate(&mut c, &mut b);
-    Window { b, c }
+    Instance { b, c }
   };
   Box::new(w)
 }
 
 unsafe fn populate(c: &mut Core, b: &mut Backend) {
   let painter = b.desc.read().unwrap();
+  let header = Entry::new("Name", "Phone");
 
   let win = widgets::Window::new(&painter);
-  let ssheet = Spreadsheet::new(&painter, &mut b.drone).unwrap();
+  let ssheet =
+    Spreadsheet::new::<Entry>(&painter, &mut b.drone, header).unwrap();
   let toolbar = Toolbar::new(&painter, &mut b.drone).unwrap();
 
   win.push_to_ring(c.ring_mut());
@@ -35,7 +61,7 @@ unsafe fn populate(c: &mut Core, b: &mut Backend) {
 }
 
 #[no_mangle]
-unsafe extern "C" fn void_gui_exec(w: &mut Window) -> u64 {
+unsafe extern "C" fn void_gui_exec(w: &mut Instance) -> u64 {
   w.c.on_exec(&mut w.b)
 }
 
@@ -43,7 +69,7 @@ unsafe extern "C" fn void_gui_exec(w: &mut Window) -> u64 {
 struct CStringLen(u32, *mut u8);
 
 #[no_mangle]
-extern "C" fn void_gui_pull_damage(w: &mut Window) -> Box<CStringLen> {
+extern "C" fn void_gui_pull_damage(w: &mut Instance) -> Box<CStringLen> {
   let mut xs = w.c.pull_damage();
   let len = xs.len();
   let res = xs.as_mut_ptr();
@@ -57,7 +83,7 @@ unsafe extern "C" fn void_gui_free_damage(_: Box<CStringLen>) -> u64 {
 }
 
 #[no_mangle]
-extern "C" fn void_gui_finish(_: Box<Window>) -> u64 {
+extern "C" fn void_gui_finish(_: Box<Instance>) -> u64 {
   0
 }
 
@@ -65,14 +91,15 @@ extern "C" fn void_gui_finish(_: Box<Window>) -> u64 {
 extern "C" fn void_gui_add(
   name: *const c_char,
   phone: *const c_char,
-  w: &mut Window,
+  w: &mut Instance,
 ) -> u64 {
   let n = unsafe { CStr::from_ptr(name) }.to_string_lossy();
   let p = unsafe { CStr::from_ptr(phone) }.to_string_lossy();
+  let e = Entry::new(&n, &p);
 
   w.c.with_ssheet_mut(|ssheet| {
     if let Err(e) =
-      ssheet.push(&w.b.desc.read().unwrap(), &mut w.b.drone, &n, &p)
+      ssheet.push::<Entry>(&w.b.desc.read().unwrap(), &mut w.b.drone, e)
     {
       println!("Push failed: {}", e);
       ssheet.drop();
@@ -84,7 +111,7 @@ extern "C" fn void_gui_add(
 }
 
 #[no_mangle]
-extern "C" fn void_gui_drop(w: &mut Window) -> u64 {
+extern "C" fn void_gui_drop(w: &mut Instance) -> u64 {
   w.c.with_ssheet_mut(|s| {
     s.drop();
     0

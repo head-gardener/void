@@ -4,7 +4,9 @@ extern crate quote;
 extern crate syn;
 
 use proc_macro::TokenStream;
-use syn::DeriveInput;
+use syn::{Data, DeriveInput, Ident};
+
+// MENU
 
 #[proc_macro_derive(Menu)]
 pub fn derive_menu(input: TokenStream) -> TokenStream {
@@ -33,9 +35,19 @@ pub fn derive_menu(input: TokenStream) -> TokenStream {
 pub fn derive_draw_menu(input: TokenStream) -> TokenStream {
   let input = parse_macro_input!(input as DeriveInput);
   let name = input.ident;
+  let mut gen = input.generics;
+  gen.type_params_mut().for_each(|x| {
+    x.bounds
+      .push(syn::TypeParamBound::Trait(parse_quote!(Sync)));
+    x.bounds
+      .push(syn::TypeParamBound::Trait(parse_quote!(Send)));
+    x.bounds
+      .push(syn::TypeParamBound::Lifetime(parse_quote!('static)));
+  });
+  let (impl_gen, ty_gen, where_clause) = gen.split_for_impl();
 
   let expanded = quote! {
-    impl Drawable for #name {
+    impl #impl_gen Drawable for #name #ty_gen #where_clause {
       fn plot(
         &mut self,
         desc: RwLockReadGuard<Description>,
@@ -59,12 +71,47 @@ pub fn derive_draw_menu(input: TokenStream) -> TokenStream {
 pub fn derive_clickable_menu(input: TokenStream) -> TokenStream {
   let input = parse_macro_input!(input as DeriveInput);
   let name = input.ident;
+  let gen = input.generics;
 
   let expanded = quote! {
-    impl Clickable for #name {
+    impl #gen Clickable for #name #gen {
       #[inline]
       fn click_area(&self) -> Option<Area> {
         self.table.area()
+      }
+    }
+  };
+
+  TokenStream::from(expanded)
+}
+
+// SPREADSHEET
+
+#[proc_macro_derive(Entry)]
+pub fn derive_entry(input: TokenStream) -> TokenStream {
+  let input = parse_macro_input!(input as DeriveInput);
+  let name = input.ident;
+  let gen = input.generics;
+
+  let fields: Vec<Ident> = match input.data {
+    Data::Struct(d) => d
+      .fields
+      .iter()
+      .filter_map(|f| f.ident.to_owned())
+      .filter(|i| {
+          i.to_string().starts_with("d_")
+      })
+      .collect(),
+    _ => todo!(),
+  };
+  let n_fields = fields.len();
+
+  let expanded = quote! {
+    impl #gen voidgui::widgets::spreadsheet::Entry #gen for #name #gen {
+      const N_FIELDS: usize = #n_fields;
+
+      fn fields(self) -> Vec<&'a str> {
+        vec![#(self.#fields),*]
       }
     }
   };

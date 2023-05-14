@@ -1,4 +1,4 @@
-use std::{sync::RwLockReadGuard, io::Write};
+use std::{io::Write, sync::RwLockReadGuard};
 
 use glfw::{Action, Key, Modifiers, WindowEvent};
 use serde::Serialize;

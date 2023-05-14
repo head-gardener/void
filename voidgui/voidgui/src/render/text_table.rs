@@ -246,7 +246,7 @@ impl TextTable {
     style: CellStyle,
   ) -> Result<(), Error>
   where
-    I: std::iter::Iterator<Item = &'a &'a String>,
+    I: std::iter::Iterator<Item = &'a str>,
   {
     let tex = drone
       .get_textures(self.columns)
@@ -447,6 +447,10 @@ impl TextTable {
   pub fn cells(&self) -> Option<&Vec<Area>> {
     self.state.try_cells().ok()
   }
+
+  pub fn columns(&self) -> usize {
+    self.columns
+  }
 }
 
 #[cfg(test)]
@@ -516,7 +520,7 @@ mod test {
       t.add_row(
         &desc_lock,
         &b.drone,
-        vec![&"abcd".to_owned(); 2].iter(),
+        vec!["abcd".to_owned(); 2].iter(),
         CellStyle::Normal,
       )
       .unwrap();
@@ -560,14 +564,14 @@ mod test {
       t.add_row(
         &desc_lock,
         &b.drone,
-        vec![&"".to_owned(); 3].iter(),
+        vec!["".to_owned(); 3].iter(),
         CellStyle::Normal,
       )
       .unwrap();
       t.add_row(
         &desc_lock,
         &b.drone,
-        vec![&"".to_owned(); 3].iter(),
+        vec!["".to_owned(); 3].iter(),
         CellStyle::Normal,
       )
       .unwrap();

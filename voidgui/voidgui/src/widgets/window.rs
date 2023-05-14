@@ -3,7 +3,7 @@ use std::sync::RwLockReadGuard;
 use crate::{
   logic::ring,
   render::{
-    painter::{Drone, DroneFeed, Description},
+    painter::{Description, DroneFeed},
     Area, Origin, OriginPole,
   },
 };
@@ -51,7 +51,7 @@ impl Drawable for Window {
   fn plot(
     &mut self,
     painter: RwLockReadGuard<Description>,
-    feed: DroneFeed,
+    _: DroneFeed,
   ) -> Result<(), super::traits::Error> {
     self.area = painter.window_area().clone();
     self.plotted = true;

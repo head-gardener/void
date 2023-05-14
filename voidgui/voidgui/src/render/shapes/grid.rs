@@ -1,9 +1,4 @@
-use crate::render::{
-  painter::{Drone, Description},
-  section,
-  shaders::Shader,
-  Area, Color,
-};
+use crate::render::Color;
 
 use super::common_res::CommonRes;
 

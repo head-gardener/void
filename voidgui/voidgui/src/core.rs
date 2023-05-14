@@ -167,10 +167,10 @@ impl Core {
     0
   }
 
-  pub fn with_ssheet_mut<F, R>(&mut self, f: F) -> R
-  where
-    F: FnOnce(&mut Spreadsheet) -> R,
-  {
+  pub fn with_ssheet_mut<R>(
+    &mut self,
+    f: impl FnOnce(&mut Spreadsheet) -> R,
+  ) -> R {
     f(self
       .ring
       .pull(&crate::logic::ring::Mark::Spreadsheet)

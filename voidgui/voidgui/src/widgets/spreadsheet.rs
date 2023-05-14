@@ -17,6 +17,16 @@ use crate::{
 use super::traits::{ClickSink, Clickable, Drawable, Transient, Widget};
 use crate::widgets;
 
+/// An entry in a spreadsheet. Implement with `Entry` derive macro.
+/// When doing so, prefix all data field with `d_` and give them `&'a str` type.
+/// Those fields will be used when displaying data.
+pub trait Entry<'a>: Send + Sync {
+  const N_FIELDS: usize;
+
+  fn fields(self) -> Vec<&'a str>;
+  // fn ntn_mut(&mut self) -> &mut String;
+}
+
 #[derive(Menu, DrawableMenu, ClickableMenu)]
 pub struct Spreadsheet {
   table: TextTable,
@@ -24,18 +34,16 @@ pub struct Spreadsheet {
 }
 
 impl Spreadsheet {
-  pub unsafe fn new(
+  pub unsafe fn new<'a, E: Entry<'a>>(
     desc: &RwLockReadGuard<Description>,
     drone: &mut Drone,
+    header: E,
   ) -> Result<Self, widgets::Error> {
-    let n = "Name".to_owned();
-    let p = "Phone".to_owned();
-
-    let mut table = TextTable::new(drone, 0, 2)?;
+    let mut table = TextTable::new(drone, 0, E::N_FIELDS)?;
     table.add_row(
       desc,
       drone,
-      [&n, &p].iter(),
+      header.fields().into_iter(),
       crate::render::text_table::CellStyle::Lit,
     )?;
 
@@ -45,27 +53,25 @@ impl Spreadsheet {
     })
   }
 
-  pub fn push(
+  pub fn push<'a, E: Entry<'a>>(
     &mut self,
     desc: &RwLockReadGuard<Description>,
     drone: &mut Drone,
-    name: &str,
-    phone: &str,
+    e: E,
   ) -> Result<(), widgets::Error> {
-    let n = name.to_owned();
-    let p = phone.to_owned();
+    let fs = e.fields();
+    fs.iter().for_each(|f| {
+      self.records.push(Box::new(f.to_string()));
+    });
 
     unsafe {
       self.table.add_row(
         desc,
         drone,
-        [&n, &p].iter(),
+        fs.into_iter(),
         crate::render::text_table::CellStyle::Normal,
       )?;
     };
-
-    self.records.push(Box::new(n));
-    self.records.push(Box::new(p));
 
     Ok(())
   }
@@ -73,7 +79,7 @@ impl Spreadsheet {
   pub fn drop(&mut self) {
     self.records.clear();
 
-    self.table.truncate(2);
+    self.table.truncate(self.table.columns());
   }
 
   pub fn push_to_ring(self, ring: &mut crate::logic::Ring) {
@@ -90,7 +96,9 @@ impl Spreadsheet {
     s: &str,
   ) -> Result<(), widgets::Error> {
     let s = s.to_string();
-    self.table.update_cell(desc, drone, n + 2, &s)?;
+    self
+      .table
+      .update_cell(desc, drone, n + self.table.columns(), &s)?;
     *self.records[n] = s;
     Ok(())
   }
@@ -107,8 +115,10 @@ impl ClickSink for Spreadsheet {
     match i {
       0 | 1 => CallbackResult::Pass,
       _ => {
-        let s = &self.records[i - 2];
-        match unsafe { InputField::new(desc, drone, s, (i - 2, s.clone())) } {
+        let s = &self.records[i - self.table.columns()];
+        match unsafe {
+          InputField::new(desc, drone, s, (i - self.table.columns(), s.clone()))
+        } {
           Ok(f) => CallbackResult::Push(Box::new(ring::wrap(f))),
           Err(e) => CallbackResult::Error(e),
         }

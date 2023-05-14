@@ -1,13 +1,13 @@
-use std::sync::{Arc, RwLock, RwLockReadGuard};
+use std::sync::RwLockReadGuard;
 
-use downcast_rs::{impl_downcast, Downcast};
+use downcast_rs::{impl_downcast, DowncastSync};
 
-use crate::render::painter::{Description, Drone, DroneFeed};
+use crate::render::painter::{Description, DroneFeed};
 
 use super::{Error, Widget};
 
 /// `Drawable` is an object, capable of being drawn.
-pub trait Drawable: Widget + Downcast + Send + Sync {
+pub trait Drawable: Widget + DowncastSync + Send + Sync {
   /// Map widget's layout to normalized coordinates according to origin.
   /// Must be called before drawing.
   ///

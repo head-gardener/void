@@ -4,3 +4,5 @@ pub mod logic;
 pub mod render;
 pub mod widgets;
 pub mod backend;
+
+pub use voidmacro::*;
