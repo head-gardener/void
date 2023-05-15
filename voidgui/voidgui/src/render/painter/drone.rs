@@ -8,22 +8,22 @@ use std::{
 
 use glfw::{Context, Window};
 
-use crate::render::{
-  painter::comres::CommonResources,
-  shaders::{Shader, Shaders},
-  shapes::{
-    rectangle::{self, Style},
-    Rectangle,
-  },
-  Color,
-};
 use crate::{
   colorscheme::BACKGROUND,
   render::shapes::{Grid, TextureData},
 };
+use crate::{debug, render::shapes::Texture};
 use crate::{
-  debug,
-  render::{painter::buffer::Buffer, shapes::Texture},
+  logic::StableBuffer,
+  render::{
+    painter::comres::CommonResources,
+    shaders::{Shader, Shaders},
+    shapes::{
+      rectangle::{self, Style},
+      Rectangle,
+    },
+    Color,
+  },
 };
 
 use super::Description;
@@ -148,7 +148,11 @@ impl Drone {
 
         let shaders = Shaders::new();
         let common = CommonResources::allocate();
-        let mut resources = (Buffer::new(), Buffer::new(), Buffer::new());
+        let mut resources = (
+          StableBuffer::new(),
+          StableBuffer::new(),
+          StableBuffer::new(),
+        );
 
         tx.send(Response::InitComplete(events)).unwrap();
 
@@ -358,7 +362,11 @@ impl Command {
     shaders: &Shaders,
     common: &CommonResources,
     _: &Arc<RwLock<Description>>,
-    res: &mut (Buffer<Rectangle>, Buffer<Texture>, Buffer<Grid>),
+    res: &mut (
+      StableBuffer<Rectangle>,
+      StableBuffer<Texture>,
+      StableBuffer<Grid>,
+    ),
     win: &mut Window,
   ) -> Option<Response> {
     match self {

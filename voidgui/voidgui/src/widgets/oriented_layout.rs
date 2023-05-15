@@ -1,22 +1,25 @@
 use std::sync::RwLockReadGuard;
 
-use crate::render::{
-  painter::{Buffer, Description, DroneFeed},
-  Origin, OriginPole, Size,
+use crate::{
+  logic::StableBuffer,
+  render::{
+    painter::{Description, DroneFeed},
+    Origin, OriginPole, Size,
+  },
 };
 
 use super::traits::{Drawable, Parent, Widget};
 
 pub struct OrientedLayout {
   origin: Option<Origin>,
-  sizes: Buffer<u16>,
+  sizes: StableBuffer<u16>,
 }
 
 impl OrientedLayout {
   pub fn new() -> Self {
     Self {
       origin: None,
-      sizes: Buffer::new(),
+      sizes: StableBuffer::new(),
     }
   }
 }

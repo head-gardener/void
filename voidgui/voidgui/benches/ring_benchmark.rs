@@ -8,7 +8,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use voidgui::logic::ring::Mark;
 use voidgui::logic::CallbackResult;
 use voidgui::render::painter::{Description, DroneFeed};
-use voidgui::render::{Point, Size};
+use voidgui::render::Point;
 use voidgui::widgets;
 use voidgui::widgets::traits::Parent;
 use voidgui::{
@@ -82,7 +82,7 @@ impl ClickSink for W {
 }
 
 impl Parent for W {
-  fn nth_child(&self, n: usize, _: Size) -> Option<Origin> {
+  fn nth_child(&self, n: usize) -> Option<Origin> {
     Some(Origin::new(
       n as u16 * 10,
       n as u16 * 10,

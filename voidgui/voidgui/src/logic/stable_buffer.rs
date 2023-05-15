@@ -1,6 +1,6 @@
-pub struct Buffer<T>(Vec<Option<T>>);
+pub struct StableBuffer<T>(Vec<Option<T>>);
 
-impl<T> Buffer<T> {
+impl<T> StableBuffer<T> {
   pub fn new() -> Self {
     Self(vec![])
   }
