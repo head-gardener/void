@@ -189,7 +189,7 @@ impl TextTable {
   }
 
   pub unsafe fn from_text<R>(
-    desc: &RwLockReadGuard<Description>,
+    desc: &Description,
     drone: &Drone,
     rows: usize,
     columns: usize,

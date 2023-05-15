@@ -4,7 +4,7 @@ use crate::{
   logic::ring,
   render::{
     painter::{Description, DroneFeed},
-    Area, Origin, OriginPole, Size,
+    Area, Origin, OriginPole,
   },
 };
 
@@ -26,7 +26,7 @@ impl Window {
   pub fn push_to_ring(self, ring: &mut crate::logic::Ring) {
     let rc = ring::wrap(self);
     ring.push_parent(rc.clone(), crate::logic::ring::Mark::Window);
-    ring.push(
+    ring.push_static(
       rc,
       crate::logic::ring::Mark::Window,
       crate::logic::ring::Mark::None,
@@ -69,7 +69,7 @@ impl Drawable for Window {
 }
 
 impl Parent for Window {
-  fn nth_child(&self, n: usize, _: Size) -> Option<Origin> {
+  fn nth_child(&self, n: usize) -> Option<Origin> {
     match n {
       0 => Some(Origin::new(30, 30, OriginPole::TopLeft)),
       1 => Some(Origin::new(self.area.width, 0, OriginPole::TopRight)),

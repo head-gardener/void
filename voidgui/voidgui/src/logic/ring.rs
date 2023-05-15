@@ -31,6 +31,7 @@ pub enum Mark {
   ToolbarDropdown,
   DamageTracker,
   Status(u64),
+  StatusBox,
 }
 
 impl Into<usize> for Mark {
@@ -135,13 +136,27 @@ impl Ring {
     }
   }
 
-  pub fn push(
+  /// Same as [Ring::push_dynamic], but the child n in known ahead of time - i.e.
+  /// parent is static
+  pub fn push_static(
     &mut self,
     w: Wrap<dyn Drawable>,
     m: Mark,
     parent: Mark,
     n: usize,
   ) {
+    self.widgets.push((w, m, parent, n));
+  }
+
+  /// Same as [Ring::push_static], but the child n in polled from parent.
+  pub fn push_dynamic(&mut self, w: Wrap<dyn Drawable>, m: Mark, parent: Mark) {
+    let s = w.write().unwrap().size();
+    let n = self
+      .pull_parent(&parent)
+      .unwrap()
+      .write()
+      .unwrap()
+      .add_child(s);
     self.widgets.push((w, m, parent, n));
   }
 
@@ -184,7 +199,13 @@ impl Ring {
   pub fn delete(&mut self, m: Mark) -> bool {
     let len = self.widgets.len();
 
-    self.widgets.retain(|(_, _m, _, _)| *_m != m);
+    self.widgets.iter().for_each(|(_, _m, p, n)| {
+      if *_m == m {
+        self.pull_parent(&p).unwrap().write().unwrap().pop_child(*n);
+      }
+    });
+
+    self.widgets.retain(|(_, _m, p, _)| *_m != m && *p != m);
     self.parents.retain(|(_, _m)| *_m != m);
 
     self.transients.retain(|(_, _m)| *_m != m);
@@ -216,24 +237,24 @@ impl Ring {
       .par_bridge()
       .map(|((w, _m, p, n), feed)| {
         let mut w = w.write().unwrap();
+        if *p != Mark::None {
+          let o = parents
+            .iter()
+            .position(|(_, m)| *m == *p)
+            .map(|i| self.parents.get(i).unwrap().0.clone())
+            .ok_or(widgets::Error::Unspecified(
+              "Invalid parent mark".to_owned(),
+            ))?
+            .read()
+            .unwrap()
+            .nth_child(*n)
+            .ok_or(widgets::Error::Unspecified(format!(
+              "Child out of bounds: {}",
+              n
+            )))?;
+          w.set_origin(&o);
+        }
         if !w.plotted() {
-          if *p != Mark::None {
-            let o = parents
-              .iter()
-              .position(|(_, m)| *m == *p)
-              .map(|i| self.parents.get(i).unwrap().0.clone())
-              .ok_or(widgets::Error::Unspecified(
-                "Invalid parent mark".to_owned(),
-              ))?
-              .read()
-              .unwrap()
-              .nth_child(*n, w.size())
-              .ok_or(widgets::Error::Unspecified(format!(
-                "Child out of bounds: {}",
-                n
-              )))?;
-            w.set_origin(&o);
-          }
           w.plot(desc.read().unwrap(), feed)
         } else {
           Ok(())
@@ -423,7 +444,7 @@ mod tests {
 
     pub fn push_to_ring(self, ring: &mut crate::logic::Ring) {
       let rc = ring::wrap(self);
-      ring.push(
+      ring.push_static(
         rc,
         crate::logic::ring::Mark::_Test1,
         crate::logic::ring::Mark::None,

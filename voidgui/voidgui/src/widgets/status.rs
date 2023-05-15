@@ -1,7 +1,7 @@
 use std::{
   collections::hash_map::DefaultHasher,
   hash::{Hash, Hasher},
-  sync::{RwLockReadGuard, RwLockWriteGuard},
+  sync::RwLockReadGuard,
 };
 
 use voidmacro::{DrawableMenu, Menu};
@@ -26,7 +26,7 @@ pub struct Status {
 impl Status {
   pub unsafe fn new<R>(
     message: R,
-    desc: &RwLockReadGuard<Description>,
+    desc: &Description,
     ring: Wrap<Ring>,
     drone: &Drone,
   ) -> Result<(Self, u64), widgets::Error>
@@ -56,14 +56,10 @@ impl Status {
     Ok((Self { table }, uid))
   }
 
-  pub fn push_to_ring(
-    self,
-    uid: u64,
-    mut ring: RwLockWriteGuard<crate::logic::Ring>,
-  ) {
+  pub fn push_to_ring(self, uid: u64, ring: &mut crate::logic::Ring) {
     let rc = ring::wrap(self);
     ring.push_transient(rc.clone(), Mark::Status(uid));
-    ring.push(rc, Mark::Status(uid), Mark::Window, 3);
+    ring.push_dynamic(rc, Mark::Status(uid), Mark::StatusBox);
   }
 }
 

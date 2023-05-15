@@ -3,7 +3,8 @@ use std::ffi::{c_char, CStr};
 use voidgui::{
   backend::Backend,
   core::*,
-  widgets::{self, toolbar::Toolbar, Spreadsheet, Status},
+  logic::ring,
+  widgets::{self, toolbar::Toolbar, OrientedLayout, Spreadsheet, Status},
   Entry,
 };
 
@@ -56,10 +57,17 @@ unsafe fn populate(c: &mut Core, b: &mut Backend) {
   let win = widgets::Window::new(&painter);
   let ssheet = Spreadsheet::new::<Entry>(&painter, &mut b.drone).unwrap();
   let toolbar = Toolbar::new(&painter, &mut b.drone).unwrap();
+  let statusbox = OrientedLayout::new();
 
-  win.push_to_ring(&mut c.ring().write().unwrap());
-  ssheet.push_to_ring(&mut c.ring().write().unwrap());
-  toolbar.push_to_ring(&mut c.ring().write().unwrap());
+  let mut ring = c.ring().write().unwrap();
+  win.push_to_ring(&mut ring);
+  ssheet.push_to_ring(&mut ring);
+  toolbar.push_to_ring(&mut ring);
+  {
+    let rc = ring::wrap(statusbox);
+    ring.push_parent(rc.clone(), ring::Mark::StatusBox);
+    ring.push_static(rc, ring::Mark::StatusBox, ring::Mark::Window, 3);
+  }
 }
 
 #[no_mangle]
@@ -95,7 +103,7 @@ extern "C" fn void_gui_status(msg: *const c_char, w: &mut Instance) {
       &w.b.drone,
     )
   }
-  .map(|(s, uid)| s.push_to_ring(uid, w.c.ring().write().unwrap()))
+  .map(|(s, uid)| s.push_to_ring(uid, &mut w.c.ring().write().unwrap()))
   .unwrap_or_default();
 }
 

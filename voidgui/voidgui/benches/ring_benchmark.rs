@@ -185,7 +185,7 @@ fn setup() -> (Backend, Core, rand::rngs::ThreadRng) {
       let r = ring::wrap(w);
       ring.push_click_sink(r.clone(), m);
       ring.push_parent(r.clone(), m);
-      ring.push(r, m, Mark::None, 0);
+      ring.push_static(r, m, Mark::None, 0);
     }
 
     for m in [Mark::_Test1, Mark::_Test2] {
@@ -197,7 +197,7 @@ fn setup() -> (Backend, Core, rand::rngs::ThreadRng) {
         );
         let r = ring::wrap(w);
         ring.push_click_sink(r.clone(), Mark::None);
-        ring.push(r, Mark::None, m, i as usize);
+        ring.push_static(r, Mark::None, m, i as usize);
       }
     }
   }

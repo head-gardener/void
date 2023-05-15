@@ -89,7 +89,7 @@ impl Spreadsheet {
   pub fn push_to_ring(self, ring: &mut crate::logic::Ring) {
     let rc = ring::wrap(self);
     ring.push_click_sink(rc.clone(), Mark::Spreadsheet);
-    ring.push(rc, Mark::Spreadsheet, Mark::Window, 0);
+    ring.push_static(rc, Mark::Spreadsheet, Mark::Window, 0);
   }
 
   pub fn update_record(
@@ -166,6 +166,6 @@ impl RingElement for ring::Wrap<InputField<SpreadsheetIF>> {
   fn push_to_ring(&self, mut ring: RwLockWriteGuard<crate::logic::Ring>) {
     ring.push_input_sink(self.clone(), Mark::SpreadsheetInputField);
     ring.push_transient(self.clone(), Mark::SpreadsheetInputField);
-    ring.push(self.clone(), Mark::SpreadsheetInputField, Mark::Window, 2);
+    ring.push_static(self.clone(), Mark::SpreadsheetInputField, Mark::Window, 2);
   }
 }

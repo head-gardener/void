@@ -48,7 +48,7 @@ impl Toolbar {
     let rc = ring::wrap(self);
     ring.push_click_sink(rc.clone(), crate::logic::ring::Mark::Toolbar);
     ring.push_parent(rc.clone(), crate::logic::ring::Mark::Toolbar);
-    ring.push(
+    ring.push_static(
       rc,
       crate::logic::ring::Mark::Toolbar,
       crate::logic::ring::Mark::Window,
@@ -82,7 +82,7 @@ impl ClickSink for Toolbar {
 }
 
 impl Parent for Toolbar {
-  fn nth_child(&self, n: usize, _: Size) -> Option<Origin> {
+  fn nth_child(&self, n: usize) -> Option<Origin> {
     let a = self.table.cells()?.get(n)?;
     Some(Origin {
       x: a.x,
@@ -119,7 +119,7 @@ impl RingElement for ring::Wrap<ToolbarTable> {
     ring.push_click_sink(self.clone(), crate::logic::ring::Mark::Toolbar);
     ring
       .push_transient(self.clone(), crate::logic::ring::Mark::ToolbarDropdown);
-    ring.push(
+    ring.push_static(
       self.clone(),
       crate::logic::ring::Mark::ToolbarDropdown,
       crate::logic::ring::Mark::Toolbar,
