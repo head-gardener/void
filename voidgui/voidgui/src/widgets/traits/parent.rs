@@ -1,4 +1,4 @@
-use crate::render::Origin;
+use crate::render::{Origin, Size};
 
 /// `Parent` is an object, that can be polled for position of its children.
 /// 
@@ -8,5 +8,5 @@ use crate::render::Origin;
 /// note, however, that parent should be pushed to ring before children, since
 /// plotting and origin polling is performed in order from older to earlier.
 pub trait Parent: Send + Sync {
-  fn nth_child(&self, n: usize) -> Option<Origin>;
+  fn nth_child(&self, n: usize, s: Size) -> Option<Origin>;
 }

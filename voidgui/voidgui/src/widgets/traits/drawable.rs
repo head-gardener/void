@@ -2,7 +2,7 @@ use std::sync::RwLockReadGuard;
 
 use downcast_rs::{impl_downcast, DowncastSync};
 
-use crate::render::painter::{Description, DroneFeed};
+use crate::render::{painter::{Description, DroneFeed}, Size};
 
 use super::{Error, Widget};
 
@@ -32,5 +32,7 @@ pub trait Drawable: Widget + DowncastSync + Send + Sync {
   /// Returns error when sequenced incorrectly and in obscure cases when
   /// drawing fails.
   unsafe fn draw(&mut self, feed: DroneFeed) -> Result<(), Error>;
+
+  fn size(&mut self) -> Size;
 }
 impl_downcast!(Drawable);

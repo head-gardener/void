@@ -4,7 +4,7 @@ use crate::{
   logic::ring,
   render::{
     painter::{Description, DroneFeed},
-    Area, Origin, OriginPole,
+    Area, Origin, OriginPole, Size,
   },
 };
 
@@ -61,14 +61,24 @@ impl Drawable for Window {
   unsafe fn draw(&mut self, _: DroneFeed) -> Result<(), super::traits::Error> {
     Ok(())
   }
+
+  fn size(&mut self) -> crate::render::Size {
+    let (_, s) = self.area.to_prim();
+    s
+  }
 }
 
 impl Parent for Window {
-  fn nth_child(&self, n: usize) -> Option<Origin> {
+  fn nth_child(&self, n: usize, _: Size) -> Option<Origin> {
     match n {
       0 => Some(Origin::new(30, 30, OriginPole::TopLeft)),
       1 => Some(Origin::new(self.area.width, 0, OriginPole::TopRight)),
       2 => Some(Origin::new(0, self.area.height, OriginPole::BottomLeft)),
+      3 => Some(Origin::new(
+        self.area.width,
+        self.area.height,
+        OriginPole::BottomRight,
+      )),
       _ => None,
     }
   }

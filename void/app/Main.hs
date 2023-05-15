@@ -16,14 +16,14 @@ main =
   pull w = do
     conn <- DB.connection
     case conn of
-      Left e -> putStrLn $ "Connection error: " ++ show e
+      Left _ -> G.putStatus w "Connection error!" -- ++ show e
       Right conn -> DB.pull conn >>= (G.drop w `seq` G.push w)
 
   push :: G.VoidInstance -> IO ()
   push w = do
     conn <- DB.connection
     case conn of
-      Left e -> putStrLn $ "Connection error: " ++ show e
+      Left _ -> G.putStatus w "Connection error!" -- ++ show e
       Right conn -> G.pull w >>= DB.push conn
 
   fill :: G.VoidInstance -> IO ()
@@ -40,6 +40,6 @@ main =
   do_exec :: G.VoidInstance -> CInt -> IO ()
   do_exec w 0 = do_exec w $ G.wait w
   do_exec w 3 = push w >> do_exec w (G.wait w)
-  do_exec w 2 = pull w >> do_exec w (G.wait w)
+  do_exec w 2 = pull w >>= \x -> x `seq` do_exec w (G.wait w)
   do_exec w 1 = return ()
   do_exec w code = putStrLn ("Unexpected code " ++ show code) >> do_exec w (G.wait w)

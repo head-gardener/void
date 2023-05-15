@@ -30,6 +30,17 @@ pub enum Mark {
   Toolbar,
   ToolbarDropdown,
   DamageTracker,
+  Status(u64),
+}
+
+impl Into<usize> for Mark {
+  fn into(self) -> usize {
+    match self {
+      Mark::_Test1 => 0,
+      Mark::_Test2 => 1,
+      _ => todo!(),
+    }
+  }
 }
 
 pub enum CallbackResult {
@@ -96,7 +107,7 @@ pub fn wrap<T: Send + Sync>(x: T) -> Wrap<T> {
 }
 
 pub trait RingElement {
-  fn push_to_ring(&self, ring: &mut Ring);
+  fn push_to_ring(&self, ring: RwLockWriteGuard<Ring>);
 }
 
 pub type WidgetElement = (Wrap<dyn Drawable>, Mark, Mark, usize);
@@ -105,7 +116,7 @@ pub type Element<T> = (Wrap<T>, Mark);
 pub struct Ring {
   widgets: Vec<WidgetElement>,
   parents: Vec<Element<dyn Parent>>,
-  transient: Option<Element<dyn Transient>>,
+  transients: Vec<Element<dyn Transient>>,
 
   click_sinks: Vec<Element<dyn ClickSink>>,
   input_sinks: Vec<Element<dyn InputSink>>,
@@ -117,7 +128,7 @@ impl Ring {
     Self {
       widgets: vec![],
       parents: vec![],
-      transient: None,
+      transients: vec![],
       click_sinks: vec![],
       input_sinks: vec![],
       key_sinks: vec![],
@@ -138,11 +149,8 @@ impl Ring {
     self.parents.push((w, m));
   }
 
-  pub fn replace_transient(&mut self, w: Wrap<dyn Transient>, m: Mark) {
-    if let Some((_, m)) = &self.transient {
-      self.delete(*m);
-    }
-    self.transient = Some((w, m));
+  pub fn push_transient(&mut self, w: Wrap<dyn Transient>, m: Mark) {
+    self.transients.push((w, m));
   }
 
   pub fn push_click_sink(&mut self, w: Wrap<dyn ClickSink>, m: Mark) {
@@ -178,12 +186,8 @@ impl Ring {
 
     self.widgets.retain(|(_, _m, _, _)| *_m != m);
     self.parents.retain(|(_, _m)| *_m != m);
-    if let Some((_, _m)) = &self.transient {
-      if *_m == m {
-        self.transient = None;
-      }
-    }
 
+    self.transients.retain(|(_, _m)| *_m != m);
     self.click_sinks.retain(|(_, _m)| *_m != m);
     self.input_sinks.retain(|(_, _m)| *_m != m);
     self.key_sinks.retain(|(_, _m)| *_m != m);
@@ -223,7 +227,7 @@ impl Ring {
               ))?
               .read()
               .unwrap()
-              .nth_child(*n)
+              .nth_child(*n, w.size())
               .ok_or(widgets::Error::Unspecified(format!(
                 "Child out of bounds: {}",
                 n
@@ -296,30 +300,37 @@ impl Ring {
   pub fn catch_transient_control_event(
     &mut self,
     _: &RwLockReadGuard<Description>,
-    drone: &Drone,
+    feed: &DroneFeed,
     e: &WindowEvent,
   ) -> (CallbackResult, Mark) {
-    if !self.transient.is_some() {
-      return (CallbackResult::Pass, Mark::None);
-    }
-    let (trans, m) = self.transient.as_ref().unwrap();
-    let m = m.clone();
+    let mut r = CallbackResult::Pass;
+    let mut m = Mark::None;
+    let mut caught = false;
 
-    match e {
-      WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
-        let r = trans.write().unwrap().handle_cancel(drone);
-        self.delete(m);
-        (r, m)
+    for (trans, _m) in self.transients.iter().rev() {
+      match e {
+        WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
+          r = trans.write().unwrap().handle_cancel(feed);
+          m = *_m;
+          caught = true;
+          break;
+        }
+        WindowEvent::Key(Key::Enter | Key::KpEnter, _, Action::Press, mods)
+          if !mods.contains(Modifiers::Control) =>
+        {
+          r = trans.write().unwrap().handle_accept(feed);
+          m = *_m;
+          caught = true;
+          break;
+        }
+        _ => {}
       }
-      WindowEvent::Key(Key::Enter | Key::KpEnter, _, Action::Press, mods)
-        if !mods.contains(Modifiers::Control) =>
-      {
-        let r = trans.write().unwrap().handle_accept(drone);
-        self.delete(m);
-        (r, m)
-      }
-      _ => (CallbackResult::Pass, Mark::None),
     }
+
+    if caught {
+      self.delete(m);
+    }
+    (r, m)
   }
 
   pub fn catch_key(
@@ -335,6 +346,26 @@ impl Ring {
       }
     }
     (CallbackResult::Pass, Mark::None)
+  }
+
+  pub fn kill_transient(
+    &mut self,
+    drone: &DroneFeed,
+    m: Mark,
+  ) -> CallbackResult {
+    let mut caught = false;
+    let mut res = CallbackResult::Pass;
+    for (w, _m) in self.transients.iter() {
+      if *_m == m {
+        res = w.write().unwrap().handle_cancel(drone);
+        caught = true;
+        break;
+      }
+    }
+    if caught {
+      self.delete(m);
+    }
+    res
   }
 }
 
@@ -363,7 +394,10 @@ mod tests {
   use crate::{
     backend::Backend,
     logic::ring,
-    render::painter::{Description, DroneFeed},
+    render::{
+      painter::{Description, DroneFeed},
+      Size,
+    },
     widgets::{
       self,
       traits::{Drawable, Widget},
@@ -431,6 +465,10 @@ mod tests {
       } else {
         Ok(())
       }
+    }
+
+    fn size(&mut self) -> crate::render::Size {
+      Size::new(0, 0)
     }
   }
 

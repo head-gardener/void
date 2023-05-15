@@ -21,7 +21,7 @@ pub enum InputEvent {
 /// # Properties
 ///
 /// Only one input sink can be consuming text input at a time.
-pub trait InputSink {
+pub trait InputSink: Send + Sync {
   fn handle_event(
     &mut self,
     desc: &RwLockReadGuard<Description>,

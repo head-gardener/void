@@ -8,7 +8,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use voidgui::logic::ring::Mark;
 use voidgui::logic::CallbackResult;
 use voidgui::render::painter::{Description, DroneFeed};
-use voidgui::render::Point;
+use voidgui::render::{Point, Size};
 use voidgui::widgets;
 use voidgui::widgets::traits::Parent;
 use voidgui::{
@@ -64,6 +64,10 @@ impl Drawable for W {
   unsafe fn draw(&mut self, feed: DroneFeed) -> Result<(), widgets::Error> {
     self.table.draw(&feed)
   }
+
+  fn size(&mut self) -> voidgui::render::Size {
+    self.table.size()
+  }
 }
 
 impl ClickSink for W {
@@ -78,7 +82,7 @@ impl ClickSink for W {
 }
 
 impl Parent for W {
-  fn nth_child(&self, n: usize) -> Option<Origin> {
+  fn nth_child(&self, n: usize, _: Size) -> Option<Origin> {
     Some(Origin::new(
       n as u16 * 10,
       n as u16 * 10,
@@ -92,7 +96,7 @@ pub fn draw_bench_plot_all(c: &mut Criterion) {
 
   c.bench_function("plot a lot", |b| {
     b.iter(|| {
-      core.ring_mut().into_iter().for_each(|w| {
+      core.ring().write().unwrap().into_iter().for_each(|w| {
         w.0.write().unwrap().request_plot();
       });
       core.draw(&back);
@@ -108,7 +112,9 @@ pub fn draw_bench_plot_one(c: &mut Criterion) {
   c.bench_function("plot one", |b| {
     b.iter(|| {
       core
-        .ring_mut()
+        .ring()
+        .write()
+        .unwrap()
         .into_iter()
         .nth(rng.gen_range(0..10 as usize))
         .map(|w| {
@@ -122,11 +128,11 @@ pub fn draw_bench_plot_one(c: &mut Criterion) {
 }
 
 pub fn maintenance_bench(c: &mut Criterion) {
-  let (_, mut core, _) = setup();
+  let (_, core, _) = setup();
 
   c.bench_function("request plot for all", |b| {
     b.iter(|| {
-      core.ring_mut().into_iter().for_each(|w| {
+      core.ring().write().unwrap().into_iter().for_each(|w| {
         w.0.write().unwrap().request_plot();
       });
     })
@@ -163,29 +169,36 @@ pub fn event_bench(c: &mut Criterion) {
 
 fn setup() -> (Backend, Core, rand::rngs::ThreadRng) {
   let back = unsafe { Backend::new(400, 400) };
-  let mut core = Core::new();
+  let core = Core::new();
   let rng = rand::thread_rng();
 
-  // push parents
-  for m in [Mark::_Test1, Mark::_Test2] {
-    let mut w = W::new(m as usize, back.desc.read().unwrap(), &back.drone);
-    w.set_origin(&Origin::new(0, 0, voidgui::render::OriginPole::TopLeft));
-    let r = ring::wrap(w);
-    core.ring_mut().push_click_sink(r.clone(), m);
-    core.ring_mut().push_parent(r.clone(), m);
-    core.ring_mut().push(r, m, Mark::None, 0);
-  }
-
-  for m in [Mark::_Test1, Mark::_Test2] {
-    for i in 0..4 {
-      let w = W::new(
-        2 + i + 4 * m as usize,
+  {
+    let mut ring = core.ring().write().unwrap();
+    // push parents
+    for m in [Mark::_Test1, Mark::_Test2] {
+      let mut w = W::new(
+        Into::<usize>::into(m),
         back.desc.read().unwrap(),
         &back.drone,
       );
+      w.set_origin(&Origin::new(0, 0, voidgui::render::OriginPole::TopLeft));
       let r = ring::wrap(w);
-      core.ring_mut().push_click_sink(r.clone(), Mark::None);
-      core.ring_mut().push(r, Mark::None, m, i as usize);
+      ring.push_click_sink(r.clone(), m);
+      ring.push_parent(r.clone(), m);
+      ring.push(r, m, Mark::None, 0);
+    }
+
+    for m in [Mark::_Test1, Mark::_Test2] {
+      for i in 0..4 {
+        let w = W::new(
+          2 + i + 4 * Into::<usize>::into(m),
+          back.desc.read().unwrap(),
+          &back.drone,
+        );
+        let r = ring::wrap(w);
+        ring.push_click_sink(r.clone(), Mark::None);
+        ring.push(r, Mark::None, m, i as usize);
+      }
     }
   }
 

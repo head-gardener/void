@@ -8,16 +8,19 @@ module GUI where
 import Codec.Serialise (Serialise, deserialise)
 import Codec.Serialise.Class (decode)
 import Codec.Serialise.Decoding
-import Control.Monad (when)
+import Control.Monad ( when, liftM )
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Data.Char (ord)
+import Database.PostgreSQL.Simple (Connection)
 import Debug.Trace (trace)
 import Entry
 import Foreign
 import Foreign.C.String
 import Foreign.C.Types
 import GHC.Generics
+import GHC.Base (ap)
+import Data.ByteString
 
 foreign import ccall "void_gui_init"
   void_gui_init :: VoidInstance
@@ -39,6 +42,9 @@ foreign import ccall "void_gui_pull_damage"
 
 foreign import ccall "void_gui_free_damage"
   void_gui_free_damage :: Ptr CInt -> CInt
+
+foreign import ccall "void_gui_status"
+  void_gui_status :: Ptr CChar -> VoidInstance -> ()
 
 -- compiler might decide to free this object at any point which would be a
 -- real nuisance
@@ -64,7 +70,7 @@ withNewInstance f =
     Just w -> do
       f w
       void_gui_finish w `seq` return ()
-    Nothing -> putStrLn "Initialization failure"
+    Nothing -> Prelude.putStrLn "Initialization failure"
 
 newWindow :: Maybe VoidInstance
 newWindow = void_gui_init `seq` checkWindow void_gui_init
@@ -87,6 +93,11 @@ push window =
 
 drop :: VoidInstance -> CInt
 drop = void_gui_drop
+
+putStatus :: VoidInstance -> String -> IO ()
+putStatus w s = 
+    withCString s $ \ s ->
+      void_gui_status s w `seq` return ()
 
 pull :: VoidInstance -> IO [Damage]
 pull w = do

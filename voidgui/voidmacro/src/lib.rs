@@ -61,6 +61,9 @@ pub fn derive_draw_menu(input: TokenStream) -> TokenStream {
       {
         self.table.draw(&mut feed)
       }
+      fn size(&mut self) -> Size {
+        self.table.size()
+      }
     }
   };
 
@@ -98,9 +101,7 @@ pub fn derive_entry(input: TokenStream) -> TokenStream {
       .fields
       .iter()
       .filter_map(|f| f.ident.to_owned())
-      .filter(|i| {
-          i.to_string().starts_with("d_")
-      })
+      .filter(|i| i.to_string().starts_with("d_"))
       .collect(),
     _ => todo!(),
   };

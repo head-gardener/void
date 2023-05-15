@@ -1,4 +1,4 @@
-use std::sync::RwLockReadGuard;
+use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 
 use voidmacro::{ClickableMenu, DrawableMenu, Menu};
 
@@ -9,7 +9,7 @@ use crate::{
   },
   render::{
     painter::{Description, Drone, DroneFeed},
-    Area, Origin, Point, TextTable,
+    Area, Origin, Point, Size, TextTable,
   },
   widgets::InputField,
 };
@@ -153,7 +153,7 @@ impl ClickSink for Spreadsheet {
 type SpreadsheetIF = (u64, usize, Box<String>);
 
 impl Transient for InputField<SpreadsheetIF> {
-  fn handle_accept(&self, _: &Drone) -> CallbackResult {
+  fn handle_accept(&self, _: &DroneFeed) -> CallbackResult {
     let (uuid, c, from) = self.closure().clone();
     let to = self.to_string();
     CallbackResult::Damage(Box::new(move |t| {
@@ -163,9 +163,9 @@ impl Transient for InputField<SpreadsheetIF> {
 }
 
 impl RingElement for ring::Wrap<InputField<SpreadsheetIF>> {
-  fn push_to_ring(&self, ring: &mut crate::logic::Ring) {
+  fn push_to_ring(&self, mut ring: RwLockWriteGuard<crate::logic::Ring>) {
     ring.push_input_sink(self.clone(), Mark::SpreadsheetInputField);
-    ring.replace_transient(self.clone(), Mark::SpreadsheetInputField);
+    ring.push_transient(self.clone(), Mark::SpreadsheetInputField);
     ring.push(self.clone(), Mark::SpreadsheetInputField, Mark::Window, 2);
   }
 }

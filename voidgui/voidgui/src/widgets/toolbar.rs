@@ -1,4 +1,4 @@
-use std::sync::RwLockReadGuard;
+use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 
 use crate::{
   logic::{
@@ -8,7 +8,7 @@ use crate::{
   render::{
     painter::{Description, Drone, DroneFeed},
     text_table::Orientation,
-    Area, Origin, Point, TextTable,
+    Area, Origin, Point, Size, TextTable,
   },
   widgets,
 };
@@ -82,7 +82,7 @@ impl ClickSink for Toolbar {
 }
 
 impl Parent for Toolbar {
-  fn nth_child(&self, n: usize) -> Option<Origin> {
+  fn nth_child(&self, n: usize, _: Size) -> Option<Origin> {
     let a = self.table.cells()?.get(n)?;
     Some(Origin {
       x: a.x,
@@ -115,12 +115,10 @@ impl ToolbarTable {
 }
 
 impl RingElement for ring::Wrap<ToolbarTable> {
-  fn push_to_ring(&self, ring: &mut crate::logic::Ring) {
+  fn push_to_ring(&self, mut ring: RwLockWriteGuard<crate::logic::Ring>) {
     ring.push_click_sink(self.clone(), crate::logic::ring::Mark::Toolbar);
-    ring.replace_transient(
-      self.clone(),
-      crate::logic::ring::Mark::ToolbarDropdown,
-    );
+    ring
+      .push_transient(self.clone(), crate::logic::ring::Mark::ToolbarDropdown);
     ring.push(
       self.clone(),
       crate::logic::ring::Mark::ToolbarDropdown,

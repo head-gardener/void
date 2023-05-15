@@ -7,7 +7,7 @@ use crate::{
     painter::{Description, Drone, DroneFeed},
     shapes::{rectangle, texture::get_text_size},
     text_table::{Orientation, OFFSET},
-    Area, Origin, TextTable,
+    Area, Origin, TextTable, Size,
   },
 };
 
@@ -52,7 +52,7 @@ impl<T: Send> InputField<T> {
   }
 }
 
-impl<T> InputSink for InputField<T> {
+impl<T: Send + Sync> InputSink for InputField<T> {
   fn handle_event(
     &mut self,
     desc: &RwLockReadGuard<Description>,
@@ -110,6 +110,10 @@ impl<T: Send + Sync + 'static> Drawable for InputField<T> {
     self.table.draw(&feed)?;
     feed.draw_rectangle(self.cursor);
     Ok(())
+  }
+
+  fn size(&mut self) -> Size {
+    self.table.size()
   }
 }
 

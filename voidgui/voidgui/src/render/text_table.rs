@@ -319,7 +319,7 @@ impl TextTable {
     Ok(())
   }
 
-  /// Ensure this [TextTable] is has been committed, calculating
+  /// Ensure this [TextTable] has been committed, calculating
   /// new [Layout] if necessary.
   pub fn ensure_committed(&mut self) {
     if !self.state.is_none() {
@@ -442,6 +442,11 @@ impl TextTable {
   pub fn area(&self) -> Option<Area> {
     let s = self.state.try_layout().ok()?.size().clone();
     self.origin.map(|o| Area::from_prim(o.to_point(&s), s))
+  }
+
+  pub fn size(&mut self) -> Size {
+    self.ensure_committed();
+    self.state.try_layout().unwrap().size()
   }
 
   pub fn cells(&self) -> Option<&Vec<Area>> {

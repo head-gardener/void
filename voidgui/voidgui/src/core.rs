@@ -28,20 +28,23 @@ macro_rules! debug {
 }
 
 pub struct Core {
-  ring: Ring,
-  cursor: Point,
-
+  ring: Wrap<Ring>,
   damage_tracker: Wrap<DamageTracker>,
+
+  cursor: Point,
 }
 
 impl Core {
   pub fn new() -> Self {
-    let ring = Ring::new();
+    let mut ring = Ring::new();
+
+    let dt = DamageTracker::new();
+    let damage_tracker = dt.push_to_ring(&mut ring);
 
     Self {
-      ring,
+      ring: ring::wrap(ring),
       cursor: Point::new(0, 0),
-      damage_tracker: ring::wrap(DamageTracker::new()),
+      damage_tracker,
     }
   }
 
@@ -72,9 +75,11 @@ impl Core {
   ) -> u64 {
     let desc_lock = desc.read().unwrap();
 
-    let res = self
-      .ring
-      .catch_transient_control_event(&desc_lock, drone, &event);
+    let res = self.ring.write().unwrap().catch_transient_control_event(
+      &desc_lock,
+      drone.feed(),
+      &event,
+    );
     match self.handle_callback_result_mut(
       &desc_lock,
       drone,
@@ -85,7 +90,11 @@ impl Core {
       Err(c) => return c,
       _ => {}
     }
-    let res = self.ring.catch_key(&desc_lock, drone, &event);
+    let res = self
+      .ring
+      .write()
+      .unwrap()
+      .catch_key(&desc_lock, drone, &event);
     match self.handle_callback_result_mut(&desc_lock, drone, res, "Click") {
       Ok(true) => return 0,
       Err(c) => return c,
@@ -106,7 +115,7 @@ impl Core {
       // Resize
       WindowEvent::Size(w, h) => {
         // p.resize(w as u16, h as u16);
-        self.ring.into_iter().for_each(|w| {
+        self.ring.write().unwrap().into_iter().for_each(|w| {
           w.0.write().unwrap().request_plot();
         });
         gl::Viewport(0, 0, w, h);
@@ -117,7 +126,11 @@ impl Core {
         self.cursor = Point::new(x as u16, y as u16);
       }
       WindowEvent::MouseButton(MouseButton::Button1, Action::Press, _mods) => {
-        let res = self.ring.catch_click(&desc_lock, drone, self.cursor);
+        let res = self.ring.write().unwrap().catch_click(
+          &desc_lock,
+          drone,
+          self.cursor,
+        );
         if let Err(c) =
           self.handle_callback_result_mut(&desc_lock, drone, res, "Click")
         {
@@ -127,19 +140,25 @@ impl Core {
 
       // Text input
       WindowEvent::Char(c) => {
-        self
-          .ring
-          .catch_input_event(&desc_lock, drone, InputEvent::Char(c));
+        self.ring.write().unwrap().catch_input_event(
+          &desc_lock,
+          drone,
+          InputEvent::Char(c),
+        );
       }
       WindowEvent::Key(Key::Left, _, Action::Press | Action::Repeat, _) => {
-        self
-          .ring
-          .catch_input_event(&desc_lock, drone, InputEvent::Left);
+        self.ring.write().unwrap().catch_input_event(
+          &desc_lock,
+          drone,
+          InputEvent::Left,
+        );
       }
       WindowEvent::Key(Key::Right, _, Action::Press | Action::Repeat, _) => {
-        self
-          .ring
-          .catch_input_event(&desc_lock, drone, InputEvent::Right);
+        self.ring.write().unwrap().catch_input_event(
+          &desc_lock,
+          drone,
+          InputEvent::Right,
+        );
       }
       WindowEvent::Key(
         Key::Backspace,
@@ -147,24 +166,32 @@ impl Core {
         Action::Press | Action::Repeat,
         _,
       ) => {
-        self
-          .ring
-          .catch_input_event(&desc_lock, drone, InputEvent::Backspace);
+        self.ring.write().unwrap().catch_input_event(
+          &desc_lock,
+          drone,
+          InputEvent::Backspace,
+        );
       }
       WindowEvent::Key(Key::Delete, _, Action::Press | Action::Repeat, _) => {
-        self
-          .ring
-          .catch_input_event(&desc_lock, drone, InputEvent::Delete);
+        self.ring.write().unwrap().catch_input_event(
+          &desc_lock,
+          drone,
+          InputEvent::Delete,
+        );
       }
       WindowEvent::Key(Key::Home, _, Action::Press | Action::Repeat, _) => {
-        self
-          .ring
-          .catch_input_event(&desc_lock, drone, InputEvent::Home);
+        self.ring.write().unwrap().catch_input_event(
+          &desc_lock,
+          drone,
+          InputEvent::Home,
+        );
       }
       WindowEvent::Key(Key::End, _, Action::Press | Action::Repeat, _) => {
-        self
-          .ring
-          .catch_input_event(&desc_lock, drone, InputEvent::End);
+        self.ring.write().unwrap().catch_input_event(
+          &desc_lock,
+          drone,
+          InputEvent::End,
+        );
       }
       WindowEvent::Key(
         Key::Enter,
@@ -172,9 +199,11 @@ impl Core {
         Action::Press | Action::Repeat,
         Modifiers::Control,
       ) => {
-        self
-          .ring
-          .catch_input_event(&desc_lock, drone, InputEvent::Newline);
+        self.ring.write().unwrap().catch_input_event(
+          &desc_lock,
+          drone,
+          InputEvent::Newline,
+        );
       }
 
       _ => {
@@ -191,6 +220,8 @@ impl Core {
   ) -> R {
     f(self
       .ring
+      .write()
+      .unwrap()
       .pull(&crate::logic::ring::Mark::Spreadsheet)
       .expect("Spreadsheet should always be on the ring")
       .write()
@@ -203,17 +234,15 @@ impl Core {
     b.drone.clear();
     self
       .ring
+      .write()
+      .unwrap()
       .draw(b.desc.clone(), &b.drone)
       .iter()
       .for_each(|e| println!("{}", e));
   }
 
-  pub fn ring(&self) -> &Ring {
+  pub fn ring(&self) -> &Wrap<Ring> {
     &self.ring
-  }
-
-  pub fn ring_mut(&mut self) -> &mut Ring {
-    &mut self.ring
   }
 
   pub fn pull_damage(&self) -> Vec<u8> {
@@ -264,8 +293,10 @@ impl Core {
       CallbackResult::Error(e) => {
         println!("{} callback by {:?} failed: {}", what, who, e);
       }
-      CallbackResult::Push(x) => x.push_to_ring(&mut self.ring),
-      CallbackResult::Modify(m, f) => f(self.ring.pull(&m), desc, drone),
+      CallbackResult::Push(x) => x.push_to_ring(self.ring.write().unwrap()),
+      CallbackResult::Modify(m, f) => {
+        f(self.ring.write().unwrap().pull(&m), desc, drone)
+      }
       CallbackResult::Damage(f) => f(&mut self.damage_tracker.write().unwrap()),
       CallbackResult::ExitCode(c) => {
         debug_assert_ne!(c, 0);
@@ -300,7 +331,9 @@ impl Core {
       CallbackResult::Push(_) => {
         println!("{} immutable callback by {:?} returned Push", what, who);
       }
-      CallbackResult::Modify(m, f) => f(self.ring.pull(&m), desc, drone),
+      CallbackResult::Modify(m, f) => {
+        f(self.ring.read().unwrap().pull(&m), desc, drone)
+      }
       CallbackResult::ExitCode(c) => {
         debug_assert_ne!(c, 0);
         return Err(c);

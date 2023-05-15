@@ -12,7 +12,10 @@ use crate::{
   },
 };
 
-use super::{ring, CallbackResult};
+use super::{
+  ring::{self, Wrap},
+  CallbackResult,
+};
 
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
 pub enum Damage {
@@ -108,6 +111,12 @@ impl DamageTracker {
     self.undo.clear();
     self.redo.clear();
     self.pending.clear();
+  }
+
+  pub fn push_to_ring(self, ring: &mut crate::logic::Ring) -> Wrap<Self> {
+    let rc = ring::wrap(self);
+    ring.push_key_sink(rc.clone(), Mark::Spreadsheet);
+    rc
   }
 }
 

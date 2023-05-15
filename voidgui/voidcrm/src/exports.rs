@@ -3,7 +3,7 @@ use std::ffi::{c_char, CStr};
 use voidgui::{
   backend::Backend,
   core::*,
-  widgets::{self, toolbar::Toolbar, Spreadsheet},
+  widgets::{self, toolbar::Toolbar, Spreadsheet, Status},
   Entry,
 };
 
@@ -57,9 +57,9 @@ unsafe fn populate(c: &mut Core, b: &mut Backend) {
   let ssheet = Spreadsheet::new::<Entry>(&painter, &mut b.drone).unwrap();
   let toolbar = Toolbar::new(&painter, &mut b.drone).unwrap();
 
-  win.push_to_ring(c.ring_mut());
-  ssheet.push_to_ring(c.ring_mut());
-  toolbar.push_to_ring(c.ring_mut());
+  win.push_to_ring(&mut c.ring().write().unwrap());
+  ssheet.push_to_ring(&mut c.ring().write().unwrap());
+  toolbar.push_to_ring(&mut c.ring().write().unwrap());
 }
 
 #[no_mangle]
@@ -82,6 +82,21 @@ extern "C" fn void_gui_pull_damage(w: &mut Instance) -> Box<CStringLen> {
 #[no_mangle]
 unsafe extern "C" fn void_gui_free_damage(_: Box<CStringLen>) -> u64 {
   0
+}
+
+#[no_mangle]
+extern "C" fn void_gui_status(msg: *const c_char, w: &mut Instance) {
+  let msg = unsafe { CStr::from_ptr(msg) }.to_string_lossy();
+  unsafe {
+    Status::new(
+      msg,
+      &w.b.desc.read().unwrap(),
+      w.c.ring().clone(),
+      &w.b.drone,
+    )
+  }
+  .map(|(s, uid)| s.push_to_ring(uid, w.c.ring().write().unwrap()))
+  .unwrap_or_default();
 }
 
 #[no_mangle]
