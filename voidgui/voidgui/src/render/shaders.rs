@@ -2,6 +2,14 @@ use std::ffi::{CStr, CString};
 
 use super::{Area, Color};
 
+#[derive(PartialEq, Eq)]
+pub enum ShaderTag {
+  None,
+  Common,
+  Grad,
+  Tex,
+}
+
 pub struct Shaders {
   common: CommonShader,
   grad: GradShader,
@@ -177,7 +185,7 @@ impl Shader for TexShader {
 }
 
 pub trait Shader {
-  fn new(prog: Program) -> Self;
+  fn new(prog: Program) -> Self where Self: Sized;
   fn prog(&self) -> &Program;
   fn attribs(&self) -> Vec<i32>;
 

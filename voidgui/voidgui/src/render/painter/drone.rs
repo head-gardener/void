@@ -10,7 +10,10 @@ use glfw::{Context, Window};
 
 use crate::{
   colorscheme::BACKGROUND,
-  render::shapes::{Grid, TextureData},
+  render::{
+    shaders::ShaderTag,
+    shapes::{Grid, TextureData},
+  },
 };
 use crate::{debug, render::shapes::Texture};
 use crate::{
@@ -153,6 +156,7 @@ impl Drone {
           StableBuffer::new(),
           StableBuffer::new(),
         );
+        let mut last_shader = ShaderTag::None;
 
         tx.send(Response::InitComplete(events)).unwrap();
 
@@ -168,8 +172,15 @@ impl Drone {
           if c.is_kill() {
             break;
           }
-          c.handle(&shaders, &common, &desc, &mut resources, &mut win)
-            .map(|r| tx.send(r));
+          c.handle(
+            &shaders,
+            &common,
+            &desc,
+            &mut resources,
+            &mut win,
+            &mut last_shader,
+          )
+          .map(|r| tx.send(r));
 
           let error = gl::GetError();
           if error != gl::NO_ERROR {
@@ -368,6 +379,7 @@ impl Command {
       StableBuffer<Grid>,
     ),
     win: &mut Window,
+    last_shader: &mut ShaderTag,
   ) -> Option<Response> {
     match self {
       Command::NewRectangles(n, style) => Some(Response::NewShapes(
@@ -415,10 +427,12 @@ impl Command {
         let rect = res.0.get(n);
         match rect.style {
           Style::Solid(c) => {
+            ensure_shader(last_shader, ShaderTag::Common, shaders.common());
             shaders.common().set_used();
             shaders.common().set_color(&c);
           }
           Style::Lit(c, a) => {
+            ensure_shader(last_shader, ShaderTag::Grad, shaders.grad());
             shaders.grad().set_used();
             shaders.grad().set_color(&c);
             shaders.grad().set_constr(&a.unwrap());
@@ -439,6 +453,7 @@ impl Command {
 
         grid.res.bind();
         grid.res.bind_buffers();
+
         shaders.common().enable_attribs();
 
         gl::BufferData(
@@ -462,7 +477,8 @@ impl Command {
       }
       Command::DrawGrid(n) => {
         let grid = res.2.get(n);
-        shaders.common().set_used();
+
+        ensure_shader(last_shader, ShaderTag::Common, shaders.common());
         shaders.common().set_color(&grid.color);
         grid.res.bind();
         gl::DrawArrays(gl::LINES, 0, grid.vertices);
@@ -542,7 +558,7 @@ impl Command {
         let tex = res.1.get(n);
         let t = tex.texture?;
 
-        shaders.tex().set_used();
+        ensure_shader(last_shader, ShaderTag::Tex, shaders.tex());
         tex.res.bind();
         gl::BindTexture(gl::TEXTURE_2D, t);
         gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, std::ptr::null());
@@ -579,5 +595,16 @@ impl Command {
   #[must_use]
   fn is_kill(&self) -> bool {
     matches!(self, Self::Kill)
+  }
+}
+
+unsafe fn ensure_shader(
+  last_shader: &mut ShaderTag,
+  tag: ShaderTag,
+  shader: &dyn Shader,
+) {
+  if *last_shader != tag {
+    shader.set_used();
+    *last_shader = tag;
   }
 }
