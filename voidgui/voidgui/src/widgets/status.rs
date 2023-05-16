@@ -58,7 +58,7 @@ impl Status {
 
   pub fn push_to_ring(self, uid: u64, ring: &mut crate::logic::Ring) {
     let rc = ring::wrap(self);
-    ring.push_transient(rc.clone(), Mark::Status(uid));
+    ring.push_transient(rc.clone(), Mark::Status(uid), false);
     ring.push_dynamic(rc, Mark::Status(uid), Mark::StatusBox);
   }
 }

@@ -164,7 +164,15 @@ impl Ring {
     self.parents.push((w, m));
   }
 
-  pub fn push_transient(&mut self, w: Wrap<dyn Transient>, m: Mark) {
+  pub fn push_transient(
+    &mut self,
+    w: Wrap<dyn Transient>,
+    m: Mark,
+    unique: bool,
+  ) {
+    if unique {
+      self.delete(m);
+    }
     self.transients.push((w, m));
   }
 
@@ -201,7 +209,9 @@ impl Ring {
 
     self.widgets.iter().for_each(|(_, _m, p, n)| {
       if *_m == m {
-        self.pull_parent(&p).unwrap().write().unwrap().pop_child(*n);
+        self
+          .pull_parent(&p)
+          .map(|p| p.write().unwrap().pop_child(*n));
       }
     });
 

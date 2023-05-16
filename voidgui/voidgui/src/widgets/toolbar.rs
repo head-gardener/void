@@ -118,7 +118,7 @@ impl RingElement for ring::Wrap<ToolbarTable> {
   fn push_to_ring(&self, mut ring: RwLockWriteGuard<crate::logic::Ring>) {
     ring.push_click_sink(self.clone(), crate::logic::ring::Mark::Toolbar);
     ring
-      .push_transient(self.clone(), crate::logic::ring::Mark::ToolbarDropdown);
+      .push_transient(self.clone(), crate::logic::ring::Mark::ToolbarDropdown, true);
     ring.push_static(
       self.clone(),
       crate::logic::ring::Mark::ToolbarDropdown,

@@ -127,8 +127,6 @@ impl ClickSink for Spreadsheet {
     match i {
       0 | 1 => CallbackResult::Pass,
       _ => {
-        print!("{} in ", self.uuids[i / self.table.columns() - 1]);
-        println!("self.uuids = {:?}", self.uuids);
         let s = &self.records[i - self.table.columns()];
         match unsafe {
           InputField::new(
@@ -165,7 +163,12 @@ impl Transient for InputField<SpreadsheetIF> {
 impl RingElement for ring::Wrap<InputField<SpreadsheetIF>> {
   fn push_to_ring(&self, mut ring: RwLockWriteGuard<crate::logic::Ring>) {
     ring.push_input_sink(self.clone(), Mark::SpreadsheetInputField);
-    ring.push_transient(self.clone(), Mark::SpreadsheetInputField);
-    ring.push_static(self.clone(), Mark::SpreadsheetInputField, Mark::Window, 2);
+    ring.push_transient(self.clone(), Mark::SpreadsheetInputField, true);
+    ring.push_static(
+      self.clone(),
+      Mark::SpreadsheetInputField,
+      Mark::Window,
+      2,
+    );
   }
 }
