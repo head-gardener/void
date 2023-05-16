@@ -11,3 +11,5 @@ crate-type = ["cdylib"]
 [dependencies]
 # voidmacro = { path = "../voidmacro" }
 voidgui = { path = "../voidgui" }
+ciborium = ">=0.2"
+serde = ">=1.0"

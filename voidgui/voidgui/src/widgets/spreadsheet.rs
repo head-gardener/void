@@ -20,10 +20,10 @@ use crate::widgets;
 /// An entry in a spreadsheet. Implement with `Entry` derive macro.
 /// When doing so, prefix all data field with `d_` and give them `&'a str` type.
 /// Those fields will be used when displaying data.
-pub trait Entry<'a>: Default + Send + Sync {
+pub trait Entry: Default + Send + Sync {
   const N_FIELDS: usize;
 
-  fn fields(self) -> Vec<&'a str>;
+  fn fields<'a>(&'a self) -> Vec<&'a str>;
   fn uuid(&self) -> &u64;
   // fn ntn_mut(&mut self) -> &mut String;
 }
@@ -36,7 +36,7 @@ pub struct Spreadsheet {
 }
 
 impl Spreadsheet {
-  pub unsafe fn new<'a, E: Entry<'a>>(
+  pub unsafe fn new<'a, E: Entry>(
     desc: &RwLockReadGuard<Description>,
     drone: &mut Drone,
   ) -> Result<Self, widgets::Error> {
@@ -55,7 +55,7 @@ impl Spreadsheet {
     })
   }
 
-  pub fn push<'a, E: Entry<'a>>(
+  pub fn push<'a, E: Entry>(
     &mut self,
     desc: &RwLockReadGuard<Description>,
     drone: &mut Drone,

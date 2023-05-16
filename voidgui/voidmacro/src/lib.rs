@@ -111,8 +111,8 @@ pub fn derive_entry(input: TokenStream) -> TokenStream {
     impl #gen voidgui::widgets::spreadsheet::Entry #gen for #name #gen {
       const N_FIELDS: usize = #n_fields;
 
-      fn fields(self) -> Vec<&'a str> {
-        vec![#(self.#fields),*]
+      fn fields<'a>(&'a self) -> Vec<&'a str> {
+        vec![#(&self.#fields),*]
       }
 
       fn uuid(&self) -> &u64 {

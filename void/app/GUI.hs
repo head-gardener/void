@@ -5,22 +5,23 @@
 -- module GUI (push, GUI.drop, withNewWindow, wait, VoidInstance) where
 module GUI where
 
-import Codec.Serialise (Serialise, deserialise)
+import Codec.Serialise (Serialise, deserialise, serialise)
 import Codec.Serialise.Class (decode)
 import Codec.Serialise.Decoding
-import Control.Monad ( when, liftM )
+import Control.Monad (liftM, when)
+import Data.ByteString
 import qualified Data.ByteString as B
+import Data.ByteString.Lazy (toStrict)
 import qualified Data.ByteString.Lazy as BL
 import Data.Char (ord)
 import Database.PostgreSQL.Simple (Connection)
-import Debug.Trace (trace)
+import Debug.Trace (trace, traceShow)
 import Entry
 import Foreign
 import Foreign.C.String
 import Foreign.C.Types
-import GHC.Generics
 import GHC.Base (ap)
-import Data.ByteString
+import GHC.Generics
 
 foreign import ccall "void_gui_init"
   void_gui_init :: VoidInstance
@@ -32,7 +33,7 @@ foreign import ccall "void_gui_finish"
   void_gui_finish :: VoidInstance -> CInt
 
 foreign import ccall "void_gui_add"
-  void_gui_add :: CUInt -> Ptr CChar -> Ptr CChar -> VoidInstance -> CInt
+  void_gui_add :: VoidInstance -> CInt -> Ptr CChar -> CInt
 
 foreign import ccall "void_gui_drop"
   void_gui_drop :: VoidInstance -> CInt
@@ -87,17 +88,18 @@ wait = void_gui_exec
 push :: VoidInstance -> [Entry] -> IO ()
 push window =
   mapM_ $
-    \x -> withCString (name x) $ \cn ->
-      withCString (phone x) $ \ct -> do
-        void_gui_add (fromIntegral $ uuid x) cn ct window `seq` return ()
+    \x ->
+      useAsCStringLen
+        ((toStrict . serialise) x)
+        (\(s, len) -> void_gui_add window (fromIntegral len) s `seq` return ())
 
 drop :: VoidInstance -> CInt
 drop = void_gui_drop
 
 putStatus :: VoidInstance -> String -> IO ()
-putStatus w s = 
-    withCString s $ \ s ->
-      void_gui_status s w `seq` return ()
+putStatus w s =
+  withCString s $ \s ->
+    void_gui_status s w `seq` return ()
 
 pull :: VoidInstance -> IO [Damage]
 pull w = do

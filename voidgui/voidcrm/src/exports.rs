@@ -1,5 +1,10 @@
-use std::ffi::{c_char, CStr};
+use std::{
+  ffi::{c_char, CStr},
+  io::Cursor,
+};
 
+use ciborium::de::from_reader;
+use serde::Deserialize;
 use voidgui::{
   backend::Backend,
   core::*,
@@ -13,28 +18,18 @@ struct Instance {
   b: Backend,
 }
 
-#[derive(Entry)]
-struct Entry<'a> {
-  d_name: &'a str,
-  d_phone: &'a str,
+#[derive(Entry, Deserialize)]
+struct Entry {
+  d_name: String,
+  d_phone: String,
   uuid: u64,
 }
 
-impl<'a> Entry<'a> {
-  fn new(d_name: &'a str, d_phone: &'a str, uid: u64) -> Self {
-    Self {
-      d_name,
-      d_phone,
-      uuid: uid,
-    }
-  }
-}
-
-impl Default for Entry<'_> {
+impl Default for Entry {
   fn default() -> Self {
     Self {
-      d_name: "Name",
-      d_phone: "Phone",
+      d_name: "Name".to_owned(),
+      d_phone: "Phone".to_owned(),
       uuid: 0,
     }
   }
@@ -114,14 +109,12 @@ extern "C" fn void_gui_finish(_: Box<Instance>) -> u64 {
 
 #[no_mangle]
 extern "C" fn void_gui_add(
-  uuid: u64,
-  name: *const c_char,
-  phone: *const c_char,
   w: &mut Instance,
+  len: u64,
+  entry: *const u8,
 ) -> u64 {
-  let n = unsafe { CStr::from_ptr(name) }.to_string_lossy();
-  let p = unsafe { CStr::from_ptr(phone) }.to_string_lossy();
-  let e = Entry::new(&n, &p, uuid);
+  let data = unsafe { std::slice::from_raw_parts(entry, len as usize) };
+  let e: Entry = from_reader(Cursor::new(data)).unwrap();
 
   w.c.with_ssheet_mut(|ssheet| {
     if let Err(e) =
