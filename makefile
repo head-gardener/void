@@ -17,7 +17,7 @@ verbose: build/voidgui build/void
 debug: build
 	$(GDB) $(PROJECT_ROOT)/$(BINPATH)/void
 
-debug_verbose: build
+debug-verbose: build
 	DEBUG_MSGS=1 $(GDB) $(PROJECT_ROOT)/$(BINPATH)/void
 
 test:
@@ -26,6 +26,9 @@ test:
 
 bench:
 	cd voidgui && RUST_BACKTRACE=1 cargo bench
+
+bench-verbose:
+	cd voidgui && DEBUG_MSGS=1 RUST_BACKTRACE=1 cargo bench
 
 clear: 
 	rm -rf build/*
@@ -43,10 +46,10 @@ build/voidgui-release: $(RUST_SOURCES) $(GLSL_SOURCES)
 build/void: void/void.cabal $(HASKELL_SOURCES)
 	cd void && cabal build --builddir=../build/void
 
-link_debug: uninstall
+link-debug: uninstall
 	ln -sv $(PROJECT_ROOT)/voidgui/target/debug/libvoidcrm.so /usr/lib/
 
-link_release: uninstall
+link-release: uninstall
 	ln -sv $(PROJECT_ROOT)/voidgui/target/release/libvoidcrm.so /usr/lib/
 
 # FIXME: rework all this stuff idk

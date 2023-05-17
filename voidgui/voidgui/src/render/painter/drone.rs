@@ -4,12 +4,14 @@ use std::{
     Arc, RwLock,
   },
   thread,
+  time::Duration,
 };
 
 use glfw::{Context, Window};
 
 use crate::{
   colorscheme::BACKGROUND,
+  logic::GroupQueue,
   render::{
     shaders::ShaderTag,
     shapes::{Grid, TextureData},
@@ -38,6 +40,9 @@ enum Command {
   Sync,
   Kill,
 
+  /// Sent by drone to overseer indicating that the first is idle.
+  Idle,
+
   NewRectangles(usize, rectangle::Style),
   PlotRectangle(usize, [f32; 8]),
   DrawRectangle(usize),
@@ -50,6 +55,28 @@ enum Command {
   WriteTexture(usize, TextureData),
   PlotTexture(usize, [f32; 16]),
   DrawTexture(usize),
+}
+
+/// Commands are equal when they use the same shader and unequal
+/// if they don't use any.
+impl PartialEq for Command {
+  fn eq(&self, other: &Self) -> bool {
+    match &self {
+      Command::DrawTexture(_) | Command::PlotTexture(_, _) => {
+        matches!(other, Command::DrawTexture(_) | Command::PlotTexture(_, _))
+      }
+      Command::DrawGrid(_) | Command::PlotGrid(_, _) => {
+        matches!(other, Command::DrawGrid(_) | Command::PlotGrid(_, _))
+      }
+      Command::DrawRectangle(_) | Command::PlotRectangle(_, _) => {
+        matches!(
+          other,
+          Command::DrawRectangle(_) | Command::PlotRectangle(_, _)
+        )
+      }
+      _ => false,
+    }
+  }
 }
 
 enum Response {
@@ -97,6 +124,8 @@ impl Drone {
     let ctr = {
       let (_tx, rx) = mpsc::sync_channel(500);
       let tx = feed.clone();
+      let mut buf = GroupQueue::new();
+      let mut idle = false;
 
       thread::Builder::new()
         .name("overseer".into())
@@ -108,87 +137,121 @@ impl Drone {
             debug!("overs idle for {:?}", (std::time::Instant::now() - _from));
             c
           });
-          if c.is_kill() {
-            break;
-          }
+
           debug!("overs received {:?}", c);
-          tx.send(c).unwrap();
+          match c {
+            Command::Kill => break,
+            Command::Idle => {
+              if let Some(c) = buf.pop() {
+                tx.send(c).unwrap();
+                idle = false;
+              } else {
+                idle = true;
+              }
+            }
+            Command::Step => {
+              debug!("dump start");
+              buf.drain().for_each(|c| {
+                debug!("dumping {:?}", c);
+                tx.send(c).unwrap();
+                idle = false;
+              });
+              tx.send(Command::Step).unwrap();
+            }
+            c => {
+              if idle {
+                tx.send(c).unwrap();
+                idle = false;
+              } else {
+                buf.push(c);
+              }
+            }
+          }
         })
         .unwrap();
 
       _tx
     };
 
-    thread::Builder::new()
-      .name("drone".into())
-      .spawn(move || {
-        let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
+    {
+      let ctr = ctr.clone();
+      thread::Builder::new()
+        .name("drone".into())
+        .spawn(move || {
+          let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
 
-        glfw.window_hint(glfw::WindowHint::ClientApi(
-          glfw::ClientApiHint::OpenGlEs,
-        ));
-        glfw.window_hint(glfw::WindowHint::ContextVersion(3, 2));
-        glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
+          glfw.window_hint(glfw::WindowHint::ClientApi(
+            glfw::ClientApiHint::OpenGlEs,
+          ));
+          glfw.window_hint(glfw::WindowHint::ContextVersion(3, 2));
+          glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
 
-        let (mut win, events) = glfw
-          .create_window(w, h, "Void", glfw::WindowMode::Windowed)
-          .expect("Failed to create GLFW window.");
+          let (mut win, events) = glfw
+            .create_window(w, h, "Void", glfw::WindowMode::Windowed)
+            .expect("Failed to create GLFW window.");
 
-        win.make_current();
-        win.set_key_polling(true);
-        win.set_size_polling(true);
-        win.set_char_polling(true);
-        win.set_mouse_button_polling(true);
-        win.set_cursor_pos_polling(true);
+          win.make_current();
+          win.set_key_polling(true);
+          win.set_size_polling(true);
+          win.set_char_polling(true);
+          win.set_mouse_button_polling(true);
+          win.set_cursor_pos_polling(true);
 
-        let _gl = gl::load_with(|s| glfw.get_proc_address_raw(s));
+          let _gl = gl::load_with(|s| glfw.get_proc_address_raw(s));
 
-        gl::Viewport(0, 0, w as i32, h as i32);
-        let (r, g, b, a) = BACKGROUND;
-        gl::ClearColor(r, g, b, a);
-        gl::Enable(gl::BLEND);
-        gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+          gl::Viewport(0, 0, w as i32, h as i32);
+          let (r, g, b, a) = BACKGROUND;
+          gl::ClearColor(r, g, b, a);
+          gl::Enable(gl::BLEND);
+          gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
 
-        let shaders = Shaders::new();
-        let common = CommonResources::allocate();
-        let mut resources = (
-          StableBuffer::new(),
-          StableBuffer::new(),
-          StableBuffer::new(),
-        );
-        let mut last_shader = ShaderTag::None;
+          let shaders = Shaders::new();
+          let common = CommonResources::allocate();
+          let mut resources = (
+            StableBuffer::new(),
+            StableBuffer::new(),
+            StableBuffer::new(),
+          );
+          let mut last_shader = ShaderTag::None;
 
-        tx.send(Response::InitComplete(events)).unwrap();
+          tx.send(Response::InitComplete(events)).unwrap();
 
-        loop {
-          let c = rx.try_recv().unwrap_or_else(|_| {
-            let _from = std::time::Instant::now();
-            debug!("drone idle...");
-            let c = rx.recv().unwrap();
-            debug!("drone idle for {:?}", (std::time::Instant::now() - _from));
-            c
-          });
-          debug!("drone received {:?}", c);
-          if c.is_kill() {
-            break;
+          loop {
+            let c = rx.try_recv().unwrap_or_else(|_| {
+              let _from = std::time::Instant::now();
+              ctr.send(Command::Idle).unwrap();
+              debug!("drone idle...");
+              let c = rx.recv().unwrap();
+              debug!(
+                "drone idle for {:?}",
+                (std::time::Instant::now() - _from)
+              );
+              c
+            });
+            debug!("drone received {:?}", c);
+            if c.is_kill() {
+              break;
+            }
+            let __from = std::time::Instant::now();
+            c.handle(
+              &shaders,
+              &common,
+              &desc,
+              &mut resources,
+              &mut win,
+              &mut last_shader,
+            )
+            .map(|r| tx.send(r));
+            debug!("handle took {:?}", (std::time::Instant::now() - __from));
+
+            let error = gl::GetError();
+            if error != gl::NO_ERROR {
+              println!("Gl error: {}", error);
+            }
           }
-          c.handle(
-            &shaders,
-            &common,
-            &desc,
-            &mut resources,
-            &mut win,
-            &mut last_shader,
-          )
-          .map(|r| tx.send(r));
-
-          let error = gl::GetError();
-          if error != gl::NO_ERROR {
-            println!("Gl error: {}", error);
-          }
-        }
-      })
-      .unwrap();
+        })
+        .unwrap();
+    }
 
     receive_or!(
       resp,
@@ -570,7 +633,8 @@ impl Command {
         win.glfw.poll_events();
         Some(Response::ShouldClose(win.should_close()))
       }
-      Command::Kill => panic!(),
+      Command::Kill => panic!("Command::Kill should leak to handle."),
+      Command::Idle => panic!("Idle can't be sent to a drone."),
       Command::Clear => {
         gl::Clear(gl::COLOR_BUFFER_BIT);
         None
@@ -604,6 +668,7 @@ unsafe fn ensure_shader(
   shader: &dyn Shader,
 ) {
   if *last_shader != tag {
+    debug!("Shader miss");
     shader.set_used();
     *last_shader = tag;
   }
