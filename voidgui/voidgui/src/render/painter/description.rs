@@ -9,7 +9,7 @@ pub struct Description {
 
 impl Description {
   /// Creates a new [`Description`].
-  pub fn new(window_width: u16, window_height: u16) -> Self {
+  pub fn new(window_width: i32, window_height: i32) -> Self {
     let window_area = Area {
       x: 0,
       y: 0,
@@ -23,7 +23,7 @@ impl Description {
     }
   }
 
-  pub fn resize(&mut self, w: u16, h: u16) {
+  pub fn resize(&mut self, w: i32, h: i32) {
     self.window_area.width = w;
     self.window_area.height = h;
   }

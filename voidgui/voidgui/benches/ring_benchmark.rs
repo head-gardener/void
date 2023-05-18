@@ -84,8 +84,8 @@ impl ClickSink for W {
 impl Parent for W {
   fn nth_child(&self, n: usize) -> Option<Origin> {
     Some(Origin::new(
-      n as u16 * 10,
-      n as u16 * 10,
+      n as i32 * 10,
+      n as i32 * 10,
       voidgui::render::OriginPole::TopLeft,
     ))
   }
@@ -207,7 +207,7 @@ fn setup() -> (Backend, Core, rand::rngs::ThreadRng) {
 
 criterion_group! {
     name = hard;
-    config = Criterion::default().significance_level(0.08).sample_size(5000);
+    config = Criterion::default().significance_level(0.08).sample_size(1000);
     targets = draw_bench_plot_one, draw_bench_plot_all
 }
 criterion_group! {

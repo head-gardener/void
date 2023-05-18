@@ -31,7 +31,7 @@ enum State {
 }
 
 /// Value by which text is offset from cells' borders.
-pub const OFFSET: u16 = 10;
+pub const OFFSET: i32 = 10;
 
 impl State {
   /// Returns `true` if the state is [`Plotted`].

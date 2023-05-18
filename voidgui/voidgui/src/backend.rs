@@ -9,7 +9,7 @@ pub struct Backend {
 }
 
 impl Backend {
-  pub unsafe fn new(w: u16, h: u16) -> Self {
+  pub unsafe fn new(w: i32, h: i32) -> Self {
     let desc = Arc::new(RwLock::new(Description::new(w, h)));
     let (drone, events) = Drone::new(desc.clone(), w as u32, h as u32).unwrap();
 
@@ -21,7 +21,7 @@ impl Backend {
   }
 
   #[cfg(test)]
-  pub fn mock(w: u16, h: u16) -> Self {
+  pub fn mock(w: i32, h: i32) -> Self {
     use std::sync::mpsc;
 
     let desc = Arc::new(RwLock::new(Description::new(w, h)));

@@ -114,7 +114,7 @@ impl Core {
 
       // Resize
       WindowEvent::Size(w, h) => {
-        // p.resize(w as u16, h as u16);
+        // p.resize(w as i32, h as i32);
         self.ring.write().unwrap().into_iter().for_each(|w| {
           w.0.write().unwrap().request_plot();
         });
@@ -123,7 +123,7 @@ impl Core {
 
       // Mouse input
       WindowEvent::CursorPos(x, y) => {
-        self.cursor = Point::new(x as u16, y as u16);
+        self.cursor = Point::new(x as i32, y as i32);
       }
       WindowEvent::MouseButton(MouseButton::Button1, Action::Press, _mods) => {
         let res = self.ring.write().unwrap().catch_click(

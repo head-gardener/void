@@ -12,7 +12,7 @@ use super::traits::{Drawable, Parent, Widget};
 
 pub struct OrientedLayout {
   origin: Option<Origin>,
-  sizes: StableBuffer<u16>,
+  sizes: StableBuffer<i32>,
 }
 
 impl OrientedLayout {
@@ -63,7 +63,7 @@ impl Parent for OrientedLayout {
     }
 
     self.origin.map(|o| {
-      let offset: u16 = self.sizes.iter().take(n).filter_map(|x| x).sum();
+      let offset: i32 = self.sizes.iter().take(n).filter_map(|x| x).sum();
       Origin::new(
         o.x,
         match o.pole {

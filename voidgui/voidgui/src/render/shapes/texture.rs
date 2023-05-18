@@ -89,8 +89,8 @@ impl TextureData {
 impl Into<Size> for &TextureData {
   fn into(self) -> Size {
     Size {
-      width: self.0 as u16,
-      height: self.1 as u16,
+      width: self.0 as i32,
+      height: self.1 as i32,
     }
   }
 }
@@ -98,8 +98,8 @@ impl Into<Size> for &TextureData {
 impl Into<Size> for TextureData {
   fn into(self) -> Size {
     Size {
-      width: self.0 as u16,
-      height: self.1 as u16,
+      width: self.0 as i32,
+      height: self.1 as i32,
     }
   }
 }

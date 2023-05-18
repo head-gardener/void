@@ -22,6 +22,7 @@ struct Instance {
 struct Entry {
   d_name: String,
   d_phone: String,
+  // d_stage: String,
   uuid: u64,
 }
 

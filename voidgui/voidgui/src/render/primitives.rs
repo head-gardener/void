@@ -10,13 +10,13 @@ pub enum OriginPole {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Origin {
-  pub x: u16,
-  pub y: u16,
+  pub x: i32,
+  pub y: i32,
   pub pole: OriginPole,
 }
 
 impl Origin {
-  pub fn new(x: u16, y: u16, pole: OriginPole) -> Self {
+  pub fn new(x: i32, y: i32, pole: OriginPole) -> Self {
     Self { x, y, pole }
   }
 
@@ -42,12 +42,12 @@ impl Origin {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Point {
-  pub x: u16,
-  pub y: u16,
+  pub x: i32,
+  pub y: i32,
 }
 
 impl Point {
-  pub fn new(x: u16, y: u16) -> Self {
+  pub fn new(x: i32, y: i32) -> Self {
     Self { x, y }
   }
 
@@ -61,16 +61,16 @@ impl Point {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Size {
-  pub width: u16,
-  pub height: u16,
+  pub width: i32,
+  pub height: i32,
 }
 
 impl Size {
-  pub fn new(width: u16, height: u16) -> Self {
+  pub fn new(width: i32, height: i32) -> Self {
     Self { width, height }
   }
 
-  pub fn expand(&self, vert: u16, horz: u16) -> Size {
+  pub fn expand(&self, vert: i32, horz: i32) -> Size {
     Size {
       width: self.width + vert * 2,
       height: self.height + horz * 2,
@@ -80,14 +80,14 @@ impl Size {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Area {
-  pub x: u16,
-  pub y: u16,
-  pub width: u16,
-  pub height: u16,
+  pub x: i32,
+  pub y: i32,
+  pub width: i32,
+  pub height: i32,
 }
 
 impl Area {
-  pub fn new(x: u16, y: u16, width: u16, height: u16) -> Self {
+  pub fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
     Self {
       x,
       y,

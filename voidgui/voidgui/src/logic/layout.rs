@@ -24,11 +24,11 @@ impl Layout {
   pub fn from_sizes(r: usize, c: usize, sizes: &[Size]) -> Self {
     assert_eq!(sizes.len(), r * c);
 
-    let rows: Vec<u16> = sizes
+    let rows: Vec<i32> = sizes
       .chunks(c)
       .map(|ss| ss.iter().map(|s| s.height).max().unwrap_or(0))
       .collect();
-    let columns: Vec<u16> = (0..c)
+    let columns: Vec<i32> = (0..c)
       .map(|rem| {
         let (_, xs) = sizes.split_at(rem);
         xs.chunks(c)

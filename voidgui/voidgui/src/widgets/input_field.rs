@@ -92,7 +92,7 @@ impl<T: Send + Sync + 'static> Drawable for InputField<T> {
     .width;
     let c = d.lines().count();
     let c = if c == 0 { 1 } else { c };
-    let l = s.height / c as u16;
+    let l = s.height / c as i32;
     let a = Area::new(
       o.x + OFFSET + after,
       o.y + OFFSET / 2 + s.height - l,
