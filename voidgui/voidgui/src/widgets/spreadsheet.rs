@@ -5,7 +5,7 @@ use voidmacro::{ClickableMenu, DrawableMenu, Menu};
 use crate::{
   logic::{
     ring::{self, Mark, RingElement},
-    CallbackResult,
+    CallbackResult, Dataset,
   },
   render::{
     painter::{Description, Drone, DroneFeed},
@@ -31,7 +31,7 @@ pub trait Entry: Default + Send + Sync {
 #[derive(Menu, DrawableMenu, ClickableMenu)]
 pub struct Spreadsheet {
   table: TextTable,
-  records: Vec<Box<String>>,
+  data: Dataset,
   uuids: Vec<u64>,
   scroll: i32,
 }
@@ -51,7 +51,7 @@ impl Spreadsheet {
 
     Ok(Self {
       table,
-      records: vec![],
+      data: Dataset::new(),
       uuids: vec![],
       scroll: 0,
     })
@@ -66,7 +66,7 @@ impl Spreadsheet {
     self.uuids.push(*e.uuid());
     let fs = e.fields();
     fs.iter().for_each(|f| {
-      self.records.push(Box::new(f.to_string()));
+      self.data.push(f);
     });
 
     unsafe {
@@ -82,7 +82,7 @@ impl Spreadsheet {
   }
 
   pub fn drop(&mut self) {
-    self.records.clear();
+    self.data.clear();
     self.uuids.clear();
 
     self.table.truncate(self.table.columns());
@@ -102,7 +102,6 @@ impl Spreadsheet {
     n: usize,
     s: &str,
   ) -> Result<(), widgets::Error> {
-    let s = s.to_string();
     let n = n
       + self.uuids.iter().position(|i| *i == uuid).ok_or(
         widgets::Error::Unspecified(format!(
@@ -112,8 +111,8 @@ impl Spreadsheet {
       )? * self.table.columns();
     self
       .table
-      .update_cell(desc, drone, n + self.table.columns(), &s)?;
-    *self.records[n] = s;
+      .update_cell(desc, drone, n + self.table.columns(), s)?;
+    self.data.set(n, s);
     Ok(())
   }
 
@@ -134,7 +133,7 @@ impl ClickSink for Spreadsheet {
     match i {
       0 | 1 => CallbackResult::Pass,
       _ => {
-        let s = &self.records[i - self.table.columns()];
+        let s = self.data.get(i - self.table.columns());
         self.table.set_highlight(drone, i / self.table.columns());
         match unsafe {
           InputField::new(
@@ -144,7 +143,7 @@ impl ClickSink for Spreadsheet {
             (
               self.uuids[i / self.table.columns() - 1],
               i % self.table.columns(),
-              s.clone(),
+              s.to_string(),
             ),
           )
         } {
@@ -156,14 +155,14 @@ impl ClickSink for Spreadsheet {
   }
 }
 
-type SpreadsheetIF = (u64, usize, Box<String>);
+type SpreadsheetIF = (u64, usize, String);
 
 impl Transient for InputField<SpreadsheetIF> {
   fn handle_accept(&self, _: &DroneFeed) -> CallbackResult {
     let (uuid, c, from) = self.closure().clone();
     let to = self.to_string();
     CallbackResult::Damage(Box::new(move |t| {
-      t.push(crate::logic::Damage::Update(uuid, c, *from, to))
+      t.push(crate::logic::Damage::Update(uuid, c, from, to))
     }))
   }
 }
