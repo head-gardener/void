@@ -2,7 +2,7 @@ use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 
 use crate::{
   logic::{
-    ring::{self, RingElement},
+    ring::{self, Mark, RingElement},
     CallbackResult,
   },
   render::{
@@ -13,15 +13,18 @@ use crate::{
   widgets,
 };
 
-use super::traits::{
-  widget::Error, ClickSink, Clickable, Drawable, Parent, Transient, Widget,
+use super::{
+  traits::{
+    widget::Error, ClickSink, Clickable, Drawable, Parent, Transient, Widget,
+  },
+  InputField, Spreadsheet,
 };
 
 use voidmacro::{ClickableMenu, DrawableMenu, Menu};
 
 static TOOLBAR_ITEMS: [&str; 2] = ["Table", "Tools"];
 static TOOLBAR_TABLE_ITEMS: [&str; 2] = ["Pull", "Push"];
-// static TOOLBAR_TOOLS_ITEMS: [&str; 1] = [":)"];
+static TOOLBAR_TOOLS_ITEMS: [&str; 1] = ["Search..."];
 
 #[derive(Menu, DrawableMenu, ClickableMenu)]
 pub struct Toolbar {
@@ -70,10 +73,10 @@ impl ClickSink for Toolbar {
         .map_or(CallbackResult::Error(Error::InitFailure), |m| {
           CallbackResult::Push(Box::new(ring::wrap(m)))
         }),
-      1 => {
-        println!("Tools");
-        CallbackResult::Pass
-      }
+      1 => unsafe { ToolbarTools::new(desc, drone) }
+        .map_or(CallbackResult::Error(Error::InitFailure), |m| {
+          CallbackResult::Push(Box::new(ring::wrap(m)))
+        }),
       _ => {
         panic!("unexpected ind: {}", i);
       }
@@ -85,9 +88,9 @@ impl Parent for Toolbar {
   fn nth_child(&self, n: usize) -> Option<Origin> {
     let a = self.table.cells()?.get(n)?;
     Some(Origin {
-      x: a.x,
+      x: a.x + a.width,
       y: a.y + a.height,
-      pole: crate::render::OriginPole::TopLeft,
+      pole: crate::render::OriginPole::TopRight,
     })
   }
 }
@@ -116,8 +119,11 @@ impl ToolbarTable {
 
 impl RingElement for ring::Wrap<ToolbarTable> {
   fn push_to_ring(&self, mut ring: RwLockWriteGuard<crate::logic::Ring>) {
-    ring
-      .push_transient(self.clone(), crate::logic::ring::Mark::ToolbarDropdown, true);
+    ring.push_transient(
+      self.clone(),
+      crate::logic::ring::Mark::ToolbarDropdown,
+      true,
+    );
     ring.push_click_sink(self.clone(), crate::logic::ring::Mark::Toolbar);
     ring.push_static(
       self.clone(),
@@ -148,35 +154,89 @@ impl ClickSink for ToolbarTable {
   }
 }
 
-// #[derive(Menu, ClickableMenu)]
-// pub struct ToolbarTools {
-//   table: TextTable,
-// }
+#[derive(Menu, DrawableMenu, ClickableMenu)]
+pub struct ToolbarTools {
+  table: TextTable,
+}
 
-// impl ToolbarTools {
-//   pub unsafe fn new(painter: &Painter) -> Result<Self, WidgetError> {
-//     Ok(Self {
-//       table: TextTable::make_static(
-//         painter,
-//         Orientation::Vertical,
-//         &TOOLBAR_TOOLS_ITEMS,
-//       )?,
-//     })
-//   }
+impl ToolbarTools {
+  pub unsafe fn new(
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
+  ) -> Result<Self, Error> {
+    Ok(Self {
+      table: TextTable::make_static(
+        desc,
+        drone,
+        Orientation::Vertical,
+        crate::render::text_table::CellStyle::Normal,
+        &TOOLBAR_TOOLS_ITEMS,
+      )?,
+    })
+  }
+}
 
-//   pub fn push_to_ring(self, ring: &mut crate::logic::Ring) {
-//     let rc = Rc::new(RefCell::new(self));
-//     ring.push_clickable(rc.clone(), crate::logic::ring::Mark::Toolbar);
-//     ring.push(rc, crate::logic::ring::Mark::Toolbar);
-//   }
-// }
+impl RingElement for ring::Wrap<ToolbarTools> {
+  fn push_to_ring(&self, mut ring: RwLockWriteGuard<crate::logic::Ring>) {
+    ring.push_transient(
+      self.clone(),
+      crate::logic::ring::Mark::ToolbarDropdown,
+      true,
+    );
+    ring.push_click_sink(self.clone(), crate::logic::ring::Mark::Toolbar);
+    ring.push_static(
+      self.clone(),
+      crate::logic::ring::Mark::ToolbarDropdown,
+      crate::logic::ring::Mark::Toolbar,
+      1,
+    );
+  }
+}
 
-// impl ClickableWidget for ToolbarTools {
-//   fn onclick(&self, p: Point) {
-//     let i = self.table.catch_point(&p).unwrap();
-//     match i {
-//       0 => println!(":)"),
-//       _ => { panic!("unexpected ind: {}", i) }
-//     }
-//   }
-// }
+impl Transient for ToolbarTools {}
+
+impl ClickSink for ToolbarTools {
+  fn onclick(
+    &mut self,
+    desc: &RwLockReadGuard<Description>,
+    drone: &Drone,
+    p: Point,
+  ) -> CallbackResult {
+    let i = self.table.catch_point(&p).unwrap();
+    match i {
+      0 => match unsafe { InputField::new(desc, drone, "", ()) } {
+        Ok(f) => CallbackResult::Push(Box::new(ring::wrap(f))),
+        Err(e) => CallbackResult::Error(e),
+      },
+      _ => {
+        panic!("unexpected ind: {}", i);
+      }
+    }
+  }
+}
+
+type SearchIF = ();
+
+impl Transient for InputField<SearchIF> {
+  fn handle_accept(&self, _: &DroneFeed) -> CallbackResult {
+    let st = self.to_string();
+    CallbackResult::Modify(
+      Mark::Spreadsheet,
+      ring::with_spreadsheet(
+        move |_: &RwLockReadGuard<Description>,
+              drone: &Drone,
+              s: &mut Spreadsheet| {
+          s.new_search(drone, &st);
+        },
+      ),
+    )
+  }
+}
+
+impl RingElement for ring::Wrap<InputField<SearchIF>> {
+  fn push_to_ring(&self, mut ring: RwLockWriteGuard<crate::logic::Ring>) {
+    ring.push_transient(self.clone(), Mark::InputFloat, true);
+    ring.push_input_sink(self.clone(), Mark::InputFloat);
+    ring.push_static(self.clone(), Mark::InputFloat, Mark::Window, 2);
+  }
+}

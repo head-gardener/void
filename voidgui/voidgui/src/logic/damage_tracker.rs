@@ -6,10 +6,7 @@ use serde::Serialize;
 use crate::{
   logic::ring::Mark,
   render::painter::{Description, Drone},
-  widgets::{
-    traits::{Drawable, KeySink},
-    Spreadsheet,
-  },
+  widgets::{traits::KeySink, Spreadsheet},
 };
 
 use super::{
@@ -37,7 +34,7 @@ impl Into<CallbackResult> for Damage {
     match self {
       Damage::Update(uuid, n, _, to) => CallbackResult::Modify(
         Mark::Spreadsheet,
-        with_spreadsheet(
+        ring::with_spreadsheet(
           move |desc: &RwLockReadGuard<Description>,
                 drone: &Drone,
                 s: &mut Spreadsheet| {
@@ -47,24 +44,6 @@ impl Into<CallbackResult> for Damage {
       ),
     }
   }
-}
-
-fn with_spreadsheet(
-  f: impl FnOnce(&RwLockReadGuard<Description>, &Drone, &mut Spreadsheet) + 'static,
-) -> Box<
-  dyn FnOnce(
-    Option<ring::Wrap<dyn Drawable>>,
-    &RwLockReadGuard<Description>,
-    &Drone,
-  ),
-> {
-  Box::new(move |s, desc, drone| {
-    s.expect("Spreadsheet should always be in the ring")
-      .write()
-      .unwrap()
-      .downcast_mut()
-      .map(|s| f(desc, drone, s));
-  })
 }
 
 pub struct DamageTracker {

@@ -14,6 +14,7 @@ use crate::{
     traits::{
       ClickSink, Drawable, InputEvent, InputSink, KeySink, Parent, Transient,
     },
+    Spreadsheet,
   },
 };
 
@@ -26,7 +27,7 @@ pub enum Mark {
   None,
   Window,
   Spreadsheet,
-  SpreadsheetInputField,
+  InputFloat,
   Toolbar,
   ToolbarDropdown,
   DamageTracker,
@@ -416,6 +417,20 @@ impl<'a> IntoParallelIterator for &'a mut Ring {
   fn into_par_iter(self) -> Self::Iter {
     self.widgets.par_iter_mut()
   }
+}
+
+pub fn with_spreadsheet(
+  f: impl FnOnce(&RwLockReadGuard<Description>, &Drone, &mut Spreadsheet) + 'static,
+) -> Box<
+  dyn FnOnce(Option<Wrap<dyn Drawable>>, &RwLockReadGuard<Description>, &Drone),
+> {
+  Box::new(move |s, desc, drone| {
+    s.expect("Spreadsheet should always be in the ring")
+      .write()
+      .unwrap()
+      .downcast_mut()
+      .map(|s| f(desc, drone, s));
+  })
 }
 
 #[cfg(test)]

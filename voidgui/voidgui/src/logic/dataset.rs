@@ -37,11 +37,13 @@ impl Dataset {
     self.search = Some((value.to_string().to_lowercase(), 0));
   }
 
-  fn clear_search(&mut self) {
+  pub fn clear_search(&mut self) -> bool {
+    let res = self.search.is_some();
     self.search = None;
+    res
   }
 
-  fn find_prev(&mut self) -> Option<usize> {
+  pub fn find_prev(&mut self) -> Option<usize> {
     self.search.as_mut().and_then(|(s, i)| {
       self
         .records
@@ -60,7 +62,7 @@ impl Dataset {
     })
   }
 
-  fn find_next(&mut self) -> Option<usize> {
+  pub fn find_next(&mut self) -> Option<usize> {
     self.search.as_mut().and_then(|(s, i)| {
       self
         .records
