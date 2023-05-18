@@ -14,13 +14,25 @@ pub fn derive_menu(input: TokenStream) -> TokenStream {
   let name = input.ident;
   let gen = input.generics;
 
+  let origin = match input.data {
+    Data::Struct(d) => d
+      .fields
+      .iter()
+      .filter_map(|f| f.ident.to_owned())
+      .find(|i| i == "scroll")
+      .map_or(quote!(origin.clone()), |_| {
+        quote!(origin.clone().scroll(self.scroll))
+      }),
+    _ => todo!(),
+  };
+
   let expanded = quote! {
     impl #gen Widget for #name #gen {
       fn plotted(&self) -> bool {
         self.table.plotted()
       }
       fn set_origin(&mut self, origin: &Origin) {
-        self.table.set_origin(origin.clone());
+        self.table.set_origin(#origin);
       }
       fn request_plot(&mut self) {
         self.table.request_plot();

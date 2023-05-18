@@ -142,6 +142,7 @@ impl Drone {
         win.set_char_polling(true);
         win.set_mouse_button_polling(true);
         win.set_cursor_pos_polling(true);
+        win.set_scroll_polling(true);
 
         let _gl = gl::load_with(|s| glfw.get_proc_address_raw(s));
 

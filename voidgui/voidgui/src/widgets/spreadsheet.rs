@@ -33,6 +33,7 @@ pub struct Spreadsheet {
   table: TextTable,
   records: Vec<Box<String>>,
   uuids: Vec<u64>,
+  scroll: i32,
 }
 
 impl Spreadsheet {
@@ -52,6 +53,7 @@ impl Spreadsheet {
       table,
       records: vec![],
       uuids: vec![],
+      scroll: 0,
     })
   }
 
@@ -113,6 +115,11 @@ impl Spreadsheet {
       .update_cell(desc, drone, n + self.table.columns(), &s)?;
     *self.records[n] = s;
     Ok(())
+  }
+
+  pub fn scroll(&mut self, offset: i32) {
+    self.scroll += offset;
+    self.table.request_plot();
   }
 }
 

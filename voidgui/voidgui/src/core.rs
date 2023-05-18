@@ -144,6 +144,11 @@ impl Core {
         }
       }
 
+      // Scroll
+      WindowEvent::Scroll(_x, y) => {
+        self.with_ssheet_mut(|s| s.scroll(-y as i32 * 3));
+      }
+
       // Text input
       WindowEvent::Char(c) => {
         self.ring.write().unwrap().catch_input_event(

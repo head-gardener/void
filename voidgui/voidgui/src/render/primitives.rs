@@ -38,6 +38,14 @@ impl Origin {
       }
     }
   }
+
+  pub fn scroll(&self, y: i32) -> Self {
+    Self {
+      x: self.x,
+      y: self.y + y,
+      pole: self.pole,
+    }
+  }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -205,16 +213,15 @@ impl NormalizedArea {
     ]
   }
 
-#[inline]
-pub fn to_tex_coords(self) -> [f32; 16] {
-  [
-    self.a_x, self.a_y, 0.0, 0.0, // tl
-    self.b_x, self.a_y, 1.0, 0.0, // tr
-    self.b_x, self.b_y, 1.0, 1.0, // br
-    self.a_x, self.b_y, 0.0, 1.0, // bl
-  ]
-}
-
+  #[inline]
+  pub fn to_tex_coords(self) -> [f32; 16] {
+    [
+      self.a_x, self.a_y, 0.0, 0.0, // tl
+      self.b_x, self.a_y, 1.0, 0.0, // tr
+      self.b_x, self.b_y, 1.0, 1.0, // br
+      self.a_x, self.b_y, 0.0, 1.0, // bl
+    ]
+  }
 }
 
 #[cfg(test)]
