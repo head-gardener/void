@@ -1,5 +1,6 @@
 use std::{mem::swap, sync::RwLockReadGuard};
 
+use crate::colorscheme::CELL_HIGHLIGHT_COLOR;
 use crate::widgets::traits::widget;
 use crate::{
   colorscheme::{
@@ -127,6 +128,12 @@ pub enum Orientation {
   Horizontal,
 }
 
+enum Highlight {
+  Pending(usize, usize),
+  Set(usize),
+  None,
+}
+
 pub struct TextTable {
   rows: usize,
   columns: usize,
@@ -134,6 +141,7 @@ pub struct TextTable {
   grid: usize,
   bg: Vec<usize>,
   textures: Vec<usize>,
+  highlight: Highlight,
 
   texture_sizes: Vec<Size>,
   cell_sizes: Vec<Size>,
@@ -179,6 +187,7 @@ impl TextTable {
       grid: drone.get_grids(1, GRID_COLOR).ok_or(Error::InitFailure)?[0],
       bg: vec![],
       textures: vec![],
+      highlight: Highlight::None,
       texture_sizes: vec![],
       cell_sizes: vec![],
       constr: Size::new(0, 0),
@@ -224,6 +233,7 @@ impl TextTable {
       columns,
       bg: drone.get_rectangles(rows, style.into()).unwrap(),
       textures,
+      highlight: Highlight::None,
       texture_sizes: sizes,
       cell_sizes: padded,
       constr: layout.size(),
@@ -358,6 +368,25 @@ impl TextTable {
     let origin = origin.to_point(&layout.size());
     let cells = layout.plot(&origin);
 
+    let rows: Vec<Area> = cells
+      .chunks(self.columns)
+      .map(|c| Area::collect_row(c))
+      .collect();
+
+    self.highlight = match self.highlight {
+      Highlight::Pending(hl, row) => {
+        let a = &rows[row];
+        feed.plot_grid(
+          hl,
+          a.expand(1)
+            .gridify(desc.window_area(), 1, 1, &[1.0], &[1.0]),
+        );
+        Highlight::Set(hl)
+      }
+      Highlight::Set(_) => Highlight::None,
+      Highlight::None => Highlight::None,
+    };
+
     let vs = Area::new(
       origin.x,
       origin.y,
@@ -387,16 +416,20 @@ impl TextTable {
         );
       });
 
-    self
-      .bg
-      .iter()
-      .zip(cells.chunks(self.columns).map(|c| Area::collect_row(c)))
-      .for_each(|(r, a)| {
-        feed.plot_rectangle(*r, a.to_normalized(desc.window_area()).to_coords())
-      });
+    self.bg.iter().zip(rows).for_each(|(r, a)| {
+      feed.plot_rectangle(*r, a.to_normalized(desc.window_area()).to_coords())
+    });
 
     self.state = State::Plotted(layout, cells);
     Ok(())
+  }
+
+  /// Highlights specified row with outline. If a row was alread highlighted
+  /// highlight gets moved to the new row.
+  pub fn set_highlight(&mut self, drone: &Drone, row: usize) {
+    let grid = drone.get_grids(1, CELL_HIGHLIGHT_COLOR).unwrap()[0];
+    self.highlight = Highlight::Pending(grid, row);
+    self.request_plot();
   }
 
   pub fn draw(&mut self, feed: &DroneFeed) -> Result<(), Error> {
@@ -407,6 +440,9 @@ impl TextTable {
     self.bg.iter().for_each(|r| feed.draw_rectangle(*r));
     feed.draw_grid(self.grid);
     self.textures.iter().for_each(|t| feed.draw_tex(*t));
+    if let Highlight::Set(hl) = self.highlight {
+      feed.draw_grid(hl);
+    }
     Ok(())
   }
 

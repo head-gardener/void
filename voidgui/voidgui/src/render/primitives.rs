@@ -1,5 +1,3 @@
-use std::{iter::Sum, ops::Add};
-
 pub type Color = (f32, f32, f32, f32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -188,6 +186,15 @@ impl Area {
       height: areas[0].height,
     }
   }
+
+  pub fn expand(&self, arg: i32) -> Area {
+    Self {
+      x: self.x - arg,
+      y: self.y - arg,
+      width: self.width + arg * 2,
+      height: self.height + arg * 2,
+    }
+  }
 }
 
 pub struct NormalizedArea {
@@ -236,7 +243,27 @@ impl NormalizedArea {
 }
 
 #[cfg(test)]
-mod test {
+mod test_area {
+  use super::*;
+
+  #[test]
+  fn to_from_prim() {
+    let a = Area::new(50, 10, 100, 60);
+    let p = Point::new(50, 10);
+    let s = Size::new(100, 60);
+    assert_eq!(Area::from_prim(p, s), a);
+    assert_eq!(a.to_prim(), (p, s));
+  }
+
+  #[test]
+  fn expand() {
+    let a = Area::new(50, 10, 100, 60);
+    assert_eq!(a.expand(2), Area::new(48, 8, 104, 64));
+  }
+}
+
+#[cfg(test)]
+mod test_primitives {
   use super::*;
 
   #[test]
@@ -259,15 +286,6 @@ mod test {
   #[test]
   fn size() {
     assert_eq!(Size::new(100, 60).expand(50, 10), Size::new(200, 80));
-  }
-
-  #[test]
-  fn area() {
-    let a = Area::new(50, 10, 100, 60);
-    let p = Point::new(50, 10);
-    let s = Size::new(100, 60);
-    assert_eq!(Area::from_prim(p, s), a);
-    assert_eq!(a.to_prim(), (p, s));
   }
 
   #[test]

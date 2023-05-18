@@ -17,14 +17,14 @@ pub trait Clickable {
 /// If a click sink rejects a click, it's passed to the previous (earlier) sink.
 pub trait ClickSink: Send + Sync + Clickable {
   fn onclick(
-    &self,
+    &mut self,
     desc: &RwLockReadGuard<Description>,
     drone: &Drone,
     p: Point,
   ) -> CallbackResult;
 
   fn handle_click(
-    &self,
+    &mut self,
     desc: &RwLockReadGuard<Description>,
     drone: &Drone,
     p: Point,

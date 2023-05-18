@@ -125,7 +125,7 @@ impl Spreadsheet {
 
 impl ClickSink for Spreadsheet {
   fn onclick(
-    &self,
+    &mut self,
     desc: &RwLockReadGuard<Description>,
     drone: &Drone,
     p: Point,
@@ -135,6 +135,7 @@ impl ClickSink for Spreadsheet {
       0 | 1 => CallbackResult::Pass,
       _ => {
         let s = &self.records[i - self.table.columns()];
+        self.table.set_highlight(drone, i / self.table.columns());
         match unsafe {
           InputField::new(
             desc,

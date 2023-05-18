@@ -59,7 +59,7 @@ impl Toolbar {
 
 impl ClickSink for Toolbar {
   fn onclick(
-    &self,
+    &mut self,
     desc: &RwLockReadGuard<Description>,
     drone: &Drone,
     p: Point,
@@ -132,7 +132,7 @@ impl Transient for ToolbarTable {}
 
 impl ClickSink for ToolbarTable {
   fn onclick(
-    &self,
+    &mut self,
     _: &RwLockReadGuard<Description>,
     _: &Drone,
     p: Point,

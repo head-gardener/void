@@ -72,7 +72,7 @@ impl Drawable for W {
 
 impl ClickSink for W {
   fn onclick(
-    &self,
+    &mut self,
     _: &RwLockReadGuard<Description>,
     _: &Drone,
     _: Point,
