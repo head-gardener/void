@@ -172,6 +172,7 @@ impl Drone {
           if c.is_kill() {
             break;
           }
+          let _from = std::time::Instant::now();
           c.handle(
             &shaders,
             &common,
@@ -181,6 +182,7 @@ impl Drone {
             &mut last_shader,
           )
           .map(|r| tx.send(r));
+          debug!("handle took {:?}", (std::time::Instant::now() - _from));
 
           let error = gl::GetError();
           if error != gl::NO_ERROR {
@@ -568,6 +570,7 @@ impl Command {
       Command::Step => {
         win.swap_buffers();
         win.glfw.poll_events();
+        gl::Finish();
         Some(Response::ShouldClose(win.should_close()))
       }
       Command::Kill => panic!(),

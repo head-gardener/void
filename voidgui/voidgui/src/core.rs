@@ -114,7 +114,7 @@ impl Core {
 
       // Resize
       WindowEvent::Size(w, h) => {
-        // p.resize(w as i32, h as i32);
+        desc.write().unwrap().resize(w as i32, h as i32);
         self.ring.write().unwrap().into_iter().for_each(|w| {
           w.0.write().unwrap().request_plot();
         });
