@@ -73,15 +73,13 @@ impl Core {
     drone: &Drone,
     event: WindowEvent,
   ) -> u64 {
-    let desc_lock = desc.read().unwrap();
-
     let res = self.ring.write().unwrap().catch_transient_control_event(
-      &desc_lock,
+      &desc.read().unwrap(),
       drone.feed(),
       &event,
     );
     match self.handle_callback_result_mut(
-      &desc_lock,
+      &desc.read().unwrap(),
       drone,
       res,
       "Transient control",
@@ -90,12 +88,17 @@ impl Core {
       Err(c) => return c,
       _ => {}
     }
-    let res = self
-      .ring
-      .write()
-      .unwrap()
-      .catch_key(&desc_lock, drone, &event);
-    match self.handle_callback_result_mut(&desc_lock, drone, res, "Click") {
+    let res = self.ring.write().unwrap().catch_key(
+      &desc.read().unwrap(),
+      drone,
+      &event,
+    );
+    match self.handle_callback_result_mut(
+      &desc.read().unwrap(),
+      drone,
+      res,
+      "Click",
+    ) {
       Ok(true) => return 0,
       Err(c) => return c,
       _ => {}
@@ -114,11 +117,11 @@ impl Core {
 
       // Resize
       WindowEvent::Size(w, h) => {
-        desc.write().unwrap().resize(w as i32, h as i32);
+        desc.write().unwrap().resize(w, h);
+        drone.resize(w, h);
         self.ring.write().unwrap().into_iter().for_each(|w| {
           w.0.write().unwrap().request_plot();
         });
-        gl::Viewport(0, 0, w, h);
       }
 
       // Mouse input
@@ -127,13 +130,16 @@ impl Core {
       }
       WindowEvent::MouseButton(MouseButton::Button1, Action::Press, _mods) => {
         let res = self.ring.write().unwrap().catch_click(
-          &desc_lock,
+          &desc.read().unwrap(),
           drone,
           self.cursor,
         );
-        if let Err(c) =
-          self.handle_callback_result_mut(&desc_lock, drone, res, "Click")
-        {
+        if let Err(c) = self.handle_callback_result_mut(
+          &desc.read().unwrap(),
+          drone,
+          res,
+          "Click",
+        ) {
           return c;
         }
       }
@@ -141,21 +147,21 @@ impl Core {
       // Text input
       WindowEvent::Char(c) => {
         self.ring.write().unwrap().catch_input_event(
-          &desc_lock,
+          &desc.read().unwrap(),
           drone,
           InputEvent::Char(c),
         );
       }
       WindowEvent::Key(Key::Left, _, Action::Press | Action::Repeat, _) => {
         self.ring.write().unwrap().catch_input_event(
-          &desc_lock,
+          &desc.read().unwrap(),
           drone,
           InputEvent::Left,
         );
       }
       WindowEvent::Key(Key::Right, _, Action::Press | Action::Repeat, _) => {
         self.ring.write().unwrap().catch_input_event(
-          &desc_lock,
+          &desc.read().unwrap(),
           drone,
           InputEvent::Right,
         );
@@ -167,28 +173,28 @@ impl Core {
         _,
       ) => {
         self.ring.write().unwrap().catch_input_event(
-          &desc_lock,
+          &desc.read().unwrap(),
           drone,
           InputEvent::Backspace,
         );
       }
       WindowEvent::Key(Key::Delete, _, Action::Press | Action::Repeat, _) => {
         self.ring.write().unwrap().catch_input_event(
-          &desc_lock,
+          &desc.read().unwrap(),
           drone,
           InputEvent::Delete,
         );
       }
       WindowEvent::Key(Key::Home, _, Action::Press | Action::Repeat, _) => {
         self.ring.write().unwrap().catch_input_event(
-          &desc_lock,
+          &desc.read().unwrap(),
           drone,
           InputEvent::Home,
         );
       }
       WindowEvent::Key(Key::End, _, Action::Press | Action::Repeat, _) => {
         self.ring.write().unwrap().catch_input_event(
-          &desc_lock,
+          &desc.read().unwrap(),
           drone,
           InputEvent::End,
         );
@@ -200,7 +206,7 @@ impl Core {
         Modifiers::Control,
       ) => {
         self.ring.write().unwrap().catch_input_event(
-          &desc_lock,
+          &desc.read().unwrap(),
           drone,
           InputEvent::Newline,
         );

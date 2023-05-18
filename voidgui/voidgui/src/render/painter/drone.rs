@@ -37,6 +37,7 @@ enum Command {
   Clear,
   Sync,
   Kill,
+  Resize(i32, i32),
 
   NewRectangles(usize, rectangle::Style),
   PlotRectangle(usize, [f32; 8]),
@@ -59,6 +60,7 @@ enum Response {
   Sync,
 
   NewShapes(Vec<usize>),
+  Resized,
 }
 
 macro_rules! receive {
@@ -318,6 +320,11 @@ impl Drone {
 
   pub fn clear(&self) {
     self.dir_feed.send(Command::Clear).unwrap();
+  }
+
+  pub fn resize(&self, w: i32, h: i32) {
+    self.ctr_feed.0.send(Command::Resize(w, h)).unwrap();
+    receive!(self.resp, Response::Resized, {})
   }
 }
 
@@ -579,6 +586,10 @@ impl Command {
         None
       }
       Command::Sync => Some(Response::Sync),
+      Command::Resize(w, h) => {
+        gl::Viewport(0, 0, w, h);
+        Some(Response::Resized)
+      }
     }
   }
 
