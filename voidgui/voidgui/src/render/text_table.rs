@@ -167,12 +167,11 @@ impl TextTable {
     rows: usize,
     columns: usize,
   ) -> Result<Self, widget::Error> {
-    if rows != 0 && columns != 0 {
-      panic!(
-        "Either rows or columns should be zero when
+    assert!(
+      rows == 0 || columns == 0,
+      "Either rows or columns should be zero when
         TextTable is created with new"
-      );
-    }
+    );
 
     Ok(Self {
       rows,
@@ -223,7 +222,7 @@ impl TextTable {
       grid: drone.get_grids(1, GRID_COLOR).ok_or(Error::InitFailure)?[0],
       rows,
       columns,
-      bg: drone.get_rectangles(textures.len(), style.into()).unwrap(),
+      bg: drone.get_rectangles(rows, style.into()).unwrap(),
       textures,
       texture_sizes: sizes,
       cell_sizes: padded,
@@ -267,7 +266,7 @@ impl TextTable {
 
     self.bg.append(
       &mut drone
-        .get_rectangles(self.columns, style.into())
+        .get_rectangles(1, style.into())
         .ok_or(Error::InitFailure)?,
     );
 
@@ -335,7 +334,7 @@ impl TextTable {
 
   pub fn truncate(&mut self, len: usize) {
     self.textures.truncate(len);
-    self.bg.truncate(len);
+    self.bg.truncate(len / self.columns);
     self.texture_sizes.truncate(len);
     self.cell_sizes.truncate(len);
 
@@ -388,9 +387,13 @@ impl TextTable {
         );
       });
 
-    self.bg.iter().zip(cells.iter()).for_each(|(r, a)| {
-      feed.plot_rectangle(*r, a.to_normalized(desc.window_area()).to_coords())
-    });
+    self
+      .bg
+      .iter()
+      .zip(cells.chunks(self.columns).map(|c| Area::collect_row(c)))
+      .for_each(|(r, a)| {
+        feed.plot_rectangle(*r, a.to_normalized(desc.window_area()).to_coords())
+      });
 
     self.state = State::Plotted(layout, cells);
     Ok(())

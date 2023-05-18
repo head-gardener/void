@@ -1,3 +1,5 @@
+use std::{iter::Sum, ops::Add};
+
 pub type Color = (f32, f32, f32, f32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -176,6 +178,15 @@ impl Area {
     }
 
     vertices
+  }
+
+  pub fn collect_row(areas: &[Area]) -> Self {
+    Self {
+      x: areas[0].x,
+      y: areas[0].y,
+      width: areas.iter().map(|a| a.width).sum(),
+      height: areas[0].height,
+    }
   }
 }
 
