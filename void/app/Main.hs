@@ -59,8 +59,8 @@ main =
   fill w =
     G.push
       w
-      [ Entry 0 "Vovan" "123"
-      , Entry 1 "Ivan" "228"
+      [ Entry 0 "Vovan" "123" 300
+      , Entry 1 "Ivan" "228" 523
       ]
 
   exec :: G.VoidInstance -> IO ()

@@ -1,4 +1,7 @@
-use std::sync::{RwLockReadGuard, RwLockWriteGuard};
+use std::{
+  str::FromStr,
+  sync::{RwLockReadGuard, RwLockWriteGuard},
+};
 
 use glfw::{Action, Key, Modifiers, WindowEvent};
 use voidmacro::{ClickableMenu, DrawableMenu, Menu};
@@ -23,18 +26,32 @@ use crate::widgets;
 /// An entry in a spreadsheet. Implement with `Entry` derive macro.
 /// When doing so, prefix all data field with `d_` and give them `&'a str` type.
 /// Those fields will be used when displaying data.
-pub trait Entry: Default + Send + Sync {
+pub trait Entry: Header + Send + Sync {
   const N_FIELDS: usize;
 
-  fn fields<'a>(&'a self) -> Vec<&'a str>;
+  fn fields<'a>(&'a self) -> Vec<&'a dyn Data>;
+  fn datatypes() -> Vec<Datatype>;
   fn uuid(&self) -> &u64;
-  // fn ntn_mut(&mut self) -> &mut String;
 }
+
+pub trait Header {
+  fn header() -> Vec<&'static str>;
+}
+
+pub enum Datatype {
+  String,
+  Integer,
+}
+
+pub trait Data: ToString {}
+impl Data for String {}
+impl Data for u64 {}
 
 #[derive(Menu, DrawableMenu, ClickableMenu)]
 pub struct Spreadsheet {
   table: TextTable,
   data: Dataset,
+  datatypes: Vec<Datatype>,
   uuids: Vec<u64>,
   scroll: i32,
 }
@@ -48,13 +65,14 @@ impl Spreadsheet {
     table.add_row(
       desc,
       drone,
-      E::default().fields().into_iter(),
+      E::header().into_iter(),
       crate::render::text_table::CellStyle::Lit,
     )?;
 
     Ok(Self {
       table,
       data: Dataset::new(),
+      datatypes: E::datatypes(),
       uuids: vec![],
       scroll: 0,
     })
@@ -66,17 +84,19 @@ impl Spreadsheet {
     drone: &mut Drone,
     e: E,
   ) -> Result<(), widgets::Error> {
+    // PERF: too much allocating
+
     self.uuids.push(*e.uuid());
-    let fs = e.fields();
+    let fs: Vec<String> = e.fields().iter().map(|f| f.to_string()).collect();
     fs.iter().for_each(|f| {
-      self.data.push(f);
+      self.data.push(&f);
     });
 
     unsafe {
       self.table.add_row(
         desc,
         drone,
-        fs.into_iter(),
+        fs.iter().map(|f| f.as_str()),
         crate::render::text_table::CellStyle::Normal,
       )?;
     };
@@ -171,20 +191,28 @@ impl ClickSink for Spreadsheet {
       _ => {
         let s = self.data.get(i - self.table.columns());
         self.table.set_highlight(drone, i / self.table.columns());
-        match unsafe {
-          InputField::new(
-            desc,
-            drone,
-            s,
-            (
-              self.uuids[i / self.table.columns() - 1],
-              i % self.table.columns(),
-              s.to_string(),
-            ),
-          )
-        } {
-          Ok(f) => CallbackResult::Push(Box::new(ring::wrap(f))),
-          Err(e) => CallbackResult::Error(e),
+        let closure = (
+          self.uuids[i / self.table.columns() - 1],
+          i % self.table.columns(),
+          s.to_string(),
+        );
+        match self.datatypes[i % self.table.columns()] {
+          Datatype::String => unsafe {
+            InputField::<SpreadsheetIF, String>::new(desc, drone, s, closure)
+              .map(|f| Box::new(ring::wrap(f)))
+              .map_or_else(
+                |e| CallbackResult::Error(e),
+                |f| CallbackResult::Push(f),
+              )
+          },
+          Datatype::Integer => unsafe {
+            InputField::<SpreadsheetIF, i64>::new(desc, drone, s, closure)
+              .map(|f| Box::new(ring::wrap(f)))
+              .map_or_else(
+                |e| CallbackResult::Error(e),
+                |f| CallbackResult::Push(f),
+              )
+          },
         }
       }
     }
@@ -220,7 +248,11 @@ impl KeySink for Spreadsheet {
 
 type SpreadsheetIF = (u64, usize, String);
 
-impl Transient for InputField<SpreadsheetIF, String> {
+impl<T> Transient for InputField<SpreadsheetIF, T>
+where
+  T: Send + Sync + std::fmt::Display + Default + FromStr + Clone,
+  <T>::Err: std::fmt::Debug,
+{
   fn handle_accept(&self, _: &DroneFeed) -> CallbackResult {
     let (uuid, c, from) = self.closure().clone();
     let to = self.to_string();
@@ -230,7 +262,11 @@ impl Transient for InputField<SpreadsheetIF, String> {
   }
 }
 
-impl RingElement for ring::Wrap<InputField<SpreadsheetIF, String>> {
+impl<T> RingElement for ring::Wrap<InputField<SpreadsheetIF, T>>
+where
+  T: Send + Sync + std::fmt::Display + Default + FromStr + Clone + 'static,
+  <T>::Err: std::fmt::Debug,
+{
   fn push_to_ring(&self, mut ring: RwLockWriteGuard<crate::logic::Ring>) {
     ring.push_transient(self.clone(), Mark::InputFloat, true);
     ring.push_input_sink(self.clone(), Mark::InputFloat);

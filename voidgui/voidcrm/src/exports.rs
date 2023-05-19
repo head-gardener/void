@@ -9,7 +9,10 @@ use voidgui::{
   backend::Backend,
   core::*,
   logic::ring,
-  widgets::{self, toolbar::Toolbar, OrientedLayout, Spreadsheet, Status},
+  widgets::{
+    self, spreadsheet::Header, toolbar::Toolbar, OrientedLayout, Spreadsheet,
+    Status,
+  },
   Entry,
 };
 
@@ -22,17 +25,14 @@ struct Instance {
 struct Entry {
   d_name: String,
   d_phone: String,
+  d_mou: u64,
   // d_stage: String,
   uuid: u64,
 }
 
-impl Default for Entry {
-  fn default() -> Self {
-    Self {
-      d_name: "Name".to_owned(),
-      d_phone: "Phone".to_owned(),
-      uuid: 0,
-    }
+impl Header for Entry {
+  fn header() -> Vec<&'static str> {
+    vec!["Name", "Phone", "MoU"]
   }
 }
 

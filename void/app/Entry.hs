@@ -12,16 +12,19 @@ data Entry = Entry
   { uuid :: Int
   , name :: String
   , phone :: String
+  , mou :: Int
   }
   deriving (Eq, Show, Generic)
 
 instance PG.FromRow Entry
 instance Serialise Entry where
-  encode (Entry uuid name phone) =
-    encodeMapLen 3
+  encode (Entry uuid name phone mou) =
+    encodeMapLen 4
+      <> encode "uuid"
+      <> encode uuid
       <> encode "d_name"
       <> encode name
       <> encode "d_phone"
       <> encode phone
-      <> encode "uuid"
-      <> encode uuid
+      <> encode "d_mou"
+      <> encode mou

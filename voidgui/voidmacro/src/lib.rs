@@ -4,7 +4,7 @@ extern crate quote;
 extern crate syn;
 
 use proc_macro::TokenStream;
-use syn::{Data, DeriveInput, Ident};
+use syn::{Data, DeriveInput, Field, Ident, Type};
 
 // MENU
 
@@ -108,27 +108,49 @@ pub fn derive_entry(input: TokenStream) -> TokenStream {
   let name = input.ident;
   let gen = input.generics;
 
-  let fields: Vec<Ident> = match input.data {
+  let fields: Vec<Field> = match input.data {
     Data::Struct(d) => d
       .fields
       .iter()
-      .filter_map(|f| f.ident.to_owned())
-      .filter(|i| i.to_string().starts_with("d_"))
+      .filter(|f| {
+        f.ident
+          .as_ref()
+          .map(|i| i.to_string().starts_with("d_"))
+          .unwrap_or(false)
+      })
+      .cloned()
       .collect(),
     _ => todo!(),
   };
+  let ids = fields.iter().map(|f| f.ident.as_ref().unwrap());
+  let dt = fields.iter().map(|f| match &f.ty {
+    Type::Path(p) if p.path.is_ident::<Ident>(parse_quote!(String)) => {
+      quote!(voidgui::widgets::spreadsheet::Datatype::String)
+    }
+    Type::Path(p) if p.path.is_ident::<Ident>(parse_quote!(u64)) => {
+      quote!(voidgui::widgets::spreadsheet::Datatype::Integer)
+    }
+    _ => panic!(
+      "Unexpected type for field {:?}",
+      f.ident.as_ref().map(|i| i.to_string())
+    ),
+  });
   let n_fields = fields.len();
 
   let expanded = quote! {
     impl #gen voidgui::widgets::spreadsheet::Entry #gen for #name #gen {
       const N_FIELDS: usize = #n_fields;
 
-      fn fields<'a>(&'a self) -> Vec<&'a str> {
-        vec![#(&self.#fields),*]
+      fn fields<'a>(&'a self) -> Vec<&'a dyn voidgui::widgets::spreadsheet::Data> {
+        vec![#(&self.#ids),*]
       }
 
       fn uuid(&self) -> &u64 {
         &self.uuid
+      }
+
+      fn datatypes() -> Vec<voidgui::widgets::spreadsheet::Datatype> {
+        vec![#(#dt),*]
       }
     }
   };
