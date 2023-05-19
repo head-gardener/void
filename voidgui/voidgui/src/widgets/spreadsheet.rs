@@ -127,22 +127,28 @@ impl Spreadsheet {
 
   pub fn new_search(&mut self, drone: &Drone, value: &str) {
     self.data.new_search(value);
-    self.find_next(drone);
+    self.find(drone, true);
   }
 
-  fn find_prev(&mut self, drone: &Drone) {
-    self.data.find_prev().map(|i| {
+  fn find(&mut self, drone: &Drone, next: bool) {
+    if next {
+      self.data.find_next()
+    } else {
+      self.data.find_prev()
+    }
+    .map(|i| {
       self
         .table
-        .set_highlight(drone, i / self.table.columns() + 1)
-    });
-  }
-
-  fn find_next(&mut self, drone: &Drone) {
-    self.data.find_next().map(|i| {
-      self
+        .set_highlight(drone, i / self.table.columns() + 1);
+      self.scroll = self
         .table
-        .set_highlight(drone, i / self.table.columns() + 1)
+        .cell_sizes()
+        .chunks(self.table.columns())
+        .map(|xs| xs[0].height)
+        .take(i / self.table.columns() + 1)
+        .sum::<i32>()
+        * -1;
+      self.request_plot();
     });
   }
 
@@ -193,11 +199,11 @@ impl KeySink for Spreadsheet {
   ) -> CallbackResult {
     match e {
       WindowEvent::Key(Key::N, _, Action::Press, m) if m.is_empty() => {
-        self.find_next(drone);
+        self.find(drone, true);
         CallbackResult::None
       }
       WindowEvent::Key(Key::N, _, Action::Press, Modifiers::Shift) => {
-        self.find_prev(drone);
+        self.find(drone, false);
         CallbackResult::None
       }
       WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
@@ -214,7 +220,7 @@ impl KeySink for Spreadsheet {
 
 type SpreadsheetIF = (u64, usize, String);
 
-impl Transient for InputField<SpreadsheetIF> {
+impl Transient for InputField<SpreadsheetIF, String> {
   fn handle_accept(&self, _: &DroneFeed) -> CallbackResult {
     let (uuid, c, from) = self.closure().clone();
     let to = self.to_string();
@@ -224,7 +230,7 @@ impl Transient for InputField<SpreadsheetIF> {
   }
 }
 
-impl RingElement for ring::Wrap<InputField<SpreadsheetIF>> {
+impl RingElement for ring::Wrap<InputField<SpreadsheetIF, String>> {
   fn push_to_ring(&self, mut ring: RwLockWriteGuard<crate::logic::Ring>) {
     ring.push_transient(self.clone(), Mark::InputFloat, true);
     ring.push_input_sink(self.clone(), Mark::InputFloat);

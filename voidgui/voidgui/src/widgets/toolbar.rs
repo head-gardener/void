@@ -217,7 +217,7 @@ impl ClickSink for ToolbarTools {
 
 type SearchIF = ();
 
-impl Transient for InputField<SearchIF> {
+impl Transient for InputField<SearchIF, String> {
   fn handle_accept(&self, _: &DroneFeed) -> CallbackResult {
     let st = self.to_string();
     CallbackResult::Modify(
@@ -233,7 +233,7 @@ impl Transient for InputField<SearchIF> {
   }
 }
 
-impl RingElement for ring::Wrap<InputField<SearchIF>> {
+impl RingElement for ring::Wrap<InputField<SearchIF, String>> {
   fn push_to_ring(&self, mut ring: RwLockWriteGuard<crate::logic::Ring>) {
     ring.push_transient(self.clone(), Mark::InputFloat, true);
     ring.push_input_sink(self.clone(), Mark::InputFloat);

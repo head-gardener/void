@@ -492,6 +492,10 @@ impl TextTable {
     self.state.try_cells().ok()
   }
 
+  pub fn cell_sizes(&self) -> &Vec<Size> {
+    &self.cell_sizes
+  }
+
   pub fn columns(&self) -> usize {
     self.columns
   }
