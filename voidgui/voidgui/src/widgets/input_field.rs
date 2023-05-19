@@ -137,9 +137,13 @@ where
   }
 }
 
-impl<T, R> ToString for InputField<T, R> {
+impl<T, R> ToString for InputField<T, R>
+where
+  R: FromStr + ToString,
+  <R>::Err: std::fmt::Debug,
+{
   fn to_string(&self) -> String {
-    self.state.to_string()
+    self.state.to_string().parse::<R>().unwrap().to_string()
   }
 }
 
