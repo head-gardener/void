@@ -79,6 +79,10 @@ impl Dataset {
         })
     })
   }
+
+  pub fn cut(&mut self, ind: usize, n: usize) {
+    self.records.drain(ind..ind + n);
+  }
 }
 
 #[cfg(test)]
@@ -95,6 +99,17 @@ mod test_dataset {
     d.clear();
     d.push("yup");
     assert_eq!(d.get(0), "yup");
+  }
+
+  #[test]
+  fn cut() {
+    let mut d = Dataset::new();
+    ["hello", "hi", "Hey", "ahead"]
+      .into_iter()
+      .for_each(|x| d.push(x));
+
+    d.cut(1, 2);
+    assert_eq!(d.get(1), "ahead");
   }
 
   #[test]

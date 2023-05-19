@@ -6,7 +6,7 @@ use rayon::prelude::*;
 
 use crate::{
   render::{
-    painter::{Description, Drone, DroneFeed},
+    painter::{Description, Drone, DroneFeed, Mode},
     Point,
   },
   widgets::{
@@ -61,13 +61,7 @@ pub enum CallbackResult {
   /// Modify a widget by mark.
   Modify(
     Mark,
-    Box<
-      dyn FnOnce(
-        Option<Wrap<dyn Drawable>>,
-        &RwLockReadGuard<Description>,
-        &Drone,
-      ),
-    >,
+    Box<dyn FnOnce(Option<Wrap<dyn Drawable>>, &Description, &Drone)>,
   ),
 
   /// Access damage tracker.
@@ -75,6 +69,9 @@ pub enum CallbackResult {
 
   /// Exit codes for interacting with external caller. Can't be 0.
   ExitCode(u64),
+
+  /// Change window global mode.
+  Mode(Mode),
 }
 
 impl std::fmt::Debug for CallbackResult {
@@ -87,6 +84,7 @@ impl std::fmt::Debug for CallbackResult {
       CallbackResult::Modify(m, _) => write!(f, "Modify({:?}, _)", m),
       CallbackResult::Damage(_) => write!(f, "Damage(_)"),
       CallbackResult::ExitCode(c) => write!(f, "ExitCode({})", c),
+      CallbackResult::Mode(m) => write!(f, "Mode({:?})", m),
     }
   }
 }
@@ -367,12 +365,12 @@ impl Ring {
 
   pub fn catch_key(
     &mut self,
-    _: &RwLockReadGuard<Description>,
+    desc: &Description,
     drone: &Drone,
     e: &WindowEvent,
   ) -> (CallbackResult, Mark) {
     for (w, m) in self.key_sinks.iter().rev() {
-      match w.write().unwrap().handle_key(drone, e) {
+      match w.write().unwrap().handle_key(desc, drone, e) {
         CallbackResult::Pass => continue,
         res => return (res, *m),
       }
@@ -420,10 +418,8 @@ impl<'a> IntoParallelIterator for &'a mut Ring {
 }
 
 pub fn with_spreadsheet(
-  f: impl FnOnce(&RwLockReadGuard<Description>, &Drone, &mut Spreadsheet) + 'static,
-) -> Box<
-  dyn FnOnce(Option<Wrap<dyn Drawable>>, &RwLockReadGuard<Description>, &Drone),
-> {
+  f: impl FnOnce(&Description, &Drone, &mut Spreadsheet) + 'static,
+) -> Box<dyn FnOnce(Option<Wrap<dyn Drawable>>, &Description, &Drone)> {
   Box::new(move |s, desc, drone| {
     s.expect("Spreadsheet should always be in the ring")
       .write()

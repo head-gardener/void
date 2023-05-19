@@ -3,7 +3,7 @@ use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use crate::{
   logic::{
     ring::{self, Mark, RingElement},
-    CallbackResult,
+    CallbackResult, Damage,
   },
   render::{
     painter::{Description, Drone, DroneFeed},
@@ -24,7 +24,7 @@ use voidmacro::{ClickableMenu, DrawableMenu, Menu};
 
 static TOOLBAR_ITEMS: [&str; 2] = ["Table", "Tools"];
 static TOOLBAR_TABLE_ITEMS: [&str; 2] = ["Pull", "Push"];
-static TOOLBAR_TOOLS_ITEMS: [&str; 1] = ["Search..."];
+static TOOLBAR_TOOLS_ITEMS: [&str; 3] = ["New", "Remove", "Search..."];
 
 #[derive(Menu, DrawableMenu, ClickableMenu)]
 pub struct Toolbar {
@@ -100,6 +100,8 @@ pub struct ToolbarTable {
   table: TextTable,
 }
 
+// TABLE
+
 impl ToolbarTable {
   pub unsafe fn new(
     desc: &RwLockReadGuard<Description>,
@@ -159,6 +161,8 @@ pub struct ToolbarTools {
   table: TextTable,
 }
 
+// TOOLS
+
 impl ToolbarTools {
   pub unsafe fn new(
     desc: &RwLockReadGuard<Description>,
@@ -204,7 +208,11 @@ impl ClickSink for ToolbarTools {
   ) -> CallbackResult {
     let i = self.table.catch_point(&p).unwrap();
     match i {
-      0 => match unsafe { InputField::new(desc, drone, "", ()) } {
+      0 => CallbackResult::Damage(Box::new(|t| {
+        t.push(Damage::Add(rand::random()))
+      })),
+      1 => CallbackResult::Mode(crate::render::painter::Mode::Delete),
+      2 => match unsafe { InputField::new(desc, drone, "", ()) } {
         Ok(f) => CallbackResult::Push(Box::new(ring::wrap(f))),
         Err(e) => CallbackResult::Error(e),
       },
@@ -215,6 +223,8 @@ impl ClickSink for ToolbarTools {
   }
 }
 
+// SEARCH INPUT FIELD
+
 type SearchIF = ();
 
 impl Transient for InputField<SearchIF, String> {
@@ -223,9 +233,7 @@ impl Transient for InputField<SearchIF, String> {
     CallbackResult::Modify(
       Mark::Spreadsheet,
       ring::with_spreadsheet(
-        move |_: &RwLockReadGuard<Description>,
-              drone: &Drone,
-              s: &mut Spreadsheet| {
+        move |_: &Description, drone: &Drone, s: &mut Spreadsheet| {
           s.new_search(drone, &st);
         },
       ),

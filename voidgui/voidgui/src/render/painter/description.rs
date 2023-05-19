@@ -2,7 +2,14 @@ use pangocairo::pango::FontDescription;
 
 use crate::render::Area;
 
+#[derive(PartialEq, Eq, Debug)]
+pub enum Mode {
+  Normal,
+  Delete,
+}
+
 pub struct Description {
+  mode: Mode,
   window_area: Area,
   font: FontDescription,
 }
@@ -18,6 +25,7 @@ impl Description {
     };
 
     Self {
+      mode: Mode::Normal,
       window_area,
       font: FontDescription::from_string("Sans 18"),
     }
@@ -35,5 +43,12 @@ impl Description {
   pub fn font(&self) -> &FontDescription {
     &self.font
   }
-}
 
+  pub fn mode(&self) -> &Mode {
+    &self.mode
+  }
+
+  pub fn set_mode(&mut self, mode: Mode) {
+    self.mode = mode;
+  }
+}

@@ -1,4 +1,4 @@
-use std::{io::Write, sync::RwLockReadGuard};
+use std::io::Write;
 
 use glfw::{Action, Key, Modifiers, WindowEvent};
 use serde::Serialize;
@@ -17,6 +17,8 @@ use super::{
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
 pub enum Damage {
   Update(u64, usize, String, String),
+  Add(u64),
+  Remove(u64),
 }
 
 /// Describes a change that is going to happen once the damage object is
@@ -25,24 +27,34 @@ impl Damage {
   pub fn invert(self) -> Self {
     match self {
       Damage::Update(uuid, n, from, to) => Damage::Update(uuid, n, to, from),
+      Damage::Add(uuid) => Damage::Remove(uuid),
+      Damage::Remove(uuid) => Damage::Add(uuid),
     }
   }
 }
 
 impl Into<CallbackResult> for Damage {
   fn into(self) -> CallbackResult {
-    match self {
-      Damage::Update(uuid, n, _, to) => CallbackResult::Modify(
-        Mark::Spreadsheet,
-        ring::with_spreadsheet(
-          move |desc: &RwLockReadGuard<Description>,
-                drone: &Drone,
-                s: &mut Spreadsheet| {
+    CallbackResult::Modify(
+      Mark::Spreadsheet,
+      match self {
+        Damage::Update(uuid, n, _, to) => ring::with_spreadsheet(
+          move |desc: &Description, drone: &Drone, s: &mut Spreadsheet| {
             s.update_record(desc, drone, uuid, n, &to).unwrap();
           },
         ),
-      ),
-    }
+        Damage::Add(uuid) => ring::with_spreadsheet(
+          move |desc: &Description, drone: &Drone, s: &mut Spreadsheet| {
+            s.add_record(desc, drone, uuid).unwrap();
+          },
+        ),
+        Damage::Remove(uuid) => ring::with_spreadsheet(
+          move |_: &Description, drone: &Drone, s: &mut Spreadsheet| {
+            s.rem_record(drone, uuid).unwrap();
+          },
+        ),
+      },
+    )
   }
 }
 
@@ -102,6 +114,7 @@ impl DamageTracker {
 impl KeySink for DamageTracker {
   fn handle_key(
     &mut self,
+    _: &Description,
     _: &crate::render::painter::Drone,
     e: &WindowEvent,
   ) -> CallbackResult {

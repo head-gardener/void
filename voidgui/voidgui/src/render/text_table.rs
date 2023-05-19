@@ -249,7 +249,7 @@ impl TextTable {
   /// Returns an error only if [Texture::bind_text] fails.
   pub unsafe fn add_row<'a, I>(
     &mut self,
-    desc: &RwLockReadGuard<Description>,
+    desc: &Description,
     drone: &Drone,
     data: I,
     style: CellStyle,
@@ -286,6 +286,19 @@ impl TextTable {
     Ok(())
   }
 
+  /// Remove a row from the table and request plotting.
+  pub fn rem_row(&mut self, _: &Drone, row: usize) {
+    let n = row * self.columns();
+    self.texture_sizes.drain(n..n + self.columns);
+    self.cell_sizes.drain(n..n + self.columns);
+    self.textures.drain(n..n + self.columns);
+
+    self.bg.remove(row);
+
+    self.rows -= 1;
+    self.state = State::None;
+  }
+
   /// Update texture and sizes for specific cell.
   ///
   /// # Errors
@@ -294,7 +307,7 @@ impl TextTable {
   /// `Texture::bind_text` fails.
   pub fn update_cell(
     &mut self,
-    desc: &RwLockReadGuard<Description>,
+    desc: &Description,
     drone: &Drone,
     n: usize,
     s: &str,

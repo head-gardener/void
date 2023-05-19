@@ -79,7 +79,7 @@ impl Core {
       &event,
     );
     match self.handle_callback_result_mut(
-      &desc.read().unwrap(),
+      &mut desc.write().unwrap(),
       drone,
       res,
       "Transient control",
@@ -94,7 +94,7 @@ impl Core {
       &event,
     );
     match self.handle_callback_result_mut(
-      &desc.read().unwrap(),
+      &mut desc.write().unwrap(),
       drone,
       res,
       "Click",
@@ -135,7 +135,7 @@ impl Core {
           self.cursor,
         );
         if let Err(c) = self.handle_callback_result_mut(
-          &desc.read().unwrap(),
+          &mut desc.write().unwrap(),
           drone,
           res,
           "Click",
@@ -291,7 +291,7 @@ impl Core {
   /// the callback.
   fn handle_callback_result_mut(
     &mut self,
-    desc: &RwLockReadGuard<Description>,
+    desc: &mut Description,
     drone: &Drone,
     (r, who): (CallbackResult, Mark),
     what: &str,
@@ -313,6 +313,9 @@ impl Core {
         debug_assert_ne!(c, 0);
         return Err(c);
       }
+      CallbackResult::Mode(m) => {
+        desc.set_mode(m);
+      }
 
       _ => {}
     }
@@ -323,7 +326,7 @@ impl Core {
   /// and [CallbackResult::Damage] are considered errors.
   fn handle_callback_result(
     &self,
-    desc: &RwLockReadGuard<Description>,
+    desc: &Description,
     drone: &Drone,
     (r, who): (CallbackResult, Mark),
     what: &str,
@@ -338,6 +341,9 @@ impl Core {
       }
       CallbackResult::Damage(_) => {
         println!("{} immutable callback by {:?} returned Damage", what, who);
+      }
+      CallbackResult::Mode(_) => {
+        println!("{} immutable callback by {:?} returned Mode", what, who);
       }
       CallbackResult::Push(_) => {
         println!("{} immutable callback by {:?} returned Push", what, who);
