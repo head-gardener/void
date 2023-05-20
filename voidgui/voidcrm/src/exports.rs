@@ -4,7 +4,7 @@ use std::{
 };
 
 use ciborium::de::from_reader;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use voidgui::{
   backend::Backend,
   core::*,
@@ -13,7 +13,7 @@ use voidgui::{
     self, spreadsheet::Header, toolbar::Toolbar, OrientedLayout, Spreadsheet,
     Status,
   },
-  Entry,
+  Record,
 };
 
 struct Instance {
@@ -21,16 +21,28 @@ struct Instance {
   b: Backend,
 }
 
-#[derive(Entry, Deserialize)]
-struct Entry {
+#[derive(Record, Serialize, Deserialize)]
+struct Subscriber {
   d_name: String,
   d_phone: String,
-  d_mou: u64,
+  d_mou: i64,
   // d_stage: String,
-  uuid: u64,
+  uid: i64,
 }
 
-impl Header for Entry {
+// TODO: add this to proc macro
+impl From<(i64, Vec<String>)> for Subscriber {
+  fn from((uid, fs): (i64, Vec<String>)) -> Self {
+    Self {
+      d_name: fs[0].clone(),
+      d_phone: fs[1].clone(),
+      d_mou: fs[2].parse().unwrap(),
+      uid,
+    }
+  }
+}
+
+impl Header for Subscriber {
   fn header() -> Vec<&'static str> {
     vec!["Name", "Phone", "MoU"]
   }
@@ -51,7 +63,7 @@ unsafe fn populate(c: &mut Core, b: &mut Backend) {
   let painter = b.desc.read().unwrap();
 
   let win = widgets::Window::new(&painter);
-  let ssheet = Spreadsheet::new::<Entry>(&painter, &mut b.drone).unwrap();
+  let ssheet = Spreadsheet::new::<Subscriber>(&painter, &mut b.drone).unwrap();
   let toolbar = Toolbar::new(&painter, &mut b.drone).unwrap();
   let statusbox = OrientedLayout::new();
 
@@ -75,16 +87,17 @@ unsafe extern "C" fn void_gui_exec(w: &mut Instance) -> u64 {
 struct CStringLen(u32, *mut u8);
 
 #[no_mangle]
-extern "C" fn void_gui_pull_damage(w: &mut Instance) -> Box<CStringLen> {
-  let mut xs = w.c.pull_damage();
+extern "C" fn void_gui_drain_damage(w: &mut Instance) -> Box<CStringLen> {
+  let mut xs = w.c.pull_damage::<Subscriber>();
   let len = xs.len();
   let res = xs.as_mut_ptr();
   std::mem::forget(xs);
+  w.c.wipe_damage_tracker();
   Box::new(CStringLen(len as u32, res))
 }
 
 #[no_mangle]
-unsafe extern "C" fn void_gui_free_damage(_: Box<CStringLen>) -> u64 {
+unsafe extern "C" fn void_gui_free_damage(_: Box<CStringLen>) -> i64 {
   0
 }
 
@@ -104,22 +117,22 @@ extern "C" fn void_gui_status(msg: *const c_char, w: &mut Instance) {
 }
 
 #[no_mangle]
-extern "C" fn void_gui_finish(_: Box<Instance>) -> u64 {
+extern "C" fn void_gui_finish(_: Box<Instance>) -> i64 {
   0
 }
 
 #[no_mangle]
 extern "C" fn void_gui_add(
   w: &mut Instance,
-  len: u64,
+  len: i64,
   entry: *const u8,
-) -> u64 {
+) -> i64 {
   let data = unsafe { std::slice::from_raw_parts(entry, len as usize) };
-  let e: Entry = from_reader(Cursor::new(data)).unwrap();
+  let e: Subscriber = from_reader(Cursor::new(data)).unwrap();
 
   w.c.with_ssheet_mut(|ssheet| {
     if let Err(e) =
-      ssheet.push::<Entry>(&w.b.desc.read().unwrap(), &mut w.b.drone, e)
+      ssheet.push::<Subscriber>(&w.b.desc.read().unwrap(), &mut w.b.drone, e)
     {
       println!("Push failed: {}", e);
       ssheet.drop();
@@ -131,7 +144,7 @@ extern "C" fn void_gui_add(
 }
 
 #[no_mangle]
-extern "C" fn void_gui_drop(w: &mut Instance) -> u64 {
+extern "C" fn void_gui_drop(w: &mut Instance) -> i64 {
   w.c.with_ssheet_mut(|s| {
     s.drop();
     0

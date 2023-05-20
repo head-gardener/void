@@ -38,8 +38,8 @@ foreign import ccall "void_gui_add"
 foreign import ccall "void_gui_drop"
   void_gui_drop :: VoidInstance -> CInt
 
-foreign import ccall "void_gui_pull_damage"
-  void_gui_pull_damage :: VoidInstance -> Ptr CInt
+foreign import ccall "void_gui_drain_damage"
+  void_gui_drain_damage :: VoidInstance -> Ptr CInt
 
 foreign import ccall "void_gui_free_damage"
   void_gui_free_damage :: Ptr CInt -> CInt
@@ -51,16 +51,17 @@ foreign import ccall "void_gui_status"
 -- real nuisance
 newtype VoidInstance = VoidInstance (Ptr VoidInstance) deriving (Eq)
 
-data Damage = Update Int Int String String deriving (Eq, Show, Generic)
+data Damage = Update Entry | Add Entry | Remove Int deriving (Eq, Show, Generic)
 instance Serialise Damage where
   decode = do
     len <- decodeMapLen
     when (len /= 1) $ fail $ "invalid map len: " ++ show len
     tag <- decodeString
-    len <- decodeListLen
-    case (tag, len) of
-      ("Update", 4) -> Update <$> decode <*> decode <*> decode <*> decode
-      _ -> fail $ "unexpected (tag, len): " ++ show (tag, len)
+    case tag of
+      "Update" -> Update <$> decode
+      "Add" -> Add <$> decode
+      "Remove" -> Remove <$> decode
+      _ -> fail $ "unexpected tag: " ++ show tag
 
 nullWindow :: VoidInstance
 nullWindow = VoidInstance nullPtr
@@ -115,5 +116,5 @@ pull w = do
 
   withDamage :: (Ptr CInt -> IO a) -> IO a
   withDamage f =
-    let ptr = void_gui_pull_damage w
+    let ptr = void_gui_drain_damage w
      in f ptr >>= \x -> x `seq` void_gui_free_damage ptr `seq` return x

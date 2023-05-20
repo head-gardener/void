@@ -30,10 +30,27 @@ push :: Connection -> [Damage] -> IO Int
 push c xs = do
   mapM update xs <&> fromIntegral . sum
  where
-  update (Update uuid n from _) =
-    case n of
-      0 ->
-        PG.execute c "update clients set name = ? where id = ?" (from, uuid)
-      1 ->
-        PG.execute c "update clients set phone = ? where id = ?" (from, uuid)
-      _ -> putStrLn "Invalid string" >> return 0
+  -- TODO: execute many
+
+  -- group xs = do_group xs ([], [], [])
+  --  where
+  --   do_group [] r = r
+  --   do_group (Update e : xs) (u, a, r) = do_group xs (Update e : u, a, r)
+  --   do_group (Add e : xs) (u, a, r) = do_group xs (u, Add e : a, r)
+  --   do_group (Remove i : xs) (u, a, r) = do_group xs (u, a, Remove i : r)
+
+  update (Update (Entry uid name phone mou)) =
+    PG.execute
+      c
+      "update clients set name = ?, phone = ?, mou = ? where id = ?"
+      (name, phone, mou, uid)
+  update (Add (Entry uid name phone mou)) =
+    PG.execute
+      c
+      "insert into clients (name, phone, mou, id) values(?, ?, ?, ?)"
+      (name, phone, mou, uid)
+  update (Remove uid) =
+    PG.execute
+      c
+      "delete from clients where id = ?"
+      [uid]

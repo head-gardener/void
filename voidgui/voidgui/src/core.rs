@@ -15,7 +15,7 @@ use crate::{
     painter::{Description, Drone},
     Point,
   },
-  widgets::{traits::InputEvent, Spreadsheet},
+  widgets::{spreadsheet::Record, traits::InputEvent, Spreadsheet},
 };
 
 #[macro_export]
@@ -256,9 +256,25 @@ impl Core {
     &self.ring
   }
 
-  pub fn pull_damage(&self) -> Vec<u8> {
+  pub fn pull_damage<E: Record>(&self) -> Vec<u8> {
     let mut buf = Cursor::new(vec![]);
-    self.damage_tracker.read().unwrap().serialize(&mut buf);
+    self
+      .ring
+      .read()
+      .unwrap()
+      .pull(&Mark::Spreadsheet)
+      .unwrap()
+      .read()
+      .unwrap()
+      .downcast_ref()
+      .map(|ss| {
+        self
+          .damage_tracker
+          .read()
+          .unwrap()
+          .serialize::<_, E>(&mut buf, ss);
+      })
+      .unwrap();
     buf.into_inner()
   }
 

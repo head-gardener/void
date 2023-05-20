@@ -16,7 +16,8 @@ downcast-rs = ">=1.2"
 rayon = ">=1.7"
 serde = ">=1.0"
 ciborium = ">=0.2"
-rand = ">=0.8.5"
+rand = ">=0.8"
+slice-group-by = ">=0.3"
 voidmacro = { path = "../voidmacro" }
 
 [dev-dependencies]

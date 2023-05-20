@@ -102,7 +102,7 @@ pub fn derive_clickable_menu(input: TokenStream) -> TokenStream {
 
 // SPREADSHEET
 
-#[proc_macro_derive(Entry)]
+#[proc_macro_derive(Record)]
 pub fn derive_entry(input: TokenStream) -> TokenStream {
   let input = parse_macro_input!(input as DeriveInput);
   let name = input.ident;
@@ -127,7 +127,7 @@ pub fn derive_entry(input: TokenStream) -> TokenStream {
     Type::Path(p) if p.path.is_ident::<Ident>(parse_quote!(String)) => {
       quote!(voidgui::widgets::spreadsheet::Datatype::String)
     }
-    Type::Path(p) if p.path.is_ident::<Ident>(parse_quote!(u64)) => {
+    Type::Path(p) if p.path.is_ident::<Ident>(parse_quote!(i64)) => {
       quote!(voidgui::widgets::spreadsheet::Datatype::Integer)
     }
     _ => panic!(
@@ -138,15 +138,15 @@ pub fn derive_entry(input: TokenStream) -> TokenStream {
   let n_fields = fields.len();
 
   let expanded = quote! {
-    impl #gen voidgui::widgets::spreadsheet::Entry #gen for #name #gen {
+    impl #gen voidgui::widgets::spreadsheet::Record #gen for #name #gen {
       const N_FIELDS: usize = #n_fields;
 
       fn fields<'a>(&'a self) -> Vec<&'a dyn voidgui::widgets::spreadsheet::Data> {
         vec![#(&self.#ids),*]
       }
 
-      fn uuid(&self) -> &u64 {
-        &self.uuid
+      fn uid(&self) -> &i64 {
+        &self.uid
       }
 
       fn datatypes() -> Vec<voidgui::widgets::spreadsheet::Datatype> {

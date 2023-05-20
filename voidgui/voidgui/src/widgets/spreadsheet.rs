@@ -4,6 +4,7 @@ use std::{
 };
 
 use glfw::{Action, Key, Modifiers, WindowEvent};
+use serde::Serialize;
 use voidmacro::{ClickableMenu, DrawableMenu, Menu};
 
 use crate::{
@@ -26,12 +27,14 @@ use crate::widgets;
 /// An entry in a spreadsheet. Implement with `Entry` derive macro.
 /// When doing so, prefix all data field with `d_` and give them `&'a str` type.
 /// Those fields will be used when displaying data.
-pub trait Entry: Header + Send + Sync {
+pub trait Record:
+  Serialize + Header + Send + Sync + From<(i64, Vec<String>)>
+{
   const N_FIELDS: usize;
 
   fn fields<'a>(&'a self) -> Vec<&'a dyn Data>;
   fn datatypes() -> Vec<Datatype>;
-  fn uuid(&self) -> &u64;
+  fn uid(&self) -> &i64;
 }
 
 pub trait Header {
@@ -44,7 +47,7 @@ pub enum Datatype {
 }
 
 static DEF_STR: String = String::new();
-static DEF_INT: u64 = 0;
+static DEF_INT: i64 = 0;
 
 impl Datatype {
   fn default(&self) -> &'static dyn Data {
@@ -57,19 +60,19 @@ impl Datatype {
 
 pub trait Data: ToString {}
 impl Data for String {}
-impl Data for u64 {}
+impl Data for i64 {}
 
 #[derive(Menu, DrawableMenu, ClickableMenu)]
 pub struct Spreadsheet {
   table: TextTable,
   data: Dataset,
   datatypes: Vec<Datatype>,
-  uuids: Vec<u64>,
+  uids: Vec<i64>,
   scroll: i32,
 }
 
 impl Spreadsheet {
-  pub unsafe fn new<'a, E: Entry>(
+  pub unsafe fn new<'a, E: Record>(
     desc: &RwLockReadGuard<Description>,
     drone: &mut Drone,
   ) -> Result<Self, widgets::Error> {
@@ -85,12 +88,12 @@ impl Spreadsheet {
       table,
       data: Dataset::new(),
       datatypes: E::datatypes(),
-      uuids: vec![],
+      uids: vec![],
       scroll: 0,
     })
   }
 
-  pub fn push<'a, E: Entry>(
+  pub fn push<'a, E: Record>(
     &mut self,
     desc: &RwLockReadGuard<Description>,
     drone: &Drone,
@@ -98,7 +101,7 @@ impl Spreadsheet {
   ) -> Result<(), widgets::Error> {
     // PERF: too much allocating
 
-    self.uuids.push(*e.uuid());
+    self.uids.push(*e.uid());
     let fs: Vec<String> = e.fields().iter().map(|f| f.to_string()).collect();
     fs.iter().for_each(|f| {
       self.data.push(&f);
@@ -120,7 +123,7 @@ impl Spreadsheet {
     &mut self,
     desc: &Description,
     drone: &Drone,
-    uuid: u64,
+    uid: i64,
   ) -> Result<(), widgets::Error> {
     let fs: Vec<String> = self
       .datatypes
@@ -128,7 +131,7 @@ impl Spreadsheet {
       .map(|f| f.default().to_string())
       .collect();
 
-    self.uuids.push(uuid);
+    self.uids.push(uid);
     fs.iter().for_each(|f| {
       self.data.push(&f);
     });
@@ -148,16 +151,14 @@ impl Spreadsheet {
   pub fn rem_record(
     &mut self,
     drone: &Drone,
-    uuid: u64,
+    uid: i64,
   ) -> Result<(), widgets::Error> {
-    let pos = self.uuids.iter().position(|u| *u == uuid).ok_or(
-      widgets::Error::Unspecified(format!(
-        "invalid uuid passed to rem: {uuid}"
-      )),
+    let pos = self.uids.iter().position(|u| *u == uid).ok_or(
+      widgets::Error::Unspecified(format!("invalid uid passed to rem: {uid}")),
     )?;
 
     // TODO: memory
-    self.uuids.remove(pos);
+    self.uids.remove(pos);
     self
       .data
       .cut(pos * self.table.columns(), self.table.columns());
@@ -166,9 +167,42 @@ impl Spreadsheet {
     Ok(())
   }
 
+  pub fn update_record(
+    &mut self,
+    desc: &Description,
+    drone: &Drone,
+    uid: i64,
+    n: usize,
+    s: &str,
+  ) -> Result<(), widgets::Error> {
+    let n = n
+      + self.uids.iter().position(|i| *i == uid).ok_or(
+        widgets::Error::Unspecified(format!(
+          "uid {} not found in spreadsheet",
+          uid,
+        )),
+      )? * self.table.columns();
+    self
+      .table
+      .update_cell(desc, drone, n + self.table.columns(), s)?;
+    self.data.set(n, s);
+    Ok(())
+  }
+
+  pub fn get_record<R: Record>(&self, uid: i64) -> Option<R> {
+    let pos = self.uids.iter().position(|u| *u == uid)?;
+    let ss = self
+      .data
+      .range(pos * self.table.columns(), self.table.columns())
+      .iter()
+      .map(|s| s.to_string())
+      .collect();
+    Some(R::from((uid, ss)))
+  }
+
   pub fn drop(&mut self) {
     self.data.clear();
-    self.uuids.clear();
+    self.uids.clear();
 
     self.table.truncate(self.table.columns());
   }
@@ -178,28 +212,6 @@ impl Spreadsheet {
     ring.push_click_sink(rc.clone(), Mark::Spreadsheet);
     ring.push_key_sink(rc.clone(), Mark::Spreadsheet);
     ring.push_static(rc, Mark::Spreadsheet, Mark::Window, 0);
-  }
-
-  pub fn update_record(
-    &mut self,
-    desc: &Description,
-    drone: &Drone,
-    uuid: u64,
-    n: usize,
-    s: &str,
-  ) -> Result<(), widgets::Error> {
-    let n = n
-      + self.uuids.iter().position(|i| *i == uuid).ok_or(
-        widgets::Error::Unspecified(format!(
-          "UUID {} not found in spreadsheet",
-          uuid,
-        )),
-      )? * self.table.columns();
-    self
-      .table
-      .update_cell(desc, drone, n + self.table.columns(), s)?;
-    self.data.set(n, s);
-    Ok(())
   }
 
   pub fn scroll(&mut self, offset: i32) {
@@ -255,7 +267,7 @@ impl ClickSink for Spreadsheet {
           let s = self.data.get(i - self.table.columns());
           self.table.set_highlight(drone, i / self.table.columns());
           let closure = (
-            self.uuids[i / self.table.columns() - 1],
+            self.uids[i / self.table.columns() - 1],
             i % self.table.columns(),
             s.to_string(),
           );
@@ -279,9 +291,9 @@ impl ClickSink for Spreadsheet {
           }
         }
         Mode::Delete => {
-          let uuid = self.uuids[i / self.table.columns() - 1];
+          let uid = self.uids[i / self.table.columns() - 1];
           CallbackResult::Damage(Box::new(move |t| {
-            t.push(Damage::Remove(uuid));
+            t.push(Damage::Remove(uid));
           }))
         }
       },
@@ -320,7 +332,7 @@ impl KeySink for Spreadsheet {
   }
 }
 
-type SpreadsheetIF = (u64, usize, String);
+type SpreadsheetIF = (i64, usize, String);
 
 impl<T> Transient for InputField<SpreadsheetIF, T>
 where
@@ -328,10 +340,10 @@ where
   <T>::Err: std::fmt::Debug,
 {
   fn handle_accept(&self, _: &DroneFeed) -> CallbackResult {
-    let (uuid, c, from) = self.closure().clone();
+    let (uid, c, from) = self.closure().clone();
     let to = self.to_string();
     CallbackResult::Damage(Box::new(move |t| {
-      t.push(crate::logic::Damage::Update(uuid, c, from, to))
+      t.push(crate::logic::Damage::Update(uid, c, from, to))
     }))
   }
 }

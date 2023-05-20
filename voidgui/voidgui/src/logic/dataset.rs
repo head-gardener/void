@@ -33,6 +33,13 @@ impl Dataset {
     &self.records[n].0
   }
 
+  pub fn range(&self, ind: usize, n: usize) -> Vec<&str> {
+    self.records[ind..ind + n]
+      .iter()
+      .map(|b| b.0.as_ref())
+      .collect()
+  }
+
   pub fn new_search(&mut self, value: &str) {
     self.search = Some((value.to_string().to_lowercase(), 0));
   }

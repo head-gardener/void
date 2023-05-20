@@ -35,9 +35,10 @@ main =
     (w, c, s, i) <- get
     liftIO (runExceptT c >>= handleConnection (w, c, s, i) f) >>= put
    where
-    handleConnection :: WindowState -> (Connection -> IO ()) -> Either SomeException Connection -> IO WindowState
-    handleConnection (w, c, _, i) f (Left e) = G.putStatus w "Connection error!" >> return (initialState w i)
-    handleConnection (w, _, s, i) f (Right c) = liftIO (f c) >> return (w, ExceptT $ return $ Right c, True, i)
+    handleConnection (w, c, _, i) f (Left e) =
+      G.putStatus w "Connection error!" >> return (initialState w i)
+    handleConnection (w, _, s, i) f (Right c) =
+      liftIO (f c) >> return (w, ExceptT $ return $ Right c, True, i)
 
   pull :: StateT WindowState IO ()
   pull = do
@@ -53,7 +54,7 @@ main =
     tryWithSyncedConn (\c -> G.pull w >>= DB.push c >>= prettyPrint w)
    where
     prettyPrint :: G.VoidInstance -> Int -> IO ()
-    prettyPrint w n = G.putStatus w $ "Changes pushed: " ++ show n
+    prettyPrint w n = G.putStatus w $ "Rows affected: " ++ show n
 
   fill :: G.VoidInstance -> IO ()
   fill w =

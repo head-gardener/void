@@ -2,11 +2,12 @@ use std::io::Write;
 
 use glfw::{Action, Key, Modifiers, WindowEvent};
 use serde::Serialize;
+use slice_group_by::GroupBy;
 
 use crate::{
   logic::ring::Mark,
   render::painter::{Description, Drone},
-  widgets::{traits::KeySink, Spreadsheet},
+  widgets::{spreadsheet::Record, traits::KeySink, Spreadsheet},
 };
 
 use super::{
@@ -14,21 +15,72 @@ use super::{
   CallbackResult,
 };
 
-#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Damage {
-  Update(u64, usize, String, String),
-  Add(u64),
-  Remove(u64),
+  None(i64),
+  Update(i64, usize, String, String),
+  Add(i64),
+  Remove(i64),
 }
+
+static DAMAGE_ZERO: Damage = Damage::None(0);
 
 /// Describes a change that is going to happen once the damage object is
 /// acted on.
 impl Damage {
   pub fn invert(self) -> Self {
     match self {
-      Damage::Update(uuid, n, from, to) => Damage::Update(uuid, n, to, from),
-      Damage::Add(uuid) => Damage::Remove(uuid),
-      Damage::Remove(uuid) => Damage::Add(uuid),
+      Damage::Update(uid, n, from, to) => Damage::Update(uid, n, to, from),
+      Damage::Add(uid) => Damage::Remove(uid),
+      Damage::Remove(uid) => Damage::Add(uid),
+      Damage::None(uid) => Damage::None(uid),
+    }
+  }
+
+  pub fn inverted(&self) -> Self {
+    match self {
+      Damage::Update(uid, n, from, to) => {
+        Damage::Update(*uid, *n, to.clone(), from.clone())
+      }
+      Damage::Add(uid) => Damage::Remove(*uid),
+      Damage::Remove(uid) => Damage::Add(*uid),
+      Damage::None(uid) => Damage::None(*uid),
+    }
+  }
+
+  pub fn uid(&self) -> i64 {
+    match self {
+      Damage::Update(uid, _, _, _) => *uid,
+      Damage::Add(uid) => *uid,
+      Damage::Remove(uid) => *uid,
+      Damage::None(uid) => *uid,
+    }
+  }
+
+  /// Attempts to join two consequitve operations.
+  /// Will panic when passed an invalid sequence.
+  /// May not preserve uid if [Damage::None] is returned.
+  pub fn join<'a>(&'a self, other: &'a Self) -> &'a Self {
+    match self {
+      Damage::None(_) => other,
+      Damage::Update(_, _, _, _) => match other {
+        Damage::None(_) => self,
+        Damage::Update(_, _, _, _) => self,
+        Damage::Add(_) => panic!("invalid sequence"),
+        Damage::Remove(_) => other,
+      },
+      Damage::Add(_) => match other {
+        Damage::None(_) => self,
+        Damage::Update(_, _, _, _) => self,
+        Damage::Add(_) => panic!("invalid sequence"),
+        Damage::Remove(_) => &DAMAGE_ZERO,
+      },
+      Damage::Remove(_) => match other {
+        Damage::None(_) => self,
+        Damage::Update(_, _, _, _) => panic!("invalid sequence"),
+        Damage::Add(_) => other,
+        Damage::Remove(_) => panic!("invalid sequence"),
+      },
     }
   }
 }
@@ -38,23 +90,50 @@ impl Into<CallbackResult> for Damage {
     CallbackResult::Modify(
       Mark::Spreadsheet,
       match self {
-        Damage::Update(uuid, n, _, to) => ring::with_spreadsheet(
+        Damage::Update(uid, n, _, to) => ring::with_spreadsheet(
           move |desc: &Description, drone: &Drone, s: &mut Spreadsheet| {
-            s.update_record(desc, drone, uuid, n, &to).unwrap();
+            s.update_record(desc, drone, uid, n, &to).unwrap();
           },
         ),
-        Damage::Add(uuid) => ring::with_spreadsheet(
+        Damage::Add(uid) => ring::with_spreadsheet(
           move |desc: &Description, drone: &Drone, s: &mut Spreadsheet| {
-            s.add_record(desc, drone, uuid).unwrap();
+            s.add_record(desc, drone, uid).unwrap();
           },
         ),
-        Damage::Remove(uuid) => ring::with_spreadsheet(
+        Damage::Remove(uid) => ring::with_spreadsheet(
           move |_: &Description, drone: &Drone, s: &mut Spreadsheet| {
-            s.rem_record(drone, uuid).unwrap();
+            s.rem_record(drone, uid).unwrap();
           },
         ),
+        Damage::None(_) => panic!(),
       },
     )
+  }
+}
+
+/// Damage, compressed and optimised for export.
+#[derive(Serialize)]
+pub enum Scar<E: Record> {
+  Update(E),
+  Add(E),
+  Remove(i64),
+}
+
+impl<E: Record> Scar<E> {
+  pub fn compress(damage: &mut Vec<Damage>, ss: &Spreadsheet) -> Vec<Self> {
+    damage.sort_by_key(|x| x.uid());
+    damage
+      .linear_group_by_key(|x| x.uid())
+      .map(|xs| xs.into_iter().reduce(|x, y| x.join(y)).unwrap())
+      .filter_map(|d| match d {
+        Damage::None(_) => None,
+        Damage::Update(uid, _, _, _) => {
+          Some(Self::Update(ss.get_record(*uid).unwrap()))
+        }
+        Damage::Add(uid) => Some(Self::Add(ss.get_record(*uid).unwrap())),
+        Damage::Remove(uid) => Some(Self::Remove(*uid)),
+      })
+      .collect()
   }
 }
 
@@ -92,10 +171,24 @@ impl DamageTracker {
     self.pending.push(d);
   }
 
-  pub fn serialize<W: Write>(&self, w: &mut W) {
+  pub fn serialize<W: Write, E: Record>(&self, w: &mut W, ss: &Spreadsheet) {
     // let file = std::fs::File::create("obj.cbor").unwrap();
-    // ciborium::ser::into_writer(&self.undo, file).unwrap();
-    ciborium::ser::into_writer(&self.undo, w).unwrap();
+    // ciborium::ser::into_writer(
+    //   &Scar::<E>::compress(
+    //     &mut self.undo.iter().map(|x| x.inverted()).collect(),
+    //     ss,
+    //   ),
+    //   file,
+    // )
+    // .unwrap();
+    ciborium::ser::into_writer(
+      &Scar::<E>::compress(
+        &mut self.undo.iter().map(|x| x.inverted()).collect(),
+        ss,
+      ),
+      w,
+    )
+    .unwrap();
   }
 
   pub fn wipe(&mut self) {
@@ -144,14 +237,62 @@ fn pop(src: &mut Vec<Damage>, dst: &mut Vec<Damage>) -> CallbackResult {
 }
 
 #[cfg(test)]
-mod test_damage_tracker {
+mod test_damage {
   use super::*;
 
   #[test]
-  fn damage() {
-    let d1 = Damage::Update(0, 0, "hi".to_string(), "hello".to_string());
-    assert_eq!(d1, d1.clone().invert().invert())
+  fn invert() {
+    let d = Damage::Update(1, 0, "hi".to_string(), "hello".to_string());
+    assert_eq!(d, d.clone().invert().invert());
+    let d = Damage::Add(1);
+    assert_eq!(d, d.clone().invert().invert());
+    let d = Damage::Remove(1);
+    assert_eq!(d, d.clone().invert().invert());
+    let d = Damage::None(1);
+    assert_eq!(d, d.clone().invert().invert());
   }
+
+  #[test]
+  fn join() {
+    let u = Damage::Update(1, 0, "hi".to_string(), "hello".to_string());
+    let a = Damage::Add(1);
+    let r = Damage::Remove(1);
+
+    assert_eq!(
+      [a.clone(), u.clone(), r.clone(), a.clone()]
+        .into_iter()
+        .scan(Damage::None(1), |s, x| {
+          *s = s.join(&x).clone();
+          Some(s.clone())
+        })
+        .map(|r| r.clone())
+        .collect::<Vec<Damage>>(),
+      vec![
+        Damage::Add(1),
+        Damage::Add(1),
+        Damage::None(0),
+        Damage::Add(1),
+      ]
+    );
+
+    assert_eq!(
+      [u.clone(), r, a]
+        .iter()
+        .cloned()
+        .scan(Damage::None(1), |s, x| {
+          *s = s.join(&x).clone();
+          Some(s.clone())
+        })
+        .map(|r| r.clone())
+        .collect::<Vec<Damage>>(),
+      vec![u.clone(), Damage::Remove(1), Damage::Add(1)]
+    );
+  }
+}
+
+#[cfg(test)]
+mod test_damage_tracker {
+  use super::*;
 
   #[test]
   fn tracker_state() {
