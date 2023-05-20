@@ -1,9 +1,8 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- module GUI (push, GUI.drop, withNewWindow, wait, VoidInstance) where
-module GUI where
+module Void.CRM.GUI where
 
 import Codec.Serialise (Serialise, deserialise, serialise)
 import Codec.Serialise.Class (decode)
@@ -16,12 +15,13 @@ import qualified Data.ByteString.Lazy as BL
 import Data.Char (ord)
 import Database.PostgreSQL.Simple (Connection)
 import Debug.Trace (trace, traceShow)
-import Entry
 import Foreign
 import Foreign.C.String
 import Foreign.C.Types
 import GHC.Base (ap)
 import GHC.Generics
+import Void.CRM.Damage
+import Void.CRM.Subscriber
 
 foreign import ccall "void_gui_init"
   void_gui_init :: VoidInstance
@@ -51,18 +51,6 @@ foreign import ccall "void_gui_status"
 -- real nuisance
 newtype VoidInstance = VoidInstance (Ptr VoidInstance) deriving (Eq)
 
-data Damage = Update Entry | Add Entry | Remove Int deriving (Eq, Show, Generic)
-instance Serialise Damage where
-  decode = do
-    len <- decodeMapLen
-    when (len /= 1) $ fail $ "invalid map len: " ++ show len
-    tag <- decodeString
-    case tag of
-      "Update" -> Update <$> decode
-      "Add" -> Add <$> decode
-      "Remove" -> Remove <$> decode
-      _ -> fail $ "unexpected tag: " ++ show tag
-
 nullWindow :: VoidInstance
 nullWindow = VoidInstance nullPtr
 
@@ -86,7 +74,7 @@ wait :: VoidInstance -> CInt
 wait = void_gui_exec
 
 -- not super efficient cause of marshalling and all.
-push :: VoidInstance -> [Entry] -> IO ()
+push :: VoidInstance -> [Subscriber] -> IO ()
 push window =
   mapM_ $
     \x ->

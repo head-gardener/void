@@ -5,12 +5,12 @@ import Control.Monad (void, (>=>))
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Except (Except, ExceptT (..), runExceptT)
 import Control.Monad.Trans.State.Lazy
-import Database.Interface as DB
 import Database.PostgreSQL.Simple (ConnectInfo, Connection)
-import Entry
 import Foreign.C.Types
-import qualified GUI as G
 import Text.Printf
+import Void.CRM.Database as DB
+import qualified Void.CRM.GUI as G
+import Void.CRM.Subscriber
 
 initialState :: G.VoidInstance -> ConnectInfo -> WindowState
 initialState w i = (w, DB.connection, False, i)
@@ -60,8 +60,8 @@ main =
   fill w =
     G.push
       w
-      [ Entry 0 "Vovan" "123" 300
-      , Entry 1 "Ivan" "228" 523
+      [ Subscriber 0 "Vovan" "123" 300
+      , Subscriber 1 "Ivan" "228" 523
       ]
 
   exec :: G.VoidInstance -> IO ()

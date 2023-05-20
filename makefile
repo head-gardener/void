@@ -22,7 +22,7 @@ debug_verbose: build
 
 test:
 	cd voidgui && RUST_BACKTRACE=1 cargo test
-	cd void && cabal test
+	cd void && cabal test --test-show-details=direct
 
 bench:
 	cd voidgui && RUST_BACKTRACE=1 cargo bench

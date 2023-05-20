@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Entry (Entry (..)) where
+module Void.CRM.Subscriber (Subscriber (..)) where
 
 import Codec.Serialise (Serialise)
 import Codec.Serialise.Class (Serialise (decode, encode), decodeMapSkel)
@@ -13,7 +13,7 @@ import Data.Word (Word64)
 import Database.PostgreSQL.Simple as PG (FromRow)
 import GHC.Generics (Generic)
 
-data Entry = Entry
+data Subscriber = Subscriber
   { uid :: Int64
   , name :: String
   , phone :: String
@@ -21,9 +21,9 @@ data Entry = Entry
   }
   deriving (Eq, Show, Generic)
 
-instance PG.FromRow Entry
-instance Serialise Entry where
-  encode (Entry uid name phone mou) =
+instance PG.FromRow Subscriber
+instance Serialise Subscriber where
+  encode (Subscriber uid name phone mou) =
     encodeMapLen 4
       <> encode "uid"
       <> encode uid
@@ -36,13 +36,13 @@ instance Serialise Entry where
   decode = do
     len <- decodeMapLen
     when (len /= 4) $ fail $ "invalid map len: " ++ show len
-    name <- decodeMapEntry "d_name"
-    phone <- decodeMapEntry "d_phone"
-    mou <- decodeMapEntry "d_mou"
-    uid <- decodeMapEntry "uid"
-    return $ Entry uid name phone mou
+    name <- decodeMapSubscriber "d_name"
+    phone <- decodeMapSubscriber "d_phone"
+    mou <- decodeMapSubscriber "d_mou"
+    uid <- decodeMapSubscriber "uid"
+    return $ Subscriber uid name phone mou
    where
-    decodeMapEntry tag = do
+    decodeMapSubscriber tag = do
       tag <- decode
       when (tag /= tag) $ fail $ "unexpected tag " ++ tag
       decode

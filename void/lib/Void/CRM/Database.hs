@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Database.Interface (connectInfo, connection, pull, push) where
+module Void.CRM.Database (connectInfo, connection, pull, push) where
 
 import Control.Exception (SomeException, try)
 import Control.Exception.Base (Exception)
@@ -8,8 +8,8 @@ import Control.Monad.Trans.Except
 import Data.Functor ((<&>))
 import Database.PostgreSQL.Simple as PG
 import Debug.Trace (trace)
-import Entry
-import GUI (Damage (..))
+import Void.CRM.Damage (Damage (..))
+import Void.CRM.Subscriber
 
 connectInfo :: ConnectInfo
 connectInfo =
@@ -23,7 +23,7 @@ connectInfo =
 connection :: ExceptT SomeException IO Connection
 connection = ExceptT $ try $ PG.connect connectInfo
 
-pull :: Connection -> IO [Entry]
+pull :: Connection -> IO [Subscriber]
 pull conn = PG.query_ conn "select * from clients"
 
 push :: Connection -> [Damage] -> IO Int
@@ -39,12 +39,12 @@ push c xs = do
   --   do_group (Add e : xs) (u, a, r) = do_group xs (u, Add e : a, r)
   --   do_group (Remove i : xs) (u, a, r) = do_group xs (u, a, Remove i : r)
 
-  update (Update (Entry uid name phone mou)) =
+  update (Update (Subscriber uid name phone mou)) =
     PG.execute
       c
       "update clients set name = ?, phone = ?, mou = ? where id = ?"
       (name, phone, mou, uid)
-  update (Add (Entry uid name phone mou)) =
+  update (Add (Subscriber uid name phone mou)) =
     PG.execute
       c
       "insert into clients (name, phone, mou, id) values(?, ?, ?, ?)"
