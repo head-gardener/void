@@ -11,8 +11,8 @@ maintainer:    trashbin2019np@gmail.com
 
 library void-crm
   exposed-modules:
-    Void.CRM.Database
     Void.CRM.Damage
+    Void.CRM.Database
     Void.CRM.GUI
     Void.CRM.Subscriber
 
@@ -30,20 +30,25 @@ library void-crm
 executable void-app
   main-is:          Main.hs
   build-depends:
-    , base      ^>=4.15.1.0
-    , void-crm
+    , base               ^>=4.15.1.0
     , postgresql-simple
     , transformers
+    , void-crm
 
   hs-source-dirs:   app
   default-language: Haskell2010
 
-test-suite marshall
+test-suite tests
   default-language: Haskell2010
   type:             exitcode-stdio-1.0
-  main-is:          Marshall.hs
+  main-is:          Main.hs
+  other-modules:
+    Tests.Damage
+    Tests.Marshall
+
   hs-source-dirs:   test
   build-depends:
     , base      ^>=4.15.1.0
-    , hspec     ^>=2.11.0.1
     , void-crm
+    , hspec     ^>=2.11.0.1
+    , QuickCheck

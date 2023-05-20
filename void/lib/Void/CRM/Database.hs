@@ -6,9 +6,10 @@ import Control.Exception (SomeException, try)
 import Control.Exception.Base (Exception)
 import Control.Monad.Trans.Except
 import Data.Functor ((<&>))
+import Data.Int
 import Database.PostgreSQL.Simple as PG
 import Debug.Trace (trace)
-import Void.CRM.Damage (Damage (..))
+import Void.CRM.Damage (Damage (..), group)
 import Void.CRM.Subscriber
 
 connectInfo :: ConnectInfo
@@ -27,30 +28,25 @@ pull :: Connection -> IO [Subscriber]
 pull conn = PG.query_ conn "select * from clients"
 
 push :: Connection -> [Damage] -> IO Int
-push c xs = do
-  mapM update xs <&> fromIntegral . sum
+push c ds = do
+  let (us, is, rs) = group ds
+  u <- update (map castSubscriber us)
+  i <- insert (map castSubscriber is)
+  r <- remove (map castUID rs)
+  return (u + i + r) <&> fromIntegral
  where
-  -- TODO: execute many
+  castSubscriber (Subscriber uid name phone mou) = (uid, name, phone, mou)
+  castUID uid = [uid]
 
-  -- group xs = do_group xs ([], [], [])
-  --  where
-  --   do_group [] r = r
-  --   do_group (Update e : xs) (u, a, r) = do_group xs (Update e : u, a, r)
-  --   do_group (Add e : xs) (u, a, r) = do_group xs (u, Add e : a, r)
-  --   do_group (Remove i : xs) (u, a, r) = do_group xs (u, a, Remove i : r)
-
-  update (Update (Subscriber uid name phone mou)) =
-    PG.execute
+  update =
+    PG.executeMany
       c
       "update clients set name = ?, phone = ?, mou = ? where id = ?"
-      (name, phone, mou, uid)
-  update (Add (Subscriber uid name phone mou)) =
-    PG.execute
+  insert =
+    PG.executeMany
       c
       "insert into clients (name, phone, mou, id) values(?, ?, ?, ?)"
-      (name, phone, mou, uid)
-  update (Remove uid) =
-    PG.execute
+  remove =
+    PG.executeMany
       c
       "delete from clients where id = ?"
-      [uid]

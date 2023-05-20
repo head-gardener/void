@@ -115,7 +115,7 @@ impl Into<CallbackResult> for Damage {
 #[derive(Serialize)]
 pub enum Scar<E: Record> {
   Update(E),
-  Add(E),
+  Insert(E),
   Remove(i64),
 }
 
@@ -130,7 +130,7 @@ impl<E: Record> Scar<E> {
         Damage::Update(uid, _, _, _) => {
           Some(Self::Update(ss.get_record(*uid).unwrap()))
         }
-        Damage::Add(uid) => Some(Self::Add(ss.get_record(*uid).unwrap())),
+        Damage::Add(uid) => Some(Self::Insert(ss.get_record(*uid).unwrap())),
         Damage::Remove(uid) => Some(Self::Remove(*uid)),
       })
       .collect()
