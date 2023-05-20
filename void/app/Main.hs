@@ -1,6 +1,6 @@
 module Main where
 
-import Control.Exception
+import Control.Exception (SomeException)
 import Control.Monad (void, (>=>))
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Except (Except, ExceptT (..), runExceptT)
@@ -8,7 +8,7 @@ import Control.Monad.Trans.State.Lazy
 import Database.PostgreSQL.Simple (ConnectInfo, Connection)
 import Foreign.C.Types
 import Text.Printf
-import Void.CRM.Database as DB
+import qualified Void.CRM.Database as DB
 import qualified Void.CRM.GUI as G
 import Void.CRM.Subscriber
 
@@ -22,56 +22,57 @@ main =
   G.withNewInstance $ \w -> do
     fill w
     exec w
+
+fill :: G.VoidInstance -> IO ()
+fill w =
+  G.push
+    w
+    [ Subscriber 0 "Vovan" "123" 300
+    , Subscriber 1 "Ivan" "228" 523
+    ]
+
+requests :: G.VoidInstance -> [CInt]
+requests w = G.wait w : requests w
+
+exec :: G.VoidInstance -> IO ()
+exec w = do
+  evalStateT
+    (mapM_ handle $ takeWhile (/= 1) $ requests w)
+    $ initialState w DB.connectInfo
+
+pull :: StateT WindowState IO ()
+pull = do
+  (w, c, _, _) <- get
+  tryWithConnection
+    ( DB.pull
+        >=> (\es -> G.drop w `seq` G.putStatus w "Pull successful" >> G.push w es)
+    )
+
+push :: StateT WindowState IO ()
+push = do
+  (w, c, _, _) <- get
+  tryWithSyncedConn (\c -> G.pull w >>= DB.push c >>= prettyPrint w)
  where
-  tryWithSyncedConn :: (Connection -> IO ()) -> StateT WindowState IO ()
-  tryWithSyncedConn f = do
-    (w, _, s, _) <- get
-    if s
-      then tryWithConnection f
-      else liftIO $ G.putStatus w "Not synced!"
+  prettyPrint w n = G.putStatus w $ "Rows affected: " ++ show n
 
-  tryWithConnection :: (Connection -> IO ()) -> StateT WindowState IO ()
-  tryWithConnection f = do
-    (w, c, s, i) <- get
-    liftIO (runExceptT c >>= handleConnection (w, c, s, i) f) >>= put
-   where
-    handleConnection (w, c, _, i) f (Left e) =
-      G.putStatus w "Connection error!" >> return (initialState w i)
-    handleConnection (w, _, s, i) f (Right c) =
-      liftIO (f c) >> return (w, ExceptT $ return $ Right c, True, i)
+handle :: CInt -> StateT WindowState IO ()
+handle 2 = pull
+handle 3 = push
+handle c = liftIO $ putStrLn $ "unexpected code: " ++ show c
 
-  pull :: StateT WindowState IO ()
-  pull = do
-    (w, c, _, _) <- get
-    tryWithConnection
-      ( DB.pull
-          >=> (\es -> G.drop w `seq` G.putStatus w "Pull successful" >> G.push w es)
-      )
+tryWithSyncedConn :: (Connection -> IO ()) -> StateT WindowState IO ()
+tryWithSyncedConn f = do
+  (w, _, s, _) <- get
+  if s
+    then tryWithConnection f
+    else liftIO $ G.putStatus w "Not synced!"
 
-  push :: StateT WindowState IO ()
-  push = do
-    (w, c, _, _) <- get
-    tryWithSyncedConn (\c -> G.pull w >>= DB.push c >>= prettyPrint w)
-   where
-    prettyPrint :: G.VoidInstance -> Int -> IO ()
-    prettyPrint w n = G.putStatus w $ "Rows affected: " ++ show n
-
-  fill :: G.VoidInstance -> IO ()
-  fill w =
-    G.push
-      w
-      [ Subscriber 0 "Vovan" "123" 300
-      , Subscriber 1 "Ivan" "228" 523
-      ]
-
-  exec :: G.VoidInstance -> IO ()
-  exec w = evalStateT do_exec $ initialState w DB.connectInfo
-
-  do_exec :: StateT WindowState IO ()
-  do_exec = do
-    (w, _, _, _) <- get
-    case G.wait w of
-      1 -> return ()
-      2 -> pull >> do_exec
-      3 -> push >> do_exec
-      _ -> do_exec
+tryWithConnection :: (Connection -> IO ()) -> StateT WindowState IO ()
+tryWithConnection f = do
+  (w, c, s, i) <- get
+  liftIO (runExceptT c >>= handleConnection (w, c, s, i) f) >>= put
+ where
+  handleConnection (w, c, _, i) f (Left e) =
+    G.putStatus w "Connection error!" >> return (initialState w i)
+  handleConnection (w, _, s, i) f (Right c) =
+    liftIO (f c) >> return (w, ExceptT $ return $ Right c, True, i)

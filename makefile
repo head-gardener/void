@@ -8,11 +8,11 @@ GLSL_SOURCES = $(wildcard voidgui/voidgui/src/render/shaders/*)
 HASKELL_SOURCES = $(wildcard void/app/**/*.hs) $(wildcard void/app/*.hs)
 RUST_SOURCES = $(wildcard voidgui/**/Cargo.toml) $(wildcard voidgui/**/src/**/*.rs) $(wildcard voidgui/**/src/*.rs)
 
-run: build
-	RUST_BACKTRACE=1 $(PROJECT_ROOT)/$(BINPATH)/void
+run: build/voidgui
+	cd void && RUST_BACKTRACE=1 cabal run void-app
 
-verbose: build/voidgui build/void
-	DEBUG_MSGS=1 RUST_BACKTRACE=1 $(PROJECT_ROOT)/$(BINPATH)/void
+verbose: build/voidgui
+	cd void && DEBUG_MSGS=1 RUST_BACKTRACE=1 cabal run void-app
 
 debug: build
 	$(GDB) $(PROJECT_ROOT)/$(BINPATH)/void

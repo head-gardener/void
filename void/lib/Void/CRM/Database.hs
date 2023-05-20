@@ -8,7 +8,7 @@ import Control.Monad.Trans.Except
 import Data.Functor ((<&>))
 import Data.Int
 import Database.PostgreSQL.Simple as PG
-import Debug.Trace (trace)
+import Debug.Trace (trace, traceShow)
 import Void.CRM.Damage (Damage (..), group)
 import Void.CRM.Subscriber
 
@@ -30,16 +30,16 @@ pull conn = PG.query_ conn "select * from clients"
 push :: Connection -> [Damage] -> IO Int
 push c ds = do
   let (us, is, rs) = group ds
-  u <- update (map castSubscriber us)
+  u <- mapM (update . castSubscriber) us <&> sum
   i <- insert (map castSubscriber is)
   r <- remove (map castUID rs)
   return (u + i + r) <&> fromIntegral
  where
-  castSubscriber (Subscriber uid name phone mou) = (uid, name, phone, mou)
+  castSubscriber (Subscriber uid name phone mou) = (name, phone, mou, uid)
   castUID uid = [uid]
 
   update =
-    PG.executeMany
+    PG.execute
       c
       "update clients set name = ?, phone = ?, mou = ? where id = ?"
   insert =
