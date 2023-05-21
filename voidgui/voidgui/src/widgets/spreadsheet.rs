@@ -250,6 +250,10 @@ impl Spreadsheet {
     self.request_plot();
     self.data.clear_search()
   }
+
+  pub fn scale(&mut self, scale: f32) {
+    self.table.scale(scale)
+  }
 }
 
 impl ClickSink for Spreadsheet {

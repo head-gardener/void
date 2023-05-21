@@ -137,6 +137,7 @@ enum Highlight {
 pub struct TextTable {
   rows: usize,
   columns: usize,
+  scale: f32,
 
   grid: usize,
   bg: Vec<usize>,
@@ -184,6 +185,7 @@ impl TextTable {
     Ok(Self {
       rows,
       columns,
+      scale: 1.0,
       grid: drone.get_grids(1, GRID_COLOR).ok_or(Error::InitFailure)?[0],
       bg: vec![],
       textures: vec![],
@@ -231,6 +233,7 @@ impl TextTable {
       grid: drone.get_grids(1, GRID_COLOR).ok_or(Error::InitFailure)?[0],
       rows,
       columns,
+      scale: 1.0,
       bg: drone.get_rectangles(rows, style.into()).unwrap(),
       textures,
       highlight: Highlight::None,
@@ -372,6 +375,7 @@ impl TextTable {
     feed: &DroneFeed,
   ) -> Result<(), Error> {
     let origin = self.origin.ok_or(Error::Uninitialized("origin"))?;
+    let offset = (OFFSET as f32 * self.scale) as i32;
 
     self.ensure_committed();
     let mut state = State::default();
@@ -379,7 +383,7 @@ impl TextTable {
 
     let layout: Layout = state.try_into().unwrap();
     let origin = origin.to_point(&layout.size());
-    let cells = layout.plot(&origin);
+    let cells = layout.plot(&origin, self.scale);
 
     let rows: Vec<Area> = cells
       .chunks(self.columns)
@@ -406,6 +410,7 @@ impl TextTable {
       layout.size().width,
       layout.size().height,
     )
+    .scale(self.scale)
     .gridify(
       desc.window_area(),
       layout.rows(),
@@ -423,7 +428,8 @@ impl TextTable {
       .for_each(|((t, s), a)| {
         feed.plot_tex(
           *t,
-          Area::new(a.x + OFFSET, a.y + OFFSET, s.width, s.height)
+          Area::new(a.x + offset, a.y + offset, s.width, s.height)
+            .scale(self.scale)
             .to_normalized(desc.window_area())
             .to_tex_coords(),
         );
@@ -511,6 +517,12 @@ impl TextTable {
 
   pub fn columns(&self) -> usize {
     self.columns
+  }
+
+  /// Scales table by specified value.
+  pub fn scale(&mut self, scale: f32) {
+    self.scale *= scale;
+    self.state.ensure_committed_or_worse();
   }
 }
 

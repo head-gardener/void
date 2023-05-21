@@ -49,6 +49,8 @@ impl Core {
   }
 
   pub unsafe fn on_exec(&mut self, b: &mut Backend) -> u64 {
+    let mut mods = Modifiers::empty();
+
     loop {
       if b.drone.step() {
         return 1;
@@ -56,7 +58,7 @@ impl Core {
 
       let events = glfw::flush_messages(&b.events);
       for (_, event) in events {
-        let r = self.handle_event(&b.desc, &b.drone, event);
+        let r = self.handle_event(&b.desc, &b.drone, event, &mut mods);
         if r != 0 {
           return r;
         }
@@ -72,6 +74,7 @@ impl Core {
     desc: &Arc<RwLock<Description>>,
     drone: &Drone,
     event: WindowEvent,
+    mods: &mut Modifiers,
   ) -> u64 {
     let res = self.ring.write().unwrap().catch_transient_control_event(
       &desc.read().unwrap(),
@@ -115,6 +118,24 @@ impl Core {
         return 2;
       }
 
+      // Mods
+      WindowEvent::Key(
+        Key::LeftControl | Key::RightControl,
+        _,
+        Action::Press,
+        _,
+      ) => {
+        mods.set(Modifiers::Control, true);
+      }
+      WindowEvent::Key(
+        Key::LeftControl | Key::RightControl,
+        _,
+        Action::Release,
+        _,
+      ) => {
+        mods.set(Modifiers::Control, false);
+      }
+
       // Resize
       WindowEvent::Size(w, h) => {
         desc.write().unwrap().resize(w, h);
@@ -146,7 +167,11 @@ impl Core {
 
       // Scroll
       WindowEvent::Scroll(_x, y) => {
-        self.with_ssheet_mut(|s| s.scroll(-y as i32 * 3));
+        if mods.contains(Modifiers::Control) {
+          self.with_ssheet_mut(|s| s.scale(1.0 + y as f32 / 30.0));
+        } else {
+          self.with_ssheet_mut(|s| s.scroll(-y as i32 * 3));
+        }
       }
 
       // Text input

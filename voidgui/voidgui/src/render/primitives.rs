@@ -187,12 +187,21 @@ impl Area {
     }
   }
 
-  pub fn expand(&self, arg: i32) -> Area {
+  pub fn expand(&self, arg: i32) -> Self {
     Self {
       x: self.x - arg,
       y: self.y - arg,
       width: self.width + arg * 2,
       height: self.height + arg * 2,
+    }
+  }
+
+  pub fn scale(&self, scale: f32) -> Self {
+    Self {
+      x: self.x,
+      y: self.y,
+      width: (self.width as f32 * scale) as i32,
+      height: (self.height as f32 * scale) as i32,
     }
   }
 }
@@ -259,6 +268,13 @@ mod test_area {
   fn expand() {
     let a = Area::new(50, 10, 100, 60);
     assert_eq!(a.expand(2), Area::new(48, 8, 104, 64));
+  }
+
+  #[test]
+  fn scale() {
+    let a = Area::new(50, 10, 100, 60);
+    assert_eq!(a.scale(2.0), Area::new(50, 10, 200, 120));
+    assert_eq!(a.scale(0.5), Area::new(50, 10, 50, 30));
   }
 }
 

@@ -61,7 +61,7 @@ impl Layout {
   }
 
   /// Generate areas from a layout and an origin point.
-  pub fn plot(&self, origin: &Point) -> Vec<Area> {
+  pub fn plot(&self, origin: &Point, scale: f32) -> Vec<Area> {
     let mut y = Box::new(origin.y);
     self
       .layout
@@ -71,12 +71,12 @@ impl Layout {
           let y = *y;
           let mut x = Box::new(origin.x);
           ss.iter().map(move |s| {
-            let a = Area::new(*x, y, s.width, s.height);
+            let a = Area::new(*x, y, s.width, s.height).scale(scale);
             *x += a.width;
             a
           })
         };
-        *y += ss.get(0).map_or(0, |s| s.height);
+        *y += ss.get(0).map_or(0, |s| (s.height as f32 * scale) as i32);
         res
       })
       .flatten()
@@ -118,7 +118,7 @@ mod test {
     ];
 
     let l = Layout::from_sizes(1, 3, a.as_slice());
-    assert_eq!(l.plot(&Point::new(0, 0)), b);
+    assert_eq!(l.plot(&Point::new(0, 0), 1.0), b);
   }
 
   #[test]
@@ -131,7 +131,7 @@ mod test {
     ];
 
     let l = Layout::from_sizes(3, 1, a.as_slice());
-    assert_eq!(l.plot(&Point::new(0, 0)), b);
+    assert_eq!(l.plot(&Point::new(0, 0), 1.0), b);
   }
 
   #[test]
@@ -150,7 +150,33 @@ mod test {
     ];
 
     let l = Layout::from_sizes(2, 2, a.as_slice());
-    assert_eq!(l.plot(&Point::new(0, 0)), b);
+    assert_eq!(l.plot(&Point::new(0, 0), 1.0), b);
+  }
+
+  #[test]
+  fn scale() {
+    let a = vec![
+      Size::new(100, 40),
+      Size::new(200, 30),
+      Size::new(50, 50),
+      Size::new(150, 60),
+    ];
+    let b = vec![
+      Area::new(0, 0, 200, 80),
+      Area::new(200, 0, 400, 80),
+      Area::new(0, 80, 200, 120),
+      Area::new(200, 80, 400, 120),
+    ];
+    let c = vec![
+      Area::new(0, 0, 50, 20),
+      Area::new(50, 0, 100, 20),
+      Area::new(0, 20, 50, 30),
+      Area::new(50, 20, 100, 30),
+    ];
+
+    let l = Layout::from_sizes(2, 2, a.as_slice());
+    assert_eq!(l.plot(&Point::new(0, 0), 2.0), b);
+    assert_eq!(l.plot(&Point::new(0, 0), 0.5), c);
   }
 
   #[test]
@@ -159,6 +185,6 @@ mod test {
     let b = vec![Area::new(100, 50, 100, 40), Area::new(200, 50, 200, 40)];
 
     let l = Layout::from_sizes(1, 2, a.as_slice());
-    assert_eq!(l.plot(&Point::new(100, 50)), b);
+    assert_eq!(l.plot(&Point::new(100, 50), 1.0), b);
   }
 }

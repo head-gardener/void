@@ -1,5 +1,6 @@
 use std::sync::RwLockReadGuard;
 
+use glfw::Modifiers;
 use rand::Rng;
 
 // use rayon::prelude::*;
@@ -141,6 +142,7 @@ pub fn maintenance_bench(c: &mut Criterion) {
 
 pub fn event_bench(c: &mut Criterion) {
   let (back, mut core, mut rng) = setup();
+  let mut mods = Modifiers::empty();
 
   c.bench_function("handle click", |b| {
     b.iter(|| {
@@ -152,6 +154,7 @@ pub fn event_bench(c: &mut Criterion) {
             rng.gen_range(0..=200) as f64,
             rng.gen_range(0..=200) as f64,
           ),
+          &mut mods,
         );
         core.handle_event(
           &back.desc,
@@ -161,6 +164,7 @@ pub fn event_bench(c: &mut Criterion) {
             glfw::Action::Press,
             glfw::Modifiers::empty(),
           ),
+          &mut mods,
         );
       };
     })
