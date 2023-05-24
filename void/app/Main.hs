@@ -27,8 +27,8 @@ fill :: G.VoidInstance -> IO ()
 fill w =
   G.push
     w
-    [ Subscriber 0 "Vovan" "123" 300
-    , Subscriber 1 "Ivan" "228" 523
+    [ Subscriber 0 "Vovan" "123" 0 300
+    , Subscriber 1 "Ivan" "228" 1 523
     ]
 
 requests :: G.VoidInstance -> [CInt]

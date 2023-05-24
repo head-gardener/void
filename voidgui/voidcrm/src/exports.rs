@@ -22,11 +22,12 @@ enum Tags {
   Subscribers,
 }
 
-#[derive(Record, Serialize, Deserialize)]
+#[derive(Record, Serialize, Deserialize, Debug)]
 struct Subscriber {
   d_name: String,
   d_phone: String,
   d_mou: i64,
+  d_plan: i64,
   uid: i64,
 }
 
@@ -37,6 +38,7 @@ impl From<(i64, Vec<String>)> for Subscriber {
       d_name: fs[0].to_string(),
       d_phone: fs[1].to_string(),
       d_mou: fs[2].parse().unwrap(),
+      d_plan: fs[3].parse().unwrap(),
       uid,
     }
   }

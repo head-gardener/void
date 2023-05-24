@@ -7,9 +7,6 @@ import Test.QuickCheck
 import Void.CRM.Damage
 import Void.CRM.Subscriber
 
-instance Arbitrary Subscriber where
-  arbitrary = Subscriber <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
 instance Arbitrary Damage where
   arbitrary =
     frequency

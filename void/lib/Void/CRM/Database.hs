@@ -35,7 +35,7 @@ push c ds = do
   r <- remove (map castUID rs)
   return (u + i + r) <&> fromIntegral
  where
-  castSubscriber (Subscriber uid name phone mou) = (name, phone, mou, uid)
+  castSubscriber (Subscriber uid name phone mou plan) = (name, phone, mou, uid)
   castUID uid = [uid]
 
   update =
