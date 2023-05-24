@@ -33,7 +33,7 @@ foreign import ccall "void_gui_finish"
   void_gui_finish :: VoidInstance -> CInt
 
 foreign import ccall "void_gui_add"
-  void_gui_add :: VoidInstance -> CInt -> Ptr CChar -> ()
+  void_gui_add :: VoidInstance -> CInt -> CInt -> Ptr CChar -> ()
 
 foreign import ccall "void_gui_drop"
   void_gui_drop :: VoidInstance -> ()
@@ -77,13 +77,13 @@ wait :: VoidInstance -> CInt
 wait = void_gui_exec
 
 -- not super efficient cause of marshalling and all.
-push :: VoidInstance -> [Subscriber] -> IO ()
-push window =
+push :: Serialise a => VoidInstance -> CInt -> [a] -> IO ()
+push window n =
   mapM_ $
     \x ->
       useAsCStringLen
         ((toStrict . serialise) x)
-        (\(s, len) -> void_gui_add window (fromIntegral len) s `seq` return ())
+        (\(s, len) -> void_gui_add window n (fromIntegral len) s `seq` return ())
 
 drop :: VoidInstance -> ()
 drop = void_gui_drop

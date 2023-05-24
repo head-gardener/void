@@ -10,6 +10,7 @@ import Foreign.C.Types
 import Text.Printf
 import qualified Void.CRM.Database as DB
 import qualified Void.CRM.GUI as G
+import Void.CRM.Plan
 import Void.CRM.Subscriber
 
 initialState :: G.VoidInstance -> ConnectInfo -> WindowState
@@ -27,9 +28,16 @@ fill :: G.VoidInstance -> IO ()
 fill w =
   G.push
     w
+    0
     [ Subscriber 0 "Vovan" "123" 300 0
     , Subscriber 1 "Ivan" "228" 523 1
     ]
+    >> G.push
+      w
+      1
+      [ Plan 0 "Basic" 10 300
+      , Plan 1 "Gold" 15 523
+      ]
 
 requests :: G.VoidInstance -> [CInt]
 requests w = G.wait w : requests w
@@ -45,7 +53,7 @@ pull = do
   (w, c, _, _) <- get
   tryWithConnection
     ( DB.pull
-        >=> (\es -> G.drop w `seq` G.putStatus w "Pull successful" >> G.push w es)
+        >=> (\es -> G.drop w `seq` G.putStatus w "Pull successful" >> G.push w 0 es)
     )
 
 push :: StateT WindowState IO ()

@@ -1,66 +1,27 @@
 use std::{
   ffi::{c_char, CStr},
-  io::Cursor,
+  io::{Cursor, Write},
 };
 
+use crate::data::{Plan, Subscriber};
 use ciborium::de::from_reader;
-use serde::{Deserialize, Serialize};
 use voidgui::{
   backend::Backend,
   core::*,
-  logic::{ring, File, GenericFile, Header, Wrap},
+  logic::{ring, File, GenericFile, Wrap},
   widgets::{self, toolbar::Toolbar, OrientedLayout, Spreadsheet, Status},
-  Record,
 };
 
 struct Instance {
   c: Core,
   b: Backend,
   subs: Wrap<File<Subscriber>>,
+  plans: Wrap<File<Plan>>,
 }
 
 enum Tags {
   Subscribers,
-}
-
-#[derive(Record, Serialize, Deserialize, Debug)]
-struct Subscriber {
-  d_name: String,
-  d_phone: String,
-  d_mou: i64,
-  d_plan: i64,
-  uid: i64,
-}
-
-impl Default for Subscriber {
-  fn default() -> Self {
-    Self {
-      d_name: Default::default(),
-      d_phone: Default::default(),
-      d_mou: Default::default(),
-      d_plan: Default::default(),
-      uid: Default::default(),
-    }
-  }
-}
-
-// TODO: add this to proc macro
-impl From<(i64, Vec<String>)> for Subscriber {
-  fn from((uid, fs): (i64, Vec<String>)) -> Self {
-    Self {
-      d_name: fs[0].to_string(),
-      d_phone: fs[1].to_string(),
-      d_mou: fs[2].parse().unwrap(),
-      d_plan: fs[3].parse().unwrap(),
-      uid,
-    }
-  }
-}
-
-impl Header for Subscriber {
-  fn header() -> Vec<&'static str> {
-    vec!["Name", "Phone", "MoU", "Plan"]
-  }
+  Plans,
 }
 
 #[no_mangle]
@@ -70,9 +31,10 @@ extern "C" fn void_gui_init() -> Box<Instance> {
     let mut c = Core::new();
 
     let subs = ring::wrap(File::<Subscriber>::new());
+    let plans = ring::wrap(File::<Plan>::new());
 
-    populate(&mut c, &mut b, subs.clone());
-    Instance { b, c, subs }
+    populate(&mut c, &mut b, subs.clone(), plans.clone());
+    Instance { b, c, subs, plans }
   };
   Box::new(w)
 }
@@ -81,10 +43,12 @@ unsafe fn populate(
   c: &mut Core,
   b: &mut Backend,
   subs: Wrap<File<Subscriber>>,
+  plans: Wrap<File<Plan>>,
 ) {
   let desc = b.desc.read().unwrap();
 
   c.add_data(Tags::Subscribers as u32, subs.clone());
+  c.add_data(Tags::Plans as u32, plans.clone());
 
   let win = widgets::Window::new(&desc);
   let ssheet = Spreadsheet::new::<Subscriber>(
@@ -171,14 +135,33 @@ extern "C" fn void_gui_parse(len: i64, entry: *const u8) -> u64 {
 }
 
 #[no_mangle]
-extern "C" fn void_gui_add(w: &mut Instance, len: i64, entry: *const u8) {
+extern "C" fn void_gui_add(
+  w: &mut Instance,
+  tag: i64,
+  len: i64,
+  entry: *const u8,
+) {
   let data = unsafe { std::slice::from_raw_parts(entry, len as usize) };
-  let e: Subscriber = from_reader(Cursor::new(data)).unwrap();
 
-  w.subs
-    .write()
-    .unwrap()
-    .put(&w.b.desc.read().unwrap(), &mut w.b.drone, e)
+  match tag {
+    0 => {
+      let s: Subscriber = from_reader(Cursor::new(data)).unwrap();
+      w.subs
+        .write()
+        .unwrap()
+        .put(&w.b.desc.read().unwrap(), &mut w.b.drone, s)
+    }
+    1 => {
+      let p: Plan = from_reader(Cursor::new(data)).unwrap();
+      w.plans
+        .write()
+        .unwrap()
+        .put(&w.b.desc.read().unwrap(), &mut w.b.drone, p)
+    }
+    n => {
+      panic!("{n}")
+    }
+  }
 }
 
 #[no_mangle]
