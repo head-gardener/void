@@ -16,10 +16,13 @@ pub trait Record: Recordable {
   fn datatypes() -> Vec<Datatype>;
   fn uid(&self) -> &i64;
   fn set_uid(&mut self, u: i64);
+
+  /// Edit nth field from `str`.
+  fn set_nth(&mut self, n: usize, val: &str);
 }
 
 pub trait Recordable:
-  Serialize + Header + Send + Sync + From<(i64, Vec<String>)> + Default
+  Serialize + Header + Clone + Send + Sync + Default
 {
 }
 
@@ -126,6 +129,7 @@ impl<R: Record> Dataset<R> {
     self.find_mut(uid).iter_mut().for_each(|(_, b)| {
       if b.0.get(field).is_some() {
         b.0[field] = (value.to_string(), value.to_lowercase());
+        b.1.set_nth(field, value);
       }
     });
   }
@@ -142,9 +146,7 @@ impl<R: Record> Dataset<R> {
 
   /// Get record under `uid`.
   pub fn record(&self, uid: i64) -> Option<R> {
-    self
-      .row(uid)
-      .map(|xs| R::from((uid, xs.iter().map(|s| s.to_string()).collect())))
+    self.find(uid).map(|(_, b)| b.1.clone())
   }
 
   /// Remove search.
@@ -229,7 +231,7 @@ mod test_dataset {
   use super::*;
 
   extern crate self as voidgui;
-  #[derive(Record)]
+  #[derive(Record, Clone)]
   pub struct Pair {
     uid: i64,
     d_i: i64,
@@ -247,12 +249,6 @@ mod test_dataset {
 
   impl Header for Pair {
     fn header() -> Vec<&'static str> {
-      todo!()
-    }
-  }
-
-  impl From<(i64, Vec<String>)> for Pair {
-    fn from(_: (i64, Vec<String>)) -> Self {
       todo!()
     }
   }

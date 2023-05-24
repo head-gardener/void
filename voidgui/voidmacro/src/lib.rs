@@ -123,6 +123,7 @@ pub fn derive_record(input: TokenStream) -> TokenStream {
     _ => todo!(),
   };
   let ids = fields.iter().map(|f| f.ident.as_ref().unwrap());
+  let ids1 = ids.clone();
   let dt = fields.iter().map(|f| match &f.ty {
     Type::Path(p) if p.path.is_ident::<Ident>(parse_quote!(String)) => {
       quote!(voidgui::logic::Datatype::String)
@@ -136,6 +137,22 @@ pub fn derive_record(input: TokenStream) -> TokenStream {
     ),
   });
   let n_fields = fields.len();
+
+  let enm = 0..n_fields;
+  let conv = fields.iter().map(|f| match &f.ty {
+    Type::Path(p) if p.path.is_ident::<Ident>(parse_quote!(String)) => {
+      quote!(to_string())
+    }
+    Type::Path(p) if p.path.is_ident::<Ident>(parse_quote!(i64)) => {
+      quote!(parse().unwrap())
+    }
+    _ => panic!(
+      "Unexpected type for field {:?}",
+      f.ident.as_ref().map(|i| i.to_string())
+    ),
+  });
+
+  let msg = "{} ({}) out of range for ".to_string() + &name.to_string();
 
   let expanded = quote! {
     impl #gen voidgui::logic::Recordable #gen for #name #gen {}
@@ -157,6 +174,13 @@ pub fn derive_record(input: TokenStream) -> TokenStream {
 
       fn datatypes() -> Vec<voidgui::logic::Datatype> {
         vec![#(#dt),*]
+      }
+
+      fn set_nth(&mut self, n: usize, val: &str) {
+        match n {
+          #(#enm => self.#ids1 = val.#conv,)*
+          _ => panic!(#msg, n, val)
+        }
       }
     }
   };

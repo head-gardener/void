@@ -1,6 +1,6 @@
 use std::{
   ffi::{c_char, CStr},
-  io::{Cursor, Write},
+  io::Cursor,
 };
 
 use crate::data::{Plan, Subscriber};
