@@ -33,10 +33,10 @@ foreign import ccall "void_gui_finish"
   void_gui_finish :: VoidInstance -> CInt
 
 foreign import ccall "void_gui_add"
-  void_gui_add :: VoidInstance -> CInt -> Ptr CChar -> CInt
+  void_gui_add :: VoidInstance -> CInt -> Ptr CChar -> ()
 
 foreign import ccall "void_gui_drop"
-  void_gui_drop :: VoidInstance -> CInt
+  void_gui_drop :: VoidInstance -> ()
 
 foreign import ccall "void_gui_drain_damage"
   void_gui_drain_damage :: VoidInstance -> Ptr CInt
@@ -82,7 +82,7 @@ push window =
         ((toStrict . serialise) x)
         (\(s, len) -> void_gui_add window (fromIntegral len) s `seq` return ())
 
-drop :: VoidInstance -> CInt
+drop :: VoidInstance -> ()
 drop = void_gui_drop
 
 putStatus :: VoidInstance -> String -> IO ()

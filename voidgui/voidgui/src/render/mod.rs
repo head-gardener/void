@@ -1,8 +1,8 @@
 pub mod painter;
+mod primitives;
 pub mod shaders;
 pub mod shapes;
 pub mod text_table;
-mod primitives;
 
-pub use text_table::TextTable;
 pub use primitives::*;
+pub use text_table::TextTable;

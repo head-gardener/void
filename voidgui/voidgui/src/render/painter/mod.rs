@@ -1,6 +1,4 @@
-mod description;
-mod drone;
 mod comres;
+mod drone;
 
-pub use description::*;
 pub use drone::*;

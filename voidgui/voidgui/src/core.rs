@@ -1,6 +1,6 @@
 use std::{
   io::Cursor,
-  sync::{Arc, RwLock, RwLockReadGuard},
+  sync::{Arc, RwLock},
 };
 
 use glfw::{Action, Key, Modifiers, MouseButton, WindowEvent};
@@ -8,14 +8,12 @@ use glfw::{Action, Key, Modifiers, MouseButton, WindowEvent};
 use crate::{
   backend::Backend,
   logic::{
-    ring::{self, CallbackResult, Mark, Wrap},
-    DamageTracker, Ring,
+    ring::{self, Mark, Wrap},
+    CallbackResult, DamageTracker, File, FileCallback, Record, Ring, Tag,
   },
-  render::{
-    painter::{Description, Drone},
-    Point,
-  },
-  widgets::{spreadsheet::Record, traits::InputEvent, Spreadsheet},
+  render::{painter::Drone, Point},
+  widgets::{traits::InputEvent, Spreadsheet},
+  Description,
 };
 
 #[macro_export]
@@ -27,9 +25,12 @@ macro_rules! debug {
   }
 }
 
+type Files = Vec<(Tag, Wrap<File>)>;
+
 pub struct Core {
   ring: Wrap<Ring>,
   damage_tracker: Wrap<DamageTracker>,
+  data: Files,
 
   cursor: Point,
 }
@@ -45,6 +46,7 @@ impl Core {
       ring: ring::wrap(ring),
       cursor: Point::new(0, 0),
       damage_tracker,
+      data: vec![],
     }
   }
 
@@ -81,7 +83,7 @@ impl Core {
       drone.feed(),
       &event,
     );
-    match self.handle_callback_result_mut(
+    match self.handle_callback_result(
       &mut desc.write().unwrap(),
       drone,
       res,
@@ -96,7 +98,7 @@ impl Core {
       drone,
       &event,
     );
-    match self.handle_callback_result_mut(
+    match self.handle_callback_result(
       &mut desc.write().unwrap(),
       drone,
       res,
@@ -155,7 +157,7 @@ impl Core {
           drone,
           self.cursor,
         );
-        if let Err(c) = self.handle_callback_result_mut(
+        if let Err(c) = self.handle_callback_result(
           &mut desc.write().unwrap(),
           drone,
           res,
@@ -283,36 +285,27 @@ impl Core {
 
   pub fn pull_damage<E: Record>(&self) -> Vec<u8> {
     let mut buf = Cursor::new(vec![]);
+    let dt = self.damage_tracker.read().unwrap();
     self
-      .ring
-      .read()
-      .unwrap()
-      .pull(&Mark::Spreadsheet)
-      .unwrap()
-      .read()
-      .unwrap()
-      .downcast_ref()
-      .map(|ss| {
-        self
-          .damage_tracker
-          .read()
-          .unwrap()
-          .serialize::<_, E>(&mut buf, ss);
+      .data
+      .iter()
+      .find(|f| f.0 == dt.target())
+      .map(|(_, f)| {
+        dt.serialize::<_, E>(&mut buf, &f.read().unwrap());
       })
       .unwrap();
     buf.into_inner()
   }
 
-  pub fn drain_damage_tracker(
-    &mut self,
-    desc: &RwLockReadGuard<Description>,
-    drone: &Drone,
-  ) {
+  pub fn drain_damage_tracker(&mut self, desc: &Description, drone: &Drone) {
     let mut t = self.damage_tracker.write().unwrap();
+    let mut d = &mut self.data;
     t.drain().for_each(|r| {
-      self
-        .handle_callback_result(desc, drone, (r, Mark::DamageTracker), "Damage")
-        .unwrap();
+      if let CallbackResult::File(t, f) = r {
+        handle_file_callback(&mut d, desc, drone, t, f);
+      } else {
+        panic!("unexpected result from dtracker: {:?}", r);
+      }
     });
   }
 
@@ -330,7 +323,7 @@ impl Core {
   /// `what` and `who` are used to describe callback in case of error:
   /// `what` describes the type of callback, `who` - marked object, sourcing
   /// the callback.
-  fn handle_callback_result_mut(
+  fn handle_callback_result(
     &mut self,
     desc: &mut Description,
     drone: &Drone,
@@ -345,9 +338,20 @@ impl Core {
       CallbackResult::Error(e) => {
         println!("{} callback by {:?} failed: {}", what, who, e);
       }
+      CallbackResult::Read(t, f) => {
+        let file = self
+          .data
+          .iter()
+          .find(|(_t, _)| *_t == t)
+          .map(|f| &f.1)
+          .map(|l| l.clone());
+        let w = self.ring.read().unwrap().pull(&who);
+        let r = f(w, file, desc, drone);
+        self.handle_callback_result(desc, drone, (r, who), what);
+      }
       CallbackResult::Push(x) => x.push_to_ring(self.ring.write().unwrap()),
-      CallbackResult::Modify(m, f) => {
-        f(self.ring.write().unwrap().pull(&m), desc, drone)
+      CallbackResult::File(t, f) => {
+        handle_file_callback(&mut self.data, desc, drone, t, f)
       }
       CallbackResult::Damage(f) => f(&mut self.damage_tracker.write().unwrap()),
       CallbackResult::ExitCode(c) => {
@@ -363,42 +367,32 @@ impl Core {
     return Ok(true);
   }
 
-  /// Same as [Ring::handle_callback_result_mut], but [CallbackResult::Push]
-  /// and [CallbackResult::Damage] are considered errors.
-  fn handle_callback_result(
-    &self,
-    desc: &Description,
-    drone: &Drone,
-    (r, who): (CallbackResult, Mark),
-    what: &str,
-  ) -> Result<bool, u64> {
-    if r.is_pass() {
-      return Ok(false);
-    }
-
-    match r {
-      CallbackResult::Error(e) => {
-        println!("{} callback by {:?} failed: {}", what, who, e);
-      }
-      CallbackResult::Damage(_) => {
-        println!("{} immutable callback by {:?} returned Damage", what, who);
-      }
-      CallbackResult::Mode(_) => {
-        println!("{} immutable callback by {:?} returned Mode", what, who);
-      }
-      CallbackResult::Push(_) => {
-        println!("{} immutable callback by {:?} returned Push", what, who);
-      }
-      CallbackResult::Modify(m, f) => {
-        f(self.ring.read().unwrap().pull(&m), desc, drone)
-      }
-      CallbackResult::ExitCode(c) => {
-        debug_assert_ne!(c, 0);
-        return Err(c);
-      }
-
-      _ => {}
-    }
-    return Ok(true);
+  pub fn add_data(&mut self, t: Tag, f: Wrap<File>) {
+    self.data.push((t, f));
   }
+
+  pub fn with_data<F: FnOnce(&mut File)>(&mut self, t: Tag, f: F) {
+    self
+      .data
+      .iter_mut()
+      .find(|f| f.0 == t)
+      .and_then(|f| f.1.write().ok())
+      .as_mut()
+      .map(|d| f(d));
+  }
+}
+
+fn handle_file_callback(
+  data: &mut Files,
+  desc: &Description,
+  drone: &Drone,
+  t: Tag,
+  f: FileCallback,
+) {
+  data
+    .iter_mut()
+    .find(|(_t, _)| *_t == t)
+    .map(|f| &f.1)
+    .as_mut()
+    .map(|x| f(&mut x.write().unwrap(), desc, drone));
 }

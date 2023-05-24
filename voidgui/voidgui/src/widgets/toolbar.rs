@@ -3,21 +3,21 @@ use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use crate::{
   logic::{
     ring::{self, Mark, RingElement},
-    CallbackResult, Damage,
+    CallbackResult, Damage, File,
   },
   render::{
-    painter::{Description, Drone, DroneFeed},
+    painter::{Drone, DroneFeed},
     text_table::Orientation,
     Area, Origin, Point, Size, TextTable,
   },
-  widgets,
+  widgets, Description,
 };
 
 use super::{
   traits::{
     widget::Error, ClickSink, Clickable, Drawable, Parent, Transient, Widget,
   },
-  InputField, Spreadsheet,
+  InputField,
 };
 
 use voidmacro::{ClickableMenu, DrawableMenu, Menu};
@@ -211,7 +211,7 @@ impl ClickSink for ToolbarTools {
       0 => CallbackResult::Damage(Box::new(|t| {
         t.push(Damage::Add(rand::random()))
       })),
-      1 => CallbackResult::Mode(crate::render::painter::Mode::Delete),
+      1 => CallbackResult::Mode(crate::description::Mode::Delete),
       2 => match unsafe { InputField::new(desc, drone, "", ()) } {
         Ok(f) => CallbackResult::Push(Box::new(ring::wrap(f))),
         Err(e) => CallbackResult::Error(e),
@@ -230,13 +230,12 @@ type SearchIF = ();
 impl Transient for InputField<SearchIF, String> {
   fn handle_accept(&self, _: &DroneFeed) -> CallbackResult {
     let st = self.to_string();
-    CallbackResult::Modify(
-      Mark::Spreadsheet,
-      ring::with_spreadsheet(
-        move |_: &Description, drone: &Drone, s: &mut Spreadsheet| {
-          s.new_search(drone, &st);
-        },
-      ),
+    CallbackResult::File(
+      // TODO: how do you now?
+      0,
+      Box::new(move |f: &mut File, desc: &Description, drone: &Drone| {
+        f.new_search(desc, drone, &st);
+      }),
     )
   }
 }

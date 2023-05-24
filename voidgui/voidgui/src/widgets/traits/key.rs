@@ -1,9 +1,6 @@
 use glfw::WindowEvent;
 
-use crate::{
-  logic::CallbackResult,
-  render::painter::{Description, Drone},
-};
+use crate::{logic::CallbackResult, render::painter::Drone, Description};
 
 pub trait KeySink: Send + Sync {
   fn handle_key(

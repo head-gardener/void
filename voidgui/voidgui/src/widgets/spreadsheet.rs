@@ -3,17 +3,17 @@ use std::{
   sync::{RwLockReadGuard, RwLockWriteGuard},
 };
 
-use glfw::{Action, Key, Modifiers, WindowEvent};
-use serde::Serialize;
+use glfw::{Action, Key, WindowEvent};
 use voidmacro::{ClickableMenu, DrawableMenu, Menu};
 
 use crate::{
+  description::*,
   logic::{
-    ring::{self, Mark, RingElement},
-    CallbackResult, Damage, Dataset,
+    ring::{self, Mark, RingElement, Wrap},
+    CallbackResult, Damage, Datatype, File, FileSub, Record, Tag,
   },
   render::{
-    painter::{Description, Drone, DroneFeed, Mode},
+    painter::{Drone, DroneFeed},
     Area, Origin, Point, Size, TextTable,
   },
   widgets::InputField,
@@ -24,194 +24,42 @@ use super::traits::{
 };
 use crate::widgets;
 
-/// An entry in a spreadsheet. Implement with `Entry` derive macro.
-/// When doing so, prefix all data field with `d_` and give them `&'a str` type.
-/// Those fields will be used when displaying data.
-pub trait Record:
-  Serialize + Header + Send + Sync + From<(i64, Vec<String>)>
-{
-  const N_FIELDS: usize;
-
-  fn fields<'a>(&'a self) -> Vec<&'a dyn Data>;
-  fn datatypes() -> Vec<Datatype>;
-  fn uid(&self) -> &i64;
-}
-
-pub trait Header {
-  fn header() -> Vec<&'static str>;
-}
-
-pub enum Datatype {
-  String,
-  Integer,
-}
-
-static DEF_STR: String = String::new();
-static DEF_INT: i64 = 0;
-
-impl Datatype {
-  fn default(&self) -> &'static dyn Data {
-    match self {
-      Datatype::String => &DEF_STR,
-      Datatype::Integer => &DEF_INT,
-    }
-  }
-}
-
-pub trait Data: ToString {}
-impl Data for String {}
-impl Data for i64 {}
-
 #[derive(Menu, DrawableMenu, ClickableMenu)]
 pub struct Spreadsheet {
   table: TextTable,
-  data: Dataset,
-  datatypes: Vec<Datatype>,
+  target: Tag,
   uids: Vec<i64>,
   scroll: i32,
 }
 
 impl Spreadsheet {
-  pub unsafe fn new<'a, E: Record>(
-    desc: &RwLockReadGuard<Description>,
+  pub unsafe fn new<'a, R: Record>(
+    desc: &Description,
     drone: &mut Drone,
+    target: Tag,
   ) -> Result<Self, widgets::Error> {
-    let mut table = TextTable::new(drone, 0, E::N_FIELDS)?;
+    let mut table = TextTable::new(drone, 0, R::N_FIELDS)?;
     table.add_row(
       desc,
       drone,
-      E::header().into_iter(),
+      R::header().into_iter(),
       crate::render::text_table::CellStyle::Lit,
     )?;
 
     Ok(Self {
       table,
-      data: Dataset::new(),
-      datatypes: E::datatypes(),
       uids: vec![],
       scroll: 0,
+      target,
     })
   }
 
-  pub fn push<'a, E: Record>(
-    &mut self,
-    desc: &RwLockReadGuard<Description>,
-    drone: &Drone,
-    e: E,
-  ) -> Result<(), widgets::Error> {
-    // PERF: too much allocating
-
-    self.uids.push(*e.uid());
-    let fs: Vec<String> = e.fields().iter().map(|f| f.to_string()).collect();
-    fs.iter().for_each(|f| {
-      self.data.push(&f);
-    });
-
-    unsafe {
-      self.table.add_row(
-        desc,
-        drone,
-        fs.iter().map(|f| f.as_str()),
-        crate::render::text_table::CellStyle::Normal,
-      )?;
-    };
-
-    Ok(())
-  }
-
-  pub fn add_record(
-    &mut self,
-    desc: &Description,
-    drone: &Drone,
-    uid: i64,
-  ) -> Result<(), widgets::Error> {
-    let fs: Vec<String> = self
-      .datatypes
-      .iter()
-      .map(|f| f.default().to_string())
-      .collect();
-
-    self.uids.push(uid);
-    fs.iter().for_each(|f| {
-      self.data.push(&f);
-    });
-
-    unsafe {
-      self.table.add_row(
-        desc,
-        drone,
-        fs.iter().map(|f| f.as_str()),
-        crate::render::text_table::CellStyle::Normal,
-      )?;
-    };
-
-    Ok(())
-  }
-
-  pub fn rem_record(
-    &mut self,
-    drone: &Drone,
-    uid: i64,
-  ) -> Result<(), widgets::Error> {
-    let pos = self.uids.iter().position(|u| *u == uid).ok_or(
-      widgets::Error::Unspecified(format!("invalid uid passed to rem: {uid}")),
-    )?;
-
-    // TODO: memory
-    self.uids.remove(pos);
-    self
-      .data
-      .cut(pos * self.table.columns(), self.table.columns());
-    self.table.rem_row(drone, pos + 1);
-
-    Ok(())
-  }
-
-  pub fn update_record(
-    &mut self,
-    desc: &Description,
-    drone: &Drone,
-    uid: i64,
-    n: usize,
-    s: &str,
-  ) -> Result<(), widgets::Error> {
-    let n = n
-      + self.uids.iter().position(|i| *i == uid).ok_or(
-        widgets::Error::Unspecified(format!(
-          "uid {} not found in spreadsheet",
-          uid,
-        )),
-      )? * self.table.columns();
-    self
-      .table
-      .update_cell(desc, drone, n + self.table.columns(), s)?;
-    self.data.set(n, s);
-    Ok(())
-  }
-
-  pub fn get_record<R: Record>(&self, uid: i64) -> Option<R> {
-    let pos = self.uids.iter().position(|u| *u == uid)?;
-    let ss = self
-      .data
-      .range(pos * self.table.columns(), self.table.columns())
-      .iter()
-      .map(|s| s.to_string())
-      .collect();
-    Some(R::from((uid, ss)))
-  }
-
-  pub fn drop(&mut self) {
-    self.data.clear();
-    self.uids.clear();
-
-    self.table.truncate(self.table.columns());
-  }
-
-  pub fn push_to_ring(self, ring: &mut crate::logic::Ring) {
+  pub fn push_to_ring(self, ring: &mut crate::logic::Ring) -> Wrap<Self> {
     let rc = ring::wrap(self);
     ring.push_click_sink(rc.clone(), Mark::Spreadsheet);
     ring.push_key_sink(rc.clone(), Mark::Spreadsheet);
-    ring.push_static(rc, Mark::Spreadsheet, Mark::Window, 0);
+    ring.push_static(rc.clone(), Mark::Spreadsheet, Mark::Window, 0);
+    rc
   }
 
   pub fn scroll(&mut self, offset: i32) {
@@ -219,40 +67,105 @@ impl Spreadsheet {
     self.table.request_plot();
   }
 
-  pub fn new_search(&mut self, drone: &Drone, value: &str) {
-    self.data.new_search(value);
-    self.find(drone, true);
-  }
-
-  fn find(&mut self, drone: &Drone, next: bool) {
-    if next {
-      self.data.find_next()
-    } else {
-      self.data.find_prev()
-    }
-    .map(|i| {
-      self
-        .table
-        .set_highlight(drone, i / self.table.columns() + 1);
-      self.scroll = self
-        .table
-        .cell_sizes()
-        .chunks(self.table.columns())
-        .map(|xs| xs[0].height)
-        .take(i / self.table.columns() + 1)
-        .sum::<i32>()
-        * -1;
-      self.request_plot();
-    });
-  }
-
-  fn clear_search(&mut self) -> bool {
-    self.request_plot();
-    self.data.clear_search()
-  }
-
   pub fn scale(&mut self, scale: f32) {
     self.table.scale(scale)
+  }
+
+  fn on_invalid_target(&self) {
+    panic!("unexpected tgt {:?}", self.target);
+  }
+
+  pub fn set_target(&mut self, target: Tag) {
+    self.target = target;
+  }
+}
+
+impl FileSub for Spreadsheet {
+  fn on_drop(&mut self, _: &Description, _: &Drone) {
+    self.uids.clear();
+
+    self.table.truncate(self.table.columns());
+  }
+
+  fn on_put(
+    &mut self,
+    desc: &Description,
+    drone: &Drone,
+    uid: i64,
+    row: &[&str],
+  ) {
+    self.uids.push(uid);
+
+    unsafe {
+      self
+        .table
+        .add_row(
+          desc,
+          drone,
+          row.into_iter().map(|s| *s),
+          crate::render::text_table::CellStyle::Normal,
+        )
+        .unwrap();
+    };
+  }
+
+  fn on_set(
+    &mut self,
+    desc: &Description,
+    drone: &Drone,
+    uid: i64,
+    field: usize,
+    s: &str,
+  ) {
+    let pos = self.uids.iter().position(|i| *i == uid);
+    if pos.is_none() {
+      return;
+    }
+    let pos = pos.unwrap();
+
+    let n = field + pos * self.table.columns();
+    self
+      .table
+      .update_cell(desc, drone, n + self.table.columns(), s)
+      .unwrap();
+  }
+
+  fn on_rem(&mut self, _: &Description, drone: &Drone, uid: i64) {
+    let pos = self.uids.iter().position(|u| *u == uid);
+    if pos.is_none() {
+      return;
+    }
+    let pos = pos.unwrap();
+
+    self.uids.remove(pos);
+    self.table.rem_row(drone, pos + 1);
+  }
+
+  fn on_drop_search(&mut self, _: &Description, _: &Drone) {
+    // drop highlight
+    self.table.request_plot();
+  }
+
+  fn on_search_update(
+    &mut self,
+    _: &Description,
+    drone: &Drone,
+    res: &Option<(i64, usize)>,
+  ) {
+    res
+      .and_then(|(uid, _)| self.uids.iter().position(|i| *i == uid))
+      .map(|pos| {
+        self.table.set_highlight(drone, pos + 1);
+        self.scroll = self
+          .table
+          .cell_sizes()
+          .chunks(self.table.columns())
+          .map(|xs| xs[0].height)
+          .take(pos + 1)
+          .sum::<i32>()
+          * -1;
+        self.request_plot();
+      });
   }
 }
 
@@ -260,40 +173,22 @@ impl ClickSink for Spreadsheet {
   fn onclick(
     &mut self,
     desc: &RwLockReadGuard<Description>,
-    drone: &Drone,
+    _: &Drone,
     p: Point,
   ) -> CallbackResult {
     let i = self.table.catch_point(&p).unwrap();
     match i {
       0 | 1 => CallbackResult::Pass,
       _ => match desc.mode() {
-        Mode::Normal => {
-          let s = self.data.get(i - self.table.columns());
-          self.table.set_highlight(drone, i / self.table.columns());
-          let closure = (
-            self.uids[i / self.table.columns() - 1],
-            i % self.table.columns(),
-            s.to_string(),
-          );
-          match self.datatypes[i % self.table.columns()] {
-            Datatype::String => unsafe {
-              InputField::<SpreadsheetIF, String>::new(desc, drone, s, closure)
-                .map(|f| Box::new(ring::wrap(f)))
-                .map_or_else(
-                  |e| CallbackResult::Error(e),
-                  |f| CallbackResult::Push(f),
-                )
-            },
-            Datatype::Integer => unsafe {
-              InputField::<SpreadsheetIF, i64>::new(desc, drone, s, closure)
-                .map(|f| Box::new(ring::wrap(f)))
-                .map_or_else(
-                  |e| CallbackResult::Error(e),
-                  |f| CallbackResult::Push(f),
-                )
-            },
-          }
-        }
+        Mode::Normal => CallbackResult::Read(
+          self.target,
+          Box::new(
+            move |w: Option<Wrap<dyn Drawable>>,
+                  f: Option<Wrap<File>>,
+                  desc: &Description,
+                  drone: &Drone| on_click(w, f, desc, drone, i),
+          ),
+        ),
         Mode::Delete => {
           let uid = self.uids[i / self.table.columns() - 1];
           CallbackResult::Damage(Box::new(move |t| {
@@ -305,31 +200,70 @@ impl ClickSink for Spreadsheet {
   }
 }
 
+fn on_click(
+  w: Option<Wrap<dyn Drawable>>,
+  f: Option<Wrap<File>>,
+  desc: &Description,
+  drone: &Drone,
+  i: usize,
+) -> CallbackResult {
+  if w.is_none() {
+    return "widget gone after read".into();
+  }
+  let w = w.unwrap();
+  let w = w.try_write().ok();
+  if w.is_none() {
+    return "can't lock widget".into();
+  }
+  let mut w = w.unwrap();
+  let ss: &mut Spreadsheet = w.downcast_mut().unwrap();
+
+  if f.is_none() {
+    ss.on_invalid_target();
+  }
+
+  // goofy
+  let f = f.unwrap();
+  let f = f.read().unwrap();
+  let f = f.read();
+
+  let uid = ss.uids[i / ss.table.columns() - 1];
+  let s = f.get(uid, i % ss.table.columns());
+  if s.is_none() {
+    return "couldn't get str".into();
+  }
+  let s = s.unwrap();
+  ss.table.set_highlight(drone, i / ss.table.columns());
+  let closure = (
+    ss.uids[i / ss.table.columns() - 1],
+    i % ss.table.columns(),
+    s.to_string(),
+  );
+  match f.datatypes()[i % ss.table.columns()] {
+    Datatype::String => unsafe {
+      InputField::<SpreadsheetIF, String>::new(desc, drone, s, closure)
+        .map(|f| Box::new(ring::wrap(f)))
+        .map_or_else(|e| CallbackResult::Error(e), |f| CallbackResult::Push(f))
+    },
+    Datatype::Integer => unsafe {
+      InputField::<SpreadsheetIF, i64>::new(desc, drone, s, closure)
+        .map(|f| Box::new(ring::wrap(f)))
+        .map_or_else(|e| CallbackResult::Error(e), |f| CallbackResult::Push(f))
+    },
+  }
+}
+
 impl KeySink for Spreadsheet {
   fn handle_key(
     &mut self,
     desc: &Description,
-    drone: &Drone,
+    _: &Drone,
     e: &glfw::WindowEvent,
   ) -> CallbackResult {
     match e {
-      WindowEvent::Key(Key::N, _, Action::Press, m) if m.is_empty() => {
-        self.find(drone, true);
-        CallbackResult::None
-      }
-      WindowEvent::Key(Key::N, _, Action::Press, Modifiers::Shift) => {
-        self.find(drone, false);
-        CallbackResult::None
-      }
       WindowEvent::Key(Key::Escape, _, Action::Press, _) => match desc.mode() {
         Mode::Delete => CallbackResult::Mode(Mode::Normal),
-        _ => {
-          if self.clear_search() {
-            CallbackResult::None
-          } else {
-            CallbackResult::Pass
-          }
-        }
+        _ => CallbackResult::Pass,
       },
       _ => CallbackResult::Pass,
     }

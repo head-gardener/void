@@ -2,7 +2,10 @@ use std::sync::RwLockReadGuard;
 
 use downcast_rs::{impl_downcast, DowncastSync};
 
-use crate::render::{painter::{Description, DroneFeed}, Size};
+use crate::{
+  render::{painter::DroneFeed, Size},
+  Description,
+};
 
 use super::{Error, Widget};
 

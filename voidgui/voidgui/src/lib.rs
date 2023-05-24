@@ -1,8 +1,10 @@
+pub mod backend;
 pub mod colorscheme;
 pub mod core;
+pub mod description;
 pub mod logic;
 pub mod render;
 pub mod widgets;
-pub mod backend;
 
+pub use description::Description;
 pub use voidmacro::*;

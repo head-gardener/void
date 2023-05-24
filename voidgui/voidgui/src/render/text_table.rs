@@ -9,14 +9,11 @@ use crate::{
   logic::Layout,
   render::{painter::Drone, Size},
   widgets::traits::widget::Error,
+  Description,
 };
 
 use super::shapes::TextureData;
-use super::{
-  painter::{Description, DroneFeed},
-  shapes::rectangle,
-  Area, Origin, Point,
-};
+use super::{painter::DroneFeed, shapes::rectangle, Area, Origin, Point};
 
 #[derive(Debug)]
 enum State {
@@ -155,7 +152,7 @@ pub struct TextTable {
 impl TextTable {
   /// Generate a text table of static layout.
   pub unsafe fn make_static(
-    desc: &RwLockReadGuard<Description>,
+    desc: &Description,
     drone: &Drone,
     or: Orientation,
     style: CellStyle,

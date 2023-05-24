@@ -4,11 +4,12 @@ use crate::{
   colorscheme::CURSOR_COLOR,
   logic::CallbackResult,
   render::{
-    painter::{Description, Drone, DroneFeed},
+    painter::{Drone, DroneFeed},
     shapes::{rectangle, texture::get_text_size},
     text_table::{Orientation, OFFSET},
     Area, Origin, Size, TextTable,
   },
+  Description,
 };
 
 use super::traits::{widget::Error, Drawable, InputEvent, InputSink, Widget};
@@ -30,7 +31,7 @@ where
   <R>::Err: std::fmt::Debug,
 {
   pub unsafe fn new(
-    desc: &RwLockReadGuard<Description>,
+    desc: &Description,
     drone: &Drone,
     s: &str,
     closure: T,

@@ -6,7 +6,7 @@ use rayon::prelude::*;
 
 use crate::{
   render::{
-    painter::{Description, Drone, DroneFeed, Mode},
+    painter::{Drone, DroneFeed},
     Point,
   },
   widgets::{
@@ -16,9 +16,10 @@ use crate::{
     },
     Spreadsheet,
   },
+  Description,
 };
 
-use super::DamageTracker;
+use super::CallbackResult;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Mark {
@@ -33,6 +34,7 @@ pub enum Mark {
   DamageTracker,
   Status(u64),
   StatusBox,
+  File(u32),
 }
 
 impl Into<usize> for Mark {
@@ -42,60 +44,6 @@ impl Into<usize> for Mark {
       Mark::_Test2 => 1,
       _ => todo!(),
     }
-  }
-}
-
-pub enum CallbackResult {
-  /// Event was dropped.
-  Pass,
-
-  /// No side effects.
-  None,
-
-  /// Callback failed.
-  Error(widgets::Error),
-
-  /// Push a widget to the ring.
-  Push(Box<dyn RingElement>),
-
-  /// Modify a widget by mark.
-  Modify(
-    Mark,
-    Box<dyn FnOnce(Option<Wrap<dyn Drawable>>, &Description, &Drone)>,
-  ),
-
-  /// Access damage tracker.
-  Damage(Box<dyn FnOnce(&mut DamageTracker)>),
-
-  /// Exit codes for interacting with external caller. Can't be 0.
-  ExitCode(u64),
-
-  /// Change window global mode.
-  Mode(Mode),
-}
-
-impl std::fmt::Debug for CallbackResult {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      CallbackResult::Pass => write!(f, "Pass"),
-      CallbackResult::None => write!(f, "None"),
-      CallbackResult::Error(e) => write!(f, "Error({})", e),
-      CallbackResult::Push(_) => write!(f, "Push(_)"),
-      CallbackResult::Modify(m, _) => write!(f, "Modify({:?}, _)", m),
-      CallbackResult::Damage(_) => write!(f, "Damage(_)"),
-      CallbackResult::ExitCode(c) => write!(f, "ExitCode({})", c),
-      CallbackResult::Mode(m) => write!(f, "Mode({:?})", m),
-    }
-  }
-}
-
-impl CallbackResult {
-  /// Returns `true` if the callback result is [`Pass`].
-  ///
-  /// [`Pass`]: CallbackResult::Pass
-  #[must_use]
-  pub fn is_pass(&self) -> bool {
-    matches!(self, Self::Pass)
   }
 }
 
@@ -436,14 +384,12 @@ mod tests {
   use crate::{
     backend::Backend,
     logic::ring,
-    render::{
-      painter::{Description, DroneFeed},
-      Size,
-    },
+    render::{painter::DroneFeed, Size},
     widgets::{
       self,
       traits::{Drawable, Widget},
     },
+    Description,
   };
 
   use super::Ring;

@@ -8,9 +8,8 @@ use rand::Rng;
 use criterion::{criterion_group, criterion_main, Criterion};
 use voidgui::logic::ring::Mark;
 use voidgui::logic::CallbackResult;
-use voidgui::render::painter::{Description, DroneFeed};
+use voidgui::render::painter::DroneFeed;
 use voidgui::render::Point;
-use voidgui::widgets;
 use voidgui::widgets::traits::Parent;
 use voidgui::{
   backend::Backend,
@@ -21,6 +20,7 @@ use voidgui::{
   },
   widgets::traits::{ClickSink, Clickable, Drawable, Widget},
 };
+use voidgui::{widgets, Description};
 use voidmacro::{ClickableMenu, Menu};
 
 #[derive(Menu, ClickableMenu)]

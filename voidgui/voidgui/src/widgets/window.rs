@@ -2,10 +2,8 @@ use std::sync::RwLockReadGuard;
 
 use crate::{
   logic::ring,
-  render::{
-    painter::{Description, DroneFeed},
-    Area, Origin, OriginPole,
-  },
+  render::{painter::DroneFeed, Area, Origin, OriginPole},
+  Description,
 };
 
 use super::traits::{Drawable, Parent, Widget};

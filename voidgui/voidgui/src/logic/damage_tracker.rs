@@ -5,14 +5,13 @@ use serde::Serialize;
 use slice_group_by::GroupBy;
 
 use crate::{
-  logic::ring::Mark,
-  render::painter::{Description, Drone},
-  widgets::{spreadsheet::Record, traits::KeySink, Spreadsheet},
+  logic::ring::Mark, render::painter::Drone, widgets::traits::KeySink,
+  Description,
 };
 
 use super::{
   ring::{self, Wrap},
-  CallbackResult,
+  CallbackResult, File, Record, Tag,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -24,6 +23,15 @@ pub enum Damage {
 }
 
 static DAMAGE_ZERO: Damage = Damage::None(0);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Tagged(Tag, Damage);
+
+impl Tagged {
+  fn map<F: Fn(&Damage) -> Damage>(&self, f: F) -> Tagged {
+    Self(self.0, f(&self.1))
+  }
+}
 
 /// Describes a change that is going to happen once the damage object is
 /// acted on.
@@ -85,26 +93,26 @@ impl Damage {
   }
 }
 
-impl Into<CallbackResult> for Damage {
+impl Into<CallbackResult> for Tagged {
   fn into(self) -> CallbackResult {
-    CallbackResult::Modify(
-      Mark::Spreadsheet,
-      match self {
-        Damage::Update(uid, n, _, to) => ring::with_spreadsheet(
-          move |desc: &Description, drone: &Drone, s: &mut Spreadsheet| {
-            s.update_record(desc, drone, uid, n, &to).unwrap();
-          },
-        ),
-        Damage::Add(uid) => ring::with_spreadsheet(
-          move |desc: &Description, drone: &Drone, s: &mut Spreadsheet| {
-            s.add_record(desc, drone, uid).unwrap();
-          },
-        ),
-        Damage::Remove(uid) => ring::with_spreadsheet(
-          move |_: &Description, drone: &Drone, s: &mut Spreadsheet| {
-            s.rem_record(drone, uid).unwrap();
-          },
-        ),
+    CallbackResult::File(
+      self.0,
+      match self.1 {
+        Damage::Update(uid, n, _, to) => {
+          Box::new(move |f: &mut File, desc: &Description, drone: &Drone| {
+            f.set(desc, drone, uid, n, &to);
+          })
+        }
+        Damage::Add(uid) => {
+          Box::new(move |f: &mut File, desc: &Description, drone: &Drone| {
+            f.new_row(desc, drone, uid);
+          })
+        }
+        Damage::Remove(uid) => {
+          Box::new(move |f: &mut File, desc: &Description, drone: &Drone| {
+            f.rem(desc, drone, uid);
+          })
+        }
         Damage::None(_) => panic!(),
       },
     )
@@ -120,7 +128,7 @@ pub enum Scar<E: Record> {
 }
 
 impl<E: Record> Scar<E> {
-  pub fn compress(damage: &mut Vec<Damage>, ss: &Spreadsheet) -> Vec<Self> {
+  pub fn compress(damage: &mut Vec<Damage>, f: &File) -> Vec<Self> {
     damage.sort_by_key(|x| x.uid());
     damage
       .linear_group_by_key(|x| x.uid())
@@ -128,9 +136,9 @@ impl<E: Record> Scar<E> {
       .filter_map(|d| match d {
         Damage::None(_) => None,
         Damage::Update(uid, _, _, _) => {
-          Some(Self::Update(ss.get_record(*uid).unwrap()))
+          Some(Self::Update(f.read().record(*uid).unwrap()))
         }
-        Damage::Add(uid) => Some(Self::Insert(ss.get_record(*uid).unwrap())),
+        Damage::Add(uid) => Some(Self::Insert(f.read().record(*uid).unwrap())),
         Damage::Remove(uid) => Some(Self::Remove(*uid)),
       })
       .collect()
@@ -138,9 +146,10 @@ impl<E: Record> Scar<E> {
 }
 
 pub struct DamageTracker {
-  undo: Vec<Damage>,
-  redo: Vec<Damage>,
-  pending: Vec<Damage>,
+  undo: Vec<Tagged>,
+  redo: Vec<Tagged>,
+  pending: Vec<Tagged>,
+  target: Tag,
 }
 
 impl DamageTracker {
@@ -149,6 +158,7 @@ impl DamageTracker {
       undo: vec![],
       redo: vec![],
       pending: vec![],
+      target: Tag::default(),
     }
   }
 
@@ -162,16 +172,16 @@ impl DamageTracker {
 
   pub fn drain<'a>(&'a mut self) -> impl Iterator<Item = CallbackResult> + 'a {
     self.pending.drain(..).map(|d| {
-      self.undo.push(d.clone().invert());
+      self.undo.push(d.map(Damage::inverted));
       d.into()
     })
   }
 
   pub fn push(&mut self, d: Damage) {
-    self.pending.push(d);
+    self.pending.push(Tagged(self.target, d));
   }
 
-  pub fn serialize<W: Write, E: Record>(&self, w: &mut W, ss: &Spreadsheet) {
+  pub fn serialize<W: Write, E: Record>(&self, w: &mut W, f: &File) {
     // let file = std::fs::File::create("obj.cbor").unwrap();
     // ciborium::ser::into_writer(
     //   &Scar::<E>::compress(
@@ -183,8 +193,12 @@ impl DamageTracker {
     // .unwrap();
     ciborium::ser::into_writer(
       &Scar::<E>::compress(
-        &mut self.undo.iter().map(|x| x.inverted()).collect(),
-        ss,
+        &mut self
+          .undo
+          .iter()
+          .map(|x| x.map(Damage::inverted).1)
+          .collect(),
+        f,
       ),
       w,
     )
@@ -201,6 +215,14 @@ impl DamageTracker {
     let rc = ring::wrap(self);
     ring.push_key_sink(rc.clone(), Mark::Spreadsheet);
     rc
+  }
+
+  pub fn set_target(&mut self, target: Tag) {
+    self.target = target;
+  }
+
+  pub fn target(&self) -> u32 {
+    self.target
   }
 }
 
@@ -225,11 +247,11 @@ impl KeySink for DamageTracker {
   }
 }
 
-fn pop(src: &mut Vec<Damage>, dst: &mut Vec<Damage>) -> CallbackResult {
+fn pop(src: &mut Vec<Tagged>, dst: &mut Vec<Tagged>) -> CallbackResult {
   let d = src.pop();
   match d {
     Some(x) => {
-      dst.push(x.clone().invert());
+      dst.push(x.clone().map(Damage::inverted));
       x.into()
     }
     None => CallbackResult::None,
@@ -295,39 +317,40 @@ mod test_damage_tracker {
   use super::*;
 
   #[test]
-  fn tracker_state() {
+  fn drain_undo_redo() {
     let mut t = DamageTracker::new();
+    t.set_target(0);
 
     let d1 = Damage::Update(0, 0, "hi".to_string(), "hello".to_string());
     let d2 = Damage::Update(3, 1, "ops".to_string(), "oops".to_string());
     let d1r = d1.clone().invert();
     let d2r = d2.clone().invert();
+
+    let t1 = Tagged(0, d1.clone());
+    let t2 = Tagged(0, d2.clone());
+    let t1r = Tagged(0, d1r.clone());
+    let t2r = Tagged(0, d2r.clone());
+
     t.push(d1r.clone());
     t.push(d2r.clone());
-    assert_eq!(t.pending, vec![d1r.clone(), d2r.clone()], "`push` works");
+    assert_eq!(t.pending, vec![t1r.clone(), t2r.clone()], "`push` works");
 
     {
       let mut iter = t.drain();
-      assert!(matches!(
-        iter.next(),
-        Some(CallbackResult::Modify(Mark::Spreadsheet, _))
-      ));
-      assert!(matches!(
-        iter.next(),
-        Some(CallbackResult::Modify(Mark::Spreadsheet, _))
-      ));
+      assert!(matches!(iter.next(), Some(CallbackResult::File(0, _))));
+      assert!(matches!(iter.next(), Some(CallbackResult::File(0, _))));
       assert!(matches!(iter.next(), None,));
     }
     assert_eq!(t.pending, vec![], "`drain` flushes pending");
     assert_eq!(
       t.undo,
-      vec![d1.clone(), d2.clone()],
+      vec![t1.clone(), t2.clone()],
       "`drain` fills undo buffer"
     );
 
     t.undo();
-    assert_eq!(t.undo, vec![d1.clone()], "`undo` pops from undo buffer");
-    assert_eq!(t.redo, vec![d2r.clone()], "`undo` fills redo buffer");
+    assert_eq!(t.undo, vec![t1.clone()], "`undo` pops from undo buffer");
+    assert_eq!(t.redo, vec![t2r.clone()], "`undo` fills redo buffer");
 
     assert!(
       !matches!(t.undo(), CallbackResult::None),
@@ -339,13 +362,13 @@ mod test_damage_tracker {
     );
     assert_eq!(
       t.redo,
-      vec![d2r.clone(), d1r.clone()],
+      vec![t2r.clone(), t1r.clone()],
       "redo buffer is filled in reverse order by undo"
     );
 
     t.redo();
-    assert_eq!(t.redo, vec![d2r.clone()], "`redo` pops from redo buffer");
-    assert_eq!(t.undo, vec![d1.clone()], "`redo` fills undo buffer");
+    assert_eq!(t.redo, vec![t2r.clone()], "`redo` pops from redo buffer");
+    assert_eq!(t.undo, vec![t1.clone()], "`redo` fills undo buffer");
 
     assert!(
       !matches!(t.redo(), CallbackResult::None),
@@ -357,7 +380,7 @@ mod test_damage_tracker {
     );
     assert_eq!(
       t.undo,
-      vec![d1.clone(), d2.clone()],
+      vec![t1.clone(), t2.clone()],
       "undo buffer is filled correctly by redo"
     );
   }

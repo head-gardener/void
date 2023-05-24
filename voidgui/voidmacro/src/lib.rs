@@ -103,7 +103,7 @@ pub fn derive_clickable_menu(input: TokenStream) -> TokenStream {
 // SPREADSHEET
 
 #[proc_macro_derive(Record)]
-pub fn derive_entry(input: TokenStream) -> TokenStream {
+pub fn derive_record(input: TokenStream) -> TokenStream {
   let input = parse_macro_input!(input as DeriveInput);
   let name = input.ident;
   let gen = input.generics;
@@ -125,10 +125,10 @@ pub fn derive_entry(input: TokenStream) -> TokenStream {
   let ids = fields.iter().map(|f| f.ident.as_ref().unwrap());
   let dt = fields.iter().map(|f| match &f.ty {
     Type::Path(p) if p.path.is_ident::<Ident>(parse_quote!(String)) => {
-      quote!(voidgui::widgets::spreadsheet::Datatype::String)
+      quote!(voidgui::logic::Datatype::String)
     }
     Type::Path(p) if p.path.is_ident::<Ident>(parse_quote!(i64)) => {
-      quote!(voidgui::widgets::spreadsheet::Datatype::Integer)
+      quote!(voidgui::logic::Datatype::Integer)
     }
     _ => panic!(
       "Unexpected type for field {:?}",
@@ -138,10 +138,12 @@ pub fn derive_entry(input: TokenStream) -> TokenStream {
   let n_fields = fields.len();
 
   let expanded = quote! {
-    impl #gen voidgui::widgets::spreadsheet::Record #gen for #name #gen {
+    impl #gen voidgui::logic::Recordable #gen for #name #gen {}
+
+    impl #gen voidgui::logic::Record #gen for #name #gen {
       const N_FIELDS: usize = #n_fields;
 
-      fn fields<'a>(&'a self) -> Vec<&'a dyn voidgui::widgets::spreadsheet::Data> {
+      fn fields<'a>(&'a self) -> Vec<&'a dyn voidgui::logic::Data> {
         vec![#(&self.#ids),*]
       }
 
@@ -149,7 +151,7 @@ pub fn derive_entry(input: TokenStream) -> TokenStream {
         &self.uid
       }
 
-      fn datatypes() -> Vec<voidgui::widgets::spreadsheet::Datatype> {
+      fn datatypes() -> Vec<voidgui::logic::Datatype> {
         vec![#(#dt),*]
       }
     }

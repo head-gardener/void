@@ -1,7 +1,6 @@
 use std::sync::{mpsc::Receiver, Arc, RwLock};
 
-use crate::render::painter::{Description, Drone};
-
+use crate::{render::painter::Drone, Description};
 pub struct Backend {
   pub desc: Arc<RwLock<Description>>,
   pub events: Receiver<(f64, glfw::WindowEvent)>,

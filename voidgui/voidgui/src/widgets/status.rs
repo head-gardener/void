@@ -9,10 +9,11 @@ use voidmacro::{DrawableMenu, Menu};
 use crate::{
   logic::ring::{self, Mark, Ring, Wrap},
   render::{
-    painter::{Description, Drone, DroneFeed},
+    painter::{Drone, DroneFeed},
     text_table::CellStyle,
     Origin, Size, TextTable,
   },
+  Description,
 };
 
 use super::traits::{Drawable, Transient, Widget};

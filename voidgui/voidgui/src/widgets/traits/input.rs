@@ -1,9 +1,6 @@
 use std::sync::RwLockReadGuard;
 
-use crate::{
-  logic::CallbackResult,
-  render::painter::{Description, Drone},
-};
+use crate::{logic::CallbackResult, render::painter::Drone, Description};
 
 pub enum InputEvent {
   Char(char),

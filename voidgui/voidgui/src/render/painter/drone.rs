@@ -14,6 +14,7 @@ use crate::{
     shaders::ShaderTag,
     shapes::{Grid, TextureData},
   },
+  Description,
 };
 use crate::{debug, render::shapes::Texture};
 use crate::{
@@ -28,8 +29,6 @@ use crate::{
     Color,
   },
 };
-
-use super::Description;
 
 #[derive(Debug)]
 enum Command {

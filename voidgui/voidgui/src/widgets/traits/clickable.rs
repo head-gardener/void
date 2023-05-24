@@ -2,7 +2,8 @@ use std::sync::RwLockReadGuard;
 
 use crate::{
   logic::CallbackResult,
-  render::{painter::{Drone, Description}, Area, Point},
+  render::{painter::Drone, Area, Point},
+  Description,
 };
 
 /// `Clickable` is an object, that has an area catching clicks.

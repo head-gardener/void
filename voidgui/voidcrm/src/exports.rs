@@ -8,11 +8,8 @@ use serde::{Deserialize, Serialize};
 use voidgui::{
   backend::Backend,
   core::*,
-  logic::ring,
-  widgets::{
-    self, spreadsheet::Header, toolbar::Toolbar, OrientedLayout, Spreadsheet,
-    Status,
-  },
+  logic::{ring, File, Header},
+  widgets::{self, toolbar::Toolbar, OrientedLayout, Spreadsheet, Status},
   Record,
 };
 
@@ -21,12 +18,15 @@ struct Instance {
   b: Backend,
 }
 
+enum Tags {
+  Subscribers,
+}
+
 #[derive(Record, Serialize, Deserialize)]
 struct Subscriber {
   d_name: String,
   d_phone: String,
   d_mou: i64,
-  // d_stage: String,
   uid: i64,
 }
 
@@ -34,8 +34,8 @@ struct Subscriber {
 impl From<(i64, Vec<String>)> for Subscriber {
   fn from((uid, fs): (i64, Vec<String>)) -> Self {
     Self {
-      d_name: fs[0].clone(),
-      d_phone: fs[1].clone(),
+      d_name: fs[0].to_string(),
+      d_phone: fs[1].to_string(),
       d_mou: fs[2].parse().unwrap(),
       uid,
     }
@@ -60,22 +60,38 @@ extern "C" fn void_gui_init() -> Box<Instance> {
 }
 
 unsafe fn populate(c: &mut Core, b: &mut Backend) {
-  let painter = b.desc.read().unwrap();
+  let desc = b.desc.read().unwrap();
 
-  let win = widgets::Window::new(&painter);
-  let ssheet = Spreadsheet::new::<Subscriber>(&painter, &mut b.drone).unwrap();
-  let toolbar = Toolbar::new(&painter, &mut b.drone).unwrap();
+  let f = ring::wrap(File::new::<Subscriber>());
+  c.add_data(Tags::Subscribers as u32, f.clone());
+
+  let win = widgets::Window::new(&desc);
+  let ssheet = Spreadsheet::new::<Subscriber>(
+    &desc,
+    &mut b.drone,
+    Tags::Subscribers as u32,
+  )
+  .unwrap();
+  let toolbar = Toolbar::new(&desc, &mut b.drone).unwrap();
   let statusbox = OrientedLayout::new();
 
-  let mut ring = c.ring().write().unwrap();
-  win.push_to_ring(&mut ring);
-  ssheet.push_to_ring(&mut ring);
-  toolbar.push_to_ring(&mut ring);
-  {
-    let rc = ring::wrap(statusbox);
-    ring.push_parent(rc.clone(), ring::Mark::StatusBox);
-    ring.push_static(rc, ring::Mark::StatusBox, ring::Mark::Window, 3);
-  }
+  let ssheet = {
+    let mut ring = c.ring().write().unwrap();
+    win.push_to_ring(&mut ring);
+    toolbar.push_to_ring(&mut ring);
+
+    let statusbox = ring::wrap(statusbox);
+    ring.push_parent(statusbox.clone(), ring::Mark::StatusBox);
+    ring.push_static(statusbox, ring::Mark::StatusBox, ring::Mark::Window, 3);
+
+    ring.push_key_sink(f, ring::Mark::File(Tags::Subscribers as u32));
+
+    ssheet.push_to_ring(&mut &mut ring)
+  };
+
+  c.with_data(Tags::Subscribers as u32, |d| {
+    d.subscribe(ssheet, voidgui::logic::Mark::Spreadsheet)
+  });
 }
 
 #[no_mangle]
@@ -122,34 +138,19 @@ extern "C" fn void_gui_finish(_: Box<Instance>) -> i64 {
 }
 
 #[no_mangle]
-extern "C" fn void_gui_add(
-  w: &mut Instance,
-  len: i64,
-  entry: *const u8,
-) -> i64 {
+extern "C" fn void_gui_add(w: &mut Instance, len: i64, entry: *const u8) {
   let data = unsafe { std::slice::from_raw_parts(entry, len as usize) };
   let e: Subscriber = from_reader(Cursor::new(data)).unwrap();
 
-  w.c.with_ssheet_mut(|ssheet| {
-    if let Err(e) =
-      ssheet.push::<Subscriber>(&w.b.desc.read().unwrap(), &mut w.b.drone, e)
-    {
-      println!("Push failed: {}", e);
-      ssheet.drop();
-      2
-    } else {
-      0
-    }
-  })
+  w.c.with_data(Tags::Subscribers as u32, |d| {
+    d.put::<Subscriber>(&w.b.desc.read().unwrap(), &mut w.b.drone, e)
+  });
 }
 
 #[no_mangle]
-extern "C" fn void_gui_drop(w: &mut Instance) -> i64 {
-  w.c.with_ssheet_mut(|s| {
-    s.drop();
-    0
+extern "C" fn void_gui_drop(w: &mut Instance) {
+  w.c.with_data(Tags::Subscribers as u32, |d| {
+    d.drop(&w.b.desc.read().unwrap(), &w.b.drone)
   });
   w.c.wipe_damage_tracker();
-
-  0
 }
