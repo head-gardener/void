@@ -9,7 +9,8 @@ use crate::{
   backend::Backend,
   logic::{
     ring::{self, Mark, Wrap},
-    CallbackResult, DamageTracker, File, FileCallback, Record, Ring, Tag,
+    CallbackResult, DamageTracker, File, FileCallback, GenericFile, Record,
+    Ring, Tag,
   },
   render::{painter::Drone, Point},
   widgets::{traits::InputEvent, Spreadsheet},
@@ -25,7 +26,7 @@ macro_rules! debug {
   }
 }
 
-type Files = Vec<(Tag, Wrap<File>)>;
+type Files = Vec<(Tag, Wrap<dyn GenericFile>)>;
 
 pub struct Core {
   ring: Wrap<Ring>,
@@ -283,17 +284,10 @@ impl Core {
     &self.ring
   }
 
-  pub fn pull_damage<E: Record>(&self) -> Vec<u8> {
+  pub fn pull_damage<R: Record>(&self, f: &Wrap<File<R>>) -> Vec<u8> {
     let mut buf = Cursor::new(vec![]);
     let dt = self.damage_tracker.read().unwrap();
-    self
-      .data
-      .iter()
-      .find(|f| f.0 == dt.target())
-      .map(|(_, f)| {
-        dt.serialize::<_, E>(&mut buf, &f.read().unwrap());
-      })
-      .unwrap();
+    dt.serialize::<_, R>(&mut buf, &f.read().unwrap());
     buf.into_inner()
   }
 
@@ -347,7 +341,9 @@ impl Core {
           .map(|l| l.clone());
         let w = self.ring.read().unwrap().pull(&who);
         let r = f(w, file, desc, drone);
-        self.handle_callback_result(desc, drone, (r, who), what);
+        self
+          .handle_callback_result(desc, drone, (r, who), what)
+          .unwrap();
       }
       CallbackResult::Push(x) => x.push_to_ring(self.ring.write().unwrap()),
       CallbackResult::File(t, f) => {
@@ -367,18 +363,8 @@ impl Core {
     return Ok(true);
   }
 
-  pub fn add_data(&mut self, t: Tag, f: Wrap<File>) {
+  pub fn add_data(&mut self, t: Tag, f: Wrap<dyn GenericFile>) {
     self.data.push((t, f));
-  }
-
-  pub fn with_data<F: FnOnce(&mut File)>(&mut self, t: Tag, f: F) {
-    self
-      .data
-      .iter_mut()
-      .find(|f| f.0 == t)
-      .and_then(|f| f.1.write().ok())
-      .as_mut()
-      .map(|d| f(d));
   }
 }
 
@@ -394,5 +380,5 @@ fn handle_file_callback(
     .find(|(_t, _)| *_t == t)
     .map(|f| &f.1)
     .as_mut()
-    .map(|x| f(&mut x.write().unwrap(), desc, drone));
+    .map(|x| f(x.clone(), desc, drone));
 }

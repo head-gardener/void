@@ -13,4 +13,4 @@ test = hspec $ do
       property prop_export
 
 prop_export x =
-  unsafePerformIO (G.withNewInstance (`G.push` [x])) `seq` True
+  unsafePerformIO (G.tryParse x) == 0

@@ -44,7 +44,7 @@ instance Serialise Subscriber where
       <> encode plan
   decode = do
     len <- decodeMapLen
-    when (len /= 4) $ fail $ "invalid map len: " ++ show len
+    when (len /= 5) $ fail $ "invalid map len: " ++ show len
     name <- decodeMapSubscriber "d_name"
     phone <- decodeMapSubscriber "d_phone"
     mou <- decodeMapSubscriber "d_mou"

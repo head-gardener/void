@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use voidgui::{
   backend::Backend,
   core::*,
-  logic::{ring, File, Header},
+  logic::{ring, File, GenericFile, Header, Wrap},
   widgets::{self, toolbar::Toolbar, OrientedLayout, Spreadsheet, Status},
   Record,
 };
@@ -16,6 +16,7 @@ use voidgui::{
 struct Instance {
   c: Core,
   b: Backend,
+  subs: Wrap<File<Subscriber>>,
 }
 
 enum Tags {
@@ -29,6 +30,18 @@ struct Subscriber {
   d_mou: i64,
   d_plan: i64,
   uid: i64,
+}
+
+impl Default for Subscriber {
+  fn default() -> Self {
+    Self {
+      d_name: Default::default(),
+      d_phone: Default::default(),
+      d_mou: Default::default(),
+      d_plan: Default::default(),
+      uid: Default::default(),
+    }
+  }
 }
 
 // TODO: add this to proc macro
@@ -46,7 +59,7 @@ impl From<(i64, Vec<String>)> for Subscriber {
 
 impl Header for Subscriber {
   fn header() -> Vec<&'static str> {
-    vec!["Name", "Phone", "MoU"]
+    vec!["Name", "Phone", "MoU", "Plan"]
   }
 }
 
@@ -55,17 +68,23 @@ extern "C" fn void_gui_init() -> Box<Instance> {
   let w = unsafe {
     let mut b = Backend::new(800, 600);
     let mut c = Core::new();
-    populate(&mut c, &mut b);
-    Instance { b, c }
+
+    let subs = ring::wrap(File::<Subscriber>::new());
+
+    populate(&mut c, &mut b, subs.clone());
+    Instance { b, c, subs }
   };
   Box::new(w)
 }
 
-unsafe fn populate(c: &mut Core, b: &mut Backend) {
+unsafe fn populate(
+  c: &mut Core,
+  b: &mut Backend,
+  subs: Wrap<File<Subscriber>>,
+) {
   let desc = b.desc.read().unwrap();
 
-  let f = ring::wrap(File::new::<Subscriber>());
-  c.add_data(Tags::Subscribers as u32, f.clone());
+  c.add_data(Tags::Subscribers as u32, subs.clone());
 
   let win = widgets::Window::new(&desc);
   let ssheet = Spreadsheet::new::<Subscriber>(
@@ -86,14 +105,15 @@ unsafe fn populate(c: &mut Core, b: &mut Backend) {
     ring.push_parent(statusbox.clone(), ring::Mark::StatusBox);
     ring.push_static(statusbox, ring::Mark::StatusBox, ring::Mark::Window, 3);
 
-    ring.push_key_sink(f, ring::Mark::File(Tags::Subscribers as u32));
-
+    ring
+      .push_key_sink(subs.clone(), ring::Mark::File(Tags::Subscribers as u32));
     ssheet.push_to_ring(&mut &mut ring)
   };
 
-  c.with_data(Tags::Subscribers as u32, |d| {
-    d.subscribe(ssheet, voidgui::logic::Mark::Spreadsheet)
-  });
+  subs
+    .write()
+    .unwrap()
+    .subscriber(ssheet, voidgui::logic::Mark::Spreadsheet)
 }
 
 #[no_mangle]
@@ -106,7 +126,7 @@ struct CStringLen(u32, *mut u8);
 
 #[no_mangle]
 extern "C" fn void_gui_drain_damage(w: &mut Instance) -> Box<CStringLen> {
-  let mut xs = w.c.pull_damage::<Subscriber>();
+  let mut xs = w.c.pull_damage::<Subscriber>(&w.subs);
   let len = xs.len();
   let res = xs.as_mut_ptr();
   std::mem::forget(xs);
@@ -140,19 +160,33 @@ extern "C" fn void_gui_finish(_: Box<Instance>) -> i64 {
 }
 
 #[no_mangle]
+extern "C" fn void_gui_parse(len: i64, entry: *const u8) -> u64 {
+  let data = unsafe { std::slice::from_raw_parts(entry, len as usize) };
+  let e: Result<Subscriber, _> = from_reader(Cursor::new(data));
+  if e.is_ok() {
+    0
+  } else {
+    1
+  }
+}
+
+#[no_mangle]
 extern "C" fn void_gui_add(w: &mut Instance, len: i64, entry: *const u8) {
   let data = unsafe { std::slice::from_raw_parts(entry, len as usize) };
   let e: Subscriber = from_reader(Cursor::new(data)).unwrap();
 
-  w.c.with_data(Tags::Subscribers as u32, |d| {
-    d.put::<Subscriber>(&w.b.desc.read().unwrap(), &mut w.b.drone, e)
-  });
+  w.subs
+    .write()
+    .unwrap()
+    .put(&w.b.desc.read().unwrap(), &mut w.b.drone, e)
 }
 
 #[no_mangle]
 extern "C" fn void_gui_drop(w: &mut Instance) {
-  w.c.with_data(Tags::Subscribers as u32, |d| {
-    d.drop(&w.b.desc.read().unwrap(), &w.b.drone)
-  });
+  File::drop(
+    &mut w.subs.write().unwrap(),
+    &w.b.desc.read().unwrap(),
+    &w.b.drone,
+  );
   w.c.wipe_damage_tracker();
 }

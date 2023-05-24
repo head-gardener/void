@@ -11,7 +11,7 @@ use crate::{
 
 use super::{
   ring::{self, Wrap},
-  CallbackResult, File, Record, Tag,
+  CallbackResult, File, GenericFile, Record, Tag,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -98,21 +98,21 @@ impl Into<CallbackResult> for Tagged {
     CallbackResult::File(
       self.0,
       match self.1 {
-        Damage::Update(uid, n, _, to) => {
-          Box::new(move |f: &mut File, desc: &Description, drone: &Drone| {
-            f.set(desc, drone, uid, n, &to);
-          })
-        }
-        Damage::Add(uid) => {
-          Box::new(move |f: &mut File, desc: &Description, drone: &Drone| {
-            f.new_row(desc, drone, uid);
-          })
-        }
-        Damage::Remove(uid) => {
-          Box::new(move |f: &mut File, desc: &Description, drone: &Drone| {
-            f.rem(desc, drone, uid);
-          })
-        }
+        Damage::Update(uid, n, _, to) => Box::new(
+          move |f: Wrap<dyn GenericFile>, desc: &Description, drone: &Drone| {
+            f.write().unwrap().set(desc, drone, uid, n, &to);
+          },
+        ),
+        Damage::Add(uid) => Box::new(
+          move |f: Wrap<dyn GenericFile>, desc: &Description, drone: &Drone| {
+            f.write().unwrap().new_row(desc, drone, uid);
+          },
+        ),
+        Damage::Remove(uid) => Box::new(
+          move |f: Wrap<dyn GenericFile>, desc: &Description, drone: &Drone| {
+            f.write().unwrap().rem(desc, drone, uid);
+          },
+        ),
         Damage::None(_) => panic!(),
       },
     )
@@ -121,14 +121,14 @@ impl Into<CallbackResult> for Tagged {
 
 /// Damage, compressed and optimised for export.
 #[derive(Serialize)]
-pub enum Scar<E: Record> {
-  Update(E),
-  Insert(E),
+pub enum Scar<R: Record> {
+  Update(R),
+  Insert(R),
   Remove(i64),
 }
 
-impl<E: Record> Scar<E> {
-  pub fn compress(damage: &mut Vec<Damage>, f: &File) -> Vec<Self> {
+impl<R: Record> Scar<R> {
+  pub fn compress(damage: &mut Vec<Damage>, f: &File<R>) -> Vec<Self> {
     damage.sort_by_key(|x| x.uid());
     damage
       .linear_group_by_key(|x| x.uid())
@@ -181,7 +181,7 @@ impl DamageTracker {
     self.pending.push(Tagged(self.target, d));
   }
 
-  pub fn serialize<W: Write, E: Record>(&self, w: &mut W, f: &File) {
+  pub fn serialize<W: Write, R: Record>(&self, w: &mut W, f: &File<R>) {
     // let file = std::fs::File::create("obj.cbor").unwrap();
     // ciborium::ser::into_writer(
     //   &Scar::<E>::compress(
@@ -192,7 +192,7 @@ impl DamageTracker {
     // )
     // .unwrap();
     ciborium::ser::into_writer(
-      &Scar::<E>::compress(
+      &Scar::<R>::compress(
         &mut self
           .undo
           .iter()

@@ -151,6 +151,10 @@ pub fn derive_record(input: TokenStream) -> TokenStream {
         &self.uid
       }
 
+      fn set_uid(&mut self, uid: i64) {
+        self.uid = uid;
+      }
+
       fn datatypes() -> Vec<voidgui::logic::Datatype> {
         vec![#(#dt),*]
       }

@@ -15,10 +15,11 @@ pub trait Record: Recordable {
   fn fields<'a>(&'a self) -> Vec<&'a dyn Data>;
   fn datatypes() -> Vec<Datatype>;
   fn uid(&self) -> &i64;
+  fn set_uid(&mut self, u: i64);
 }
 
 pub trait Recordable:
-  Serialize + Header + Send + Sync + From<(i64, Vec<String>)>
+  Serialize + Header + Send + Sync + From<(i64, Vec<String>)> + Default
 {
 }
 
@@ -47,15 +48,47 @@ pub trait Data: ToString {}
 impl Data for String {}
 impl Data for i64 {}
 
+pub trait GenericDataset {
+  /// Get `field` of record with `uid`.
+  fn get(&self, uid: i64, field: usize) -> Option<&str>;
+
+  /// Get row under `uid`.
+  fn row(&self, uid: i64) -> Option<Vec<&str>>;
+
+  /// Returns a reference to the datatypes of this [`Dataset`].
+  fn datatypes(&self) -> &[Datatype];
+}
+
+impl<R: Record> GenericDataset for Dataset<R> {
+  /// Get `field` of record with `uid`.
+  fn get(&self, uid: i64, field: usize) -> Option<&str> {
+    self
+      .find(uid)
+      .and_then(|(_, b)| b.0.get(field).map(|p| p.0.as_str()))
+  }
+
+  /// Get row under `uid`.
+  fn row(&self, uid: i64) -> Option<Vec<&str>> {
+    self
+      .find(uid)
+      .map(|(_, b)| b.0.iter().map(|(s, _)| s.as_str()).collect())
+  }
+
+  /// Returns a reference to the datatypes of this [`Dataset`].
+  fn datatypes(&self) -> &[Datatype] {
+    self.datatypes.as_ref()
+  }
+}
+
 /// Searchable generic data storage.
-pub struct Dataset {
-  records: Vec<(i64, Box<Vec<(String, String)>>)>,
+pub struct Dataset<R: Record> {
+  records: Vec<(i64, Box<(Vec<(String, String)>, R)>)>,
   search: Search,
   datatypes: Vec<Datatype>,
 }
 
-impl Dataset {
-  pub fn new<R: Record>() -> Self {
+impl<R: Record> Dataset<R> {
+  pub fn new() -> Self {
     Self {
       datatypes: R::datatypes(),
       records: vec![],
@@ -68,8 +101,8 @@ impl Dataset {
   }
 
   /// Put a record in the dataset.
-  pub fn put<R: Record>(&mut self, x: R) {
-    let fs = x
+  pub fn put(&mut self, r: R) {
+    let fs = r
       .fields()
       .into_iter()
       .map(|d| d.to_string())
@@ -78,48 +111,23 @@ impl Dataset {
         (s, lc)
       })
       .collect();
-    self.records.push((*x.uid(), Box::new(fs)));
+    self.records.push((*r.uid(), Box::new((fs, r))));
   }
 
   /// Insert new default record.
   pub fn new_row(&mut self, uid: i64) {
-    let fs: Vec<(String, String)> = self
-      .datatypes
-      .iter()
-      .map(|f| f.default())
-      .map(|s| (s.to_string(), s.to_string().to_lowercase()))
-      .collect();
-    self.records.push((uid, Box::new(fs)));
+    let mut r = R::default();
+    r.set_uid(uid);
+    self.put(r);
   }
 
   /// Set `field` of record with `uid` to `value`.
   pub fn set(&mut self, uid: i64, field: usize, value: &str) {
-    self.find_mut(uid).iter_mut().for_each(|(_, xs)| {
-      if xs.get(field).is_some() {
-        xs[field] = (value.to_string(), value.to_lowercase());
+    self.find_mut(uid).iter_mut().for_each(|(_, b)| {
+      if b.0.get(field).is_some() {
+        b.0[field] = (value.to_string(), value.to_lowercase());
       }
     });
-  }
-
-  /// Get `field` of record with `uid`.
-  pub fn get(&self, uid: i64, field: usize) -> Option<&str> {
-    self
-      .find(uid)
-      .and_then(|(_, xs)| xs.get(field).map(|p| p.0.as_str()))
-  }
-
-  /// Get row under `uid`.
-  pub fn row(&self, uid: i64) -> Option<Vec<&str>> {
-    self
-      .find(uid)
-      .map(|(_, xs)| xs.iter().map(|(s, _)| s.as_str()).collect())
-  }
-
-  /// Get record under `uid`.
-  pub fn record<R: Record>(&self, uid: i64) -> Option<R> {
-    self
-      .row(uid)
-      .map(|xs| R::from((uid, xs.iter().map(|s| s.to_string()).collect())))
   }
 
   /// Remove record under `uid`.
@@ -130,6 +138,13 @@ impl Dataset {
   /// Start new search.
   pub fn new_search(&mut self, value: &str) {
     self.search = Some((value.to_string().to_lowercase(), 0));
+  }
+
+  /// Get record under `uid`.
+  pub fn record(&self, uid: i64) -> Option<R> {
+    self
+      .row(uid)
+      .map(|xs| R::from((uid, xs.iter().map(|s| s.to_string()).collect())))
   }
 
   /// Remove search.
@@ -149,7 +164,7 @@ impl Dataset {
       .iter()
       .rev()
       .chain(self.records.iter().rev())
-      .map(|(_, xs)| xs.iter().rev())
+      .map(|(_, b)| b.0.iter().rev())
       .flatten()
       .skip(if *i == 0 {
         0
@@ -177,7 +192,7 @@ impl Dataset {
       .records
       .iter()
       .chain(self.records.iter())
-      .map(|(_, xs)| xs.iter())
+      .map(|(_, b)| b.0.iter())
       .flatten()
       .skip(*i)
       .position(|b| b.1.contains(s.as_str()))
@@ -191,14 +206,9 @@ impl Dataset {
       .map(|i| (self.records[i / w].0, i % w))
   }
 
-  /// Returns a reference to the datatypes of this [`Dataset`].
-  pub fn datatypes(&self) -> &[Datatype] {
-    self.datatypes.as_ref()
-  }
-
   /// Helper function for selecting row by index.
   #[inline]
-  fn find(&self, uid: i64) -> Option<&(i64, Box<Vec<(String, String)>>)> {
+  fn find(&self, uid: i64) -> Option<&(i64, Box<(Vec<(String, String)>, R)>)> {
     self.records.iter().find(|(u, _)| *u == uid)
   }
 
@@ -207,7 +217,7 @@ impl Dataset {
   fn find_mut(
     &mut self,
     uid: i64,
-  ) -> Option<&mut (i64, Box<Vec<(String, String)>>)> {
+  ) -> Option<&mut (i64, Box<(Vec<(String, String)>, R)>)> {
     self.records.iter_mut().find(|(u, _)| *u == uid)
   }
 }
@@ -227,7 +237,7 @@ mod test_dataset {
   }
 
   impl Serialize for Pair {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, _: S) -> Result<S::Ok, S::Error>
     where
       S: serde::Serializer,
     {
@@ -247,8 +257,18 @@ mod test_dataset {
     }
   }
 
-  fn setup() -> Dataset {
-    let mut d = Dataset::new::<Pair>();
+  impl Default for Pair {
+    fn default() -> Self {
+      Self {
+        uid: Default::default(),
+        d_i: Default::default(),
+        d_s: Default::default(),
+      }
+    }
+  }
+
+  fn setup() -> Dataset<Pair> {
+    let mut d = Dataset::new();
 
     [
       Pair {

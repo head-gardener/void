@@ -5,7 +5,7 @@ use crate::{
   Description,
 };
 
-use super::{DamageTracker, File, FileCallback, RingElement, Tag, Wrap};
+use super::{DamageTracker, FileCallback, GenericFile, RingElement, Tag, Wrap};
 
 pub enum CallbackResult {
   /// Event was dropped.
@@ -28,7 +28,7 @@ pub enum CallbackResult {
     Box<
       dyn FnOnce(
         Option<Wrap<dyn Drawable>>,
-        Option<Wrap<File>>,
+        Option<Wrap<dyn GenericFile>>,
         &Description,
         &Drone,
       ) -> CallbackResult,

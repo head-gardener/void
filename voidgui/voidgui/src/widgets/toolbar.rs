@@ -2,8 +2,8 @@ use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 
 use crate::{
   logic::{
-    ring::{self, Mark, RingElement},
-    CallbackResult, Damage, File,
+    ring::{self, Mark, RingElement, Wrap},
+    CallbackResult, Damage, GenericFile,
   },
   render::{
     painter::{Drone, DroneFeed},
@@ -233,9 +233,11 @@ impl Transient for InputField<SearchIF, String> {
     CallbackResult::File(
       // TODO: how do you now?
       0,
-      Box::new(move |f: &mut File, desc: &Description, drone: &Drone| {
-        f.new_search(desc, drone, &st);
-      }),
+      Box::new(
+        move |f: Wrap<dyn GenericFile>, desc: &Description, drone: &Drone| {
+          f.write().unwrap().new_search(desc, drone, &st);
+        },
+      ),
     )
   }
 }

@@ -32,21 +32,21 @@ push c ds = do
   let (us, is, rs) = group ds
   u <- mapM (update . castSubscriber) us <&> sum
   i <- insert (map castSubscriber is)
-  r <- remove (map castUID rs)
+  r <- mapM (remove . castUID) rs <&> sum
   return (u + i + r) <&> fromIntegral
  where
-  castSubscriber (Subscriber uid name phone mou plan) = (name, phone, mou, uid)
+  castSubscriber (Subscriber uid name phone plan mou) = (name, phone, mou, plan, uid)
   castUID uid = [uid]
 
   update =
     PG.execute
       c
-      "update clients set name = ?, phone = ?, mou = ? where id = ?"
+      "update clients set name = ?, phone = ?, mou = ?, plan = ? where id = ?"
   insert =
     PG.executeMany
       c
-      "insert into clients (name, phone, mou, id) values(?, ?, ?, ?)"
+      "insert into clients (name, phone, mou, plan, id) values(?, ?, ?, ?, ?)"
   remove =
-    PG.executeMany
+    PG.execute
       c
       "delete from clients where id = ?"

@@ -10,7 +10,7 @@ use crate::{
   description::*,
   logic::{
     ring::{self, Mark, RingElement, Wrap},
-    CallbackResult, Damage, Datatype, File, FileSub, Record, Tag,
+    CallbackResult, Damage, Datatype, FileSub, GenericFile, Record, Tag,
   },
   render::{
     painter::{Drone, DroneFeed},
@@ -38,6 +38,8 @@ impl Spreadsheet {
     drone: &mut Drone,
     target: Tag,
   ) -> Result<Self, widgets::Error> {
+    let header = R::header();
+    assert_eq!(header.len(), R::N_FIELDS);
     let mut table = TextTable::new(drone, 0, R::N_FIELDS)?;
     table.add_row(
       desc,
@@ -184,7 +186,7 @@ impl ClickSink for Spreadsheet {
           self.target,
           Box::new(
             move |w: Option<Wrap<dyn Drawable>>,
-                  f: Option<Wrap<File>>,
+                  f: Option<Wrap<dyn GenericFile>>,
                   desc: &Description,
                   drone: &Drone| on_click(w, f, desc, drone, i),
           ),
@@ -202,7 +204,7 @@ impl ClickSink for Spreadsheet {
 
 fn on_click(
   w: Option<Wrap<dyn Drawable>>,
-  f: Option<Wrap<File>>,
+  f: Option<Wrap<dyn GenericFile>>,
   desc: &Description,
   drone: &Drone,
   i: usize,

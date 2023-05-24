@@ -47,6 +47,9 @@ foreign import ccall "void_gui_free_damage"
 foreign import ccall "void_gui_status"
   void_gui_status :: Ptr CChar -> VoidInstance -> ()
 
+foreign import ccall "void_gui_parse"
+  void_gui_parse :: CInt -> Ptr CChar -> CInt
+
 -- compiler might decide to free this object at any point which would be a
 -- real nuisance
 newtype VoidInstance = VoidInstance (Ptr VoidInstance) deriving (Eq)
@@ -106,3 +109,9 @@ pull w = do
   withDamage f =
     let ptr = void_gui_drain_damage w
      in f ptr >>= \x -> x `seq` void_gui_free_damage ptr `seq` return x
+
+tryParse :: Subscriber -> IO CInt
+tryParse x =
+  useAsCStringLen
+    ((toStrict . serialise) x)
+    (\(s, len) -> return (void_gui_parse (fromIntegral len) s))

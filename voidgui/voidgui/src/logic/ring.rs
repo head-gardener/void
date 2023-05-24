@@ -176,7 +176,7 @@ impl Ring {
   /// Draw all owned widgets, plotting if needed.
   pub fn draw(
     &mut self,
-    desc: Arc<RwLock<Description>>,
+    desc: Wrap<Description>,
     drone: &Drone,
   ) -> Vec<widgets::Error> {
     let parents = &self.parents;

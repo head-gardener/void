@@ -2,7 +2,7 @@ use glfw::{Action, Key, Modifiers, WindowEvent};
 
 use crate::{render::painter::Drone, widgets::traits::KeySink, Description};
 
-use super::{CallbackResult, Dataset, Mark, Record, Wrap};
+use super::{CallbackResult, Dataset, GenericDataset, Mark, Record, Wrap};
 
 pub trait FileSub: Send + Sync {
   fn on_drop(&mut self, _: &Description, _: &Drone) {}
@@ -20,28 +20,36 @@ pub trait FileSub: Send + Sync {
   }
 }
 
-/// [File] controls access to [Dataset], notifying subscribers
-/// on any updates.
-pub struct File {
-  data: Dataset,
-  subscribers: Vec<(Mark, Wrap<dyn FileSub>)>,
+/// Used for dynamic dispatch without knowing `R` record type.
+/// Most file operations don't require knowledge of concrete Record type
+/// and can be abstracted.
+/// If your operations concerns the record, use [file::dcast]
+pub trait GenericFile {
+  fn drop(&mut self, desc: &Description, drone: &Drone);
+  fn read(&self) -> &dyn GenericDataset;
+
+  fn set(
+    &mut self,
+    desc: &Description,
+    drone: &Drone,
+    uid: i64,
+    field: usize,
+    value: &str,
+  );
+  fn new_row(&mut self, desc: &Description, drone: &Drone, uid: i64);
+  fn rem(&mut self, desc: &Description, drone: &Drone, uid: i64);
+
+  fn new_search(&mut self, desc: &Description, drone: &Drone, value: &str);
+  fn clear_search(&mut self, desc: &Description, drone: &Drone) -> bool;
+  fn find_prev(&mut self, desc: &Description, drone: &Drone) -> bool;
+  fn find_next(&mut self, desc: &Description, drone: &Drone) -> bool;
+
+  fn subscriber(&mut self, s: Wrap<dyn FileSub>, m: Mark);
+  fn unsubscribe(&mut self, m: Mark);
 }
 
-pub type FileCallback = Box<dyn FnOnce(&mut File, &Description, &Drone)>;
-
-impl File {
-  pub fn new<R: Record>() -> Self {
-    Self {
-      data: Dataset::new::<R>(),
-      subscribers: vec![],
-    }
-  }
-
-  pub fn read(&self) -> &Dataset {
-    &self.data
-  }
-
-  pub fn drop(&mut self, desc: &Description, drone: &Drone) {
+impl<R: Record> GenericFile for File<R> {
+  fn drop(&mut self, desc: &Description, drone: &Drone) {
     self.data.clear();
     self
       .subscribers
@@ -49,18 +57,11 @@ impl File {
       .for_each(|(_, s)| s.write().unwrap().on_drop(desc, drone));
   }
 
-  pub fn put<R: Record>(&mut self, desc: &Description, drone: &Drone, x: R) {
-    let uid = *x.uid();
-    self.data.put(x);
-    let row = self.data.row(uid);
-    row.map(|row| {
-      self.subscribers.iter().for_each(|(_, s)| {
-        s.write().unwrap().on_put(desc, drone, uid, row.as_slice())
-      });
-    });
+  fn read(&self) -> &dyn GenericDataset {
+    self.read()
   }
 
-  pub fn set(
+  fn set(
     &mut self,
     desc: &Description,
     drone: &Drone,
@@ -74,7 +75,7 @@ impl File {
     });
   }
 
-  pub fn new_row(&mut self, desc: &Description, drone: &Drone, uid: i64) {
+  fn new_row(&mut self, desc: &Description, drone: &Drone, uid: i64) {
     self.data.new_row(uid);
     let row = self.data.row(uid);
     row.map(|row| {
@@ -84,7 +85,7 @@ impl File {
     });
   }
 
-  pub fn rem(&mut self, desc: &Description, drone: &Drone, uid: i64) {
+  fn rem(&mut self, desc: &Description, drone: &Drone, uid: i64) {
     self.data.rem(uid);
     self
       .subscribers
@@ -92,7 +93,7 @@ impl File {
       .for_each(|(_, s)| s.write().unwrap().on_rem(desc, drone, uid));
   }
 
-  pub fn new_search(&mut self, desc: &Description, drone: &Drone, value: &str) {
+  fn new_search(&mut self, desc: &Description, drone: &Drone, value: &str) {
     self.data.new_search(value);
     self
       .subscribers
@@ -101,7 +102,7 @@ impl File {
     self.find_next(desc, drone);
   }
 
-  pub fn clear_search(&mut self, desc: &Description, drone: &Drone) -> bool {
+  fn clear_search(&mut self, desc: &Description, drone: &Drone) -> bool {
     self
       .subscribers
       .iter()
@@ -109,7 +110,7 @@ impl File {
     self.data.clear_search()
   }
 
-  pub fn find_prev(&mut self, desc: &Description, drone: &Drone) -> bool {
+  fn find_prev(&mut self, desc: &Description, drone: &Drone) -> bool {
     let res = self.data.find_prev();
     self.subscribers.iter().for_each(|(_, s)| {
       s.write().unwrap().on_search_update(desc, drone, &res)
@@ -117,7 +118,7 @@ impl File {
     res.is_some()
   }
 
-  pub fn find_next(&mut self, desc: &Description, drone: &Drone) -> bool {
+  fn find_next(&mut self, desc: &Description, drone: &Drone) -> bool {
     let res = self.data.find_next();
     self.subscribers.iter().for_each(|(_, s)| {
       s.write().unwrap().on_search_update(desc, drone, &res)
@@ -126,17 +127,51 @@ impl File {
     res.is_some()
   }
 
-  pub fn subscribe(&mut self, s: Wrap<dyn FileSub>, m: Mark) {
+  fn subscriber(&mut self, s: Wrap<dyn FileSub>, m: Mark) {
     self.subscribers.push((m, s));
   }
 
-  pub fn umsubscribe(&mut self, m: Mark) {
+  fn unsubscribe(&mut self, m: Mark) {
     self.subscribers.retain(|s| s.0 != m);
   }
 }
 
+/// [File] controls access to [Dataset], notifying subscribers
+/// on any updates.
+pub struct File<R: Record> {
+  data: Dataset<R>,
+  subscribers: Vec<(Mark, Wrap<dyn FileSub>)>,
+}
+
+pub type FileCallback =
+  Box<dyn FnOnce(Wrap<dyn GenericFile>, &Description, &Drone)>;
+
+impl<R: Record> File<R> {
+  pub fn new() -> Self {
+    Self {
+      data: Dataset::new(),
+      subscribers: vec![],
+    }
+  }
+
+  pub fn read(&self) -> &Dataset<R> {
+    &self.data
+  }
+
+  pub fn put(&mut self, desc: &Description, drone: &Drone, x: R) {
+    let uid = *x.uid();
+    self.data.put(x);
+    let row = self.data.row(uid);
+    row.map(|row| {
+      self.subscribers.iter().for_each(|(_, s)| {
+        s.write().unwrap().on_put(desc, drone, uid, row.as_slice())
+      });
+    });
+  }
+}
+
 /// Files listen for keys, related to searches.
-impl KeySink for File {
+impl<R: Record + 'static> KeySink for File<R> {
   fn handle_key(
     &mut self,
     desc: &Description,
