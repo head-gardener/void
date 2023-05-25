@@ -15,6 +15,7 @@ use crate::{
 };
 
 use super::{
+  picker::Picker,
   traits::{
     widget::Error, ClickSink, Clickable, Drawable, Parent, Transient, Widget,
   },
@@ -71,14 +72,34 @@ impl ClickSink for Toolbar {
   ) -> CallbackResult {
     let i = self.table.catch_point(&p).unwrap();
     match i {
-      0 => unsafe { ToolbarTable::new(desc, drone) }
-        .map_or(CallbackResult::Error(Error::InitFailure), |m| {
-          CallbackResult::Push(Box::new(ring::wrap(m)))
-        }),
-      1 => unsafe { ToolbarTools::new(desc, drone) }
-        .map_or(CallbackResult::Error(Error::InitFailure), |m| {
-          CallbackResult::Push(Box::new(ring::wrap(m)))
-        }),
+      0 => unsafe {
+        TableDropdown::new(
+          desc,
+          drone,
+          &TOOLBAR_TABLE_ITEMS,
+          Mark::ToolbarDropdown,
+          Mark::Toolbar,
+          0,
+          (),
+        )
+      }
+      .map_or(CallbackResult::Error(Error::InitFailure), |m| {
+        CallbackResult::Push(Box::new(ring::wrap(m)))
+      }),
+      1 => unsafe {
+        ToolsDropdown::new(
+          desc,
+          drone,
+          &TOOLBAR_TOOLS_ITEMS,
+          Mark::ToolbarDropdown,
+          Mark::Toolbar,
+          1,
+          0,
+        )
+      }
+      .map_or(CallbackResult::Error(Error::InitFailure), |m| {
+        CallbackResult::Push(Box::new(ring::wrap(m)))
+      }),
       _ => {
         panic!("unexpected ind: {}", i);
       }
@@ -97,50 +118,11 @@ impl Parent for Toolbar {
   }
 }
 
-#[derive(Menu, DrawableMenu, ClickableMenu)]
-pub struct ToolbarTable {
-  table: TextTable,
-}
+// Dropdowns
 
-// TABLE
+type TableDropdown = Picker<()>;
 
-impl ToolbarTable {
-  pub unsafe fn new(
-    desc: &RwLockReadGuard<Description>,
-    drone: &Drone,
-  ) -> Result<Self, Error> {
-    Ok(Self {
-      table: TextTable::make_static(
-        desc,
-        drone,
-        Orientation::Vertical,
-        crate::render::text_table::CellStyle::Normal,
-        &TOOLBAR_TABLE_ITEMS,
-      )?,
-    })
-  }
-}
-
-impl RingElement for ring::Wrap<ToolbarTable> {
-  fn push_to_ring(&self, mut ring: RwLockWriteGuard<crate::logic::Ring>) {
-    ring.push_transient(
-      self.clone(),
-      crate::logic::ring::Mark::ToolbarDropdown,
-      true,
-    );
-    ring.push_click_sink(self.clone(), crate::logic::ring::Mark::Toolbar);
-    ring.push_static(
-      self.clone(),
-      crate::logic::ring::Mark::ToolbarDropdown,
-      crate::logic::ring::Mark::Toolbar,
-      0,
-    );
-  }
-}
-
-impl Transient for ToolbarTable {}
-
-impl ClickSink for ToolbarTable {
+impl ClickSink for TableDropdown {
   fn onclick(
     &mut self,
     _: &RwLockReadGuard<Description>,
@@ -148,7 +130,7 @@ impl ClickSink for ToolbarTable {
     p: Point,
     _: &glfw::Modifiers,
   ) -> CallbackResult {
-    let i = self.table.catch_point(&p).unwrap();
+    let i = self.catch_point(&p).unwrap();
     match i {
       0 => CallbackResult::ExitCode(2),
       1 => CallbackResult::ExitCode(3),
@@ -159,50 +141,9 @@ impl ClickSink for ToolbarTable {
   }
 }
 
-#[derive(Menu, DrawableMenu, ClickableMenu)]
-pub struct ToolbarTools {
-  table: TextTable,
-}
+type ToolsDropdown = Picker<u8>;
 
-// TOOLS
-
-impl ToolbarTools {
-  pub unsafe fn new(
-    desc: &RwLockReadGuard<Description>,
-    drone: &Drone,
-  ) -> Result<Self, Error> {
-    Ok(Self {
-      table: TextTable::make_static(
-        desc,
-        drone,
-        Orientation::Vertical,
-        crate::render::text_table::CellStyle::Normal,
-        &TOOLBAR_TOOLS_ITEMS,
-      )?,
-    })
-  }
-}
-
-impl RingElement for ring::Wrap<ToolbarTools> {
-  fn push_to_ring(&self, mut ring: RwLockWriteGuard<crate::logic::Ring>) {
-    ring.push_transient(
-      self.clone(),
-      crate::logic::ring::Mark::ToolbarDropdown,
-      true,
-    );
-    ring.push_click_sink(self.clone(), crate::logic::ring::Mark::Toolbar);
-    ring.push_static(
-      self.clone(),
-      crate::logic::ring::Mark::ToolbarDropdown,
-      crate::logic::ring::Mark::Toolbar,
-      1,
-    );
-  }
-}
-
-impl Transient for ToolbarTools {}
-
-impl ClickSink for ToolbarTools {
+impl ClickSink for ToolsDropdown {
   fn onclick(
     &mut self,
     desc: &RwLockReadGuard<Description>,
@@ -210,7 +151,7 @@ impl ClickSink for ToolbarTools {
     p: Point,
     _: &glfw::Modifiers,
   ) -> CallbackResult {
-    let i = self.table.catch_point(&p).unwrap();
+    let i = self.catch_point(&p).unwrap();
     match i {
       0 => CallbackResult::Damage(Box::new(|t| {
         t.push(Damage::Add(rand::random()))

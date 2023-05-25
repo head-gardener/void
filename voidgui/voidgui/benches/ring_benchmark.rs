@@ -77,6 +77,7 @@ impl ClickSink for W {
     _: &RwLockReadGuard<Description>,
     _: &Drone,
     _: Point,
+    _: &glfw::Modifiers,
   ) -> CallbackResult {
     CallbackResult::None
   }

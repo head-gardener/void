@@ -10,7 +10,7 @@ use voidgui::{
   core::*,
   data::{File, GenericFile, Record},
   ring,
-  widgets::{self, toolbar::Toolbar, OrientedLayout, Spreadsheet, Status},
+  widgets::{self, OrientedLayout, Spreadsheet, Status, Toolbar},
   RingElement, Wrap,
 };
 
