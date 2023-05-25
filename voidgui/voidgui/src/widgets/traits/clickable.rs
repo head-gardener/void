@@ -1,5 +1,7 @@
 use std::sync::RwLockReadGuard;
 
+use glfw::Modifiers;
+
 use crate::{
   logic::CallbackResult,
   render::{painter::Drone, Area, Point},
@@ -22,6 +24,7 @@ pub trait ClickSink: Send + Sync + Clickable {
     desc: &RwLockReadGuard<Description>,
     drone: &Drone,
     p: Point,
+    mods: &Modifiers,
   ) -> CallbackResult;
 
   fn handle_click(
@@ -29,10 +32,11 @@ pub trait ClickSink: Send + Sync + Clickable {
     desc: &RwLockReadGuard<Description>,
     drone: &Drone,
     p: Point,
+    mods: &Modifiers,
   ) -> CallbackResult {
     self.click_area().map_or(CallbackResult::Pass, |a| {
       if p.contained(&a) {
-        self.onclick(desc, drone, p)
+        self.onclick(desc, drone, p, mods)
       } else {
         CallbackResult::Pass
       }

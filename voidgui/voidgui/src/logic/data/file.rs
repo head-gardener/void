@@ -1,8 +1,10 @@
-use glfw::{Action, Key, Modifiers, WindowEvent};
+use crate::{
+  render::painter::Drone,
+  widgets::traits::{Drawable, KeySink},
+  CallbackResult, Description, Mark, Wrap,
+};
 
-use crate::{render::painter::Drone, widgets::traits::KeySink, Description};
-
-use super::{CallbackResult, Dataset, GenericDataset, Mark, Record, Wrap};
+use super::{Dataset, GenericDataset, Record, Tag};
 
 pub trait FileSub: Send + Sync {
   fn on_drop(&mut self, _: &Description, _: &Drone) {}
@@ -158,6 +160,59 @@ impl<R: Record> File<R> {
     &self.data
   }
 
+  /// Get a [CallbackResult] that, once handled, fills first FKeys in the table
+  /// with appropriate value from a target dataset.
+  pub fn join(&self, tag: Tag, uid: i64) -> CallbackResult {
+    let tgt = self
+      .data
+      .datatypes()
+      .iter()
+      .enumerate()
+      .find_map(|(ind, t)| match t {
+        super::Datatype::FKey(t, f) => Some((*t, *f, ind)),
+        _ => None,
+      });
+    if tgt.is_none() {
+      return CallbackResult::None;
+    }
+    // (target tag, target field, own field)
+    let tgt = tgt.unwrap();
+    let tgt_uid = match self.data.raw(uid, tgt.2).unwrap() {
+      super::Data::FKey(None) => return CallbackResult::Pass,
+      super::Data::FKey(Some(uid)) => uid,
+      _ => panic!(),
+    };
+
+    CallbackResult::Read(
+      tgt.0,
+      Box::new(
+        move |_: Option<Wrap<dyn Drawable>>,
+              f: Option<Wrap<dyn GenericFile>>,
+              _: &Description,
+              _: &Drone| {
+          let f = f.unwrap();
+          let f = f.try_write().ok();
+          if f.is_none() {
+            return "can't lock file".into();
+          }
+          let f = f.unwrap();
+          let val = f.read().get(tgt_uid, tgt.1).unwrap().to_string();
+
+          CallbackResult::File(
+            tag,
+            Box::new(
+              move |f: Wrap<dyn GenericFile>,
+                    desc: &Description,
+                    drone: &Drone| {
+                f.write().unwrap().set(desc, drone, uid, tgt.2, &val);
+              },
+            ),
+          )
+        },
+      ),
+    )
+  }
+
   pub fn put(&mut self, desc: &Description, drone: &Drone, x: R) {
     let uid = *x.uid();
     self.data.put(x);
@@ -179,13 +234,18 @@ impl<R: Record + 'static> KeySink for File<R> {
     e: &glfw::WindowEvent,
   ) -> CallbackResult {
     if match e {
-      WindowEvent::Key(Key::N, _, Action::Press, m) if m.is_empty() => {
+      glfw::WindowEvent::Key(glfw::Key::N, _, glfw::Action::Press, m)
+        if m.is_empty() =>
+      {
         self.find_next(desc, drone)
       }
-      WindowEvent::Key(Key::N, _, Action::Press, Modifiers::Shift) => {
-        self.find_prev(desc, drone)
-      }
-      WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
+      glfw::WindowEvent::Key(
+        glfw::Key::N,
+        _,
+        glfw::Action::Press,
+        glfw::Modifiers::Shift,
+      ) => self.find_prev(desc, drone),
+      glfw::WindowEvent::Key(glfw::Key::Escape, _, glfw::Action::Press, _) => {
         self.clear_search(desc, drone)
       }
       _ => false,

@@ -1,59 +1,13 @@
+use crate::data::{Data, Datatype, Record};
 use std::cmp::max;
 
-use serde::Serialize;
-
-pub type Tag = u32;
-
 type Search = Option<(String, usize)>;
-
-/// An entry in a spreadsheet. Implement with `Entry` derive macro.
-/// When doing so, prefix all data field with `d_` and give them `&'a str` type.
-/// Those fields will be used when displaying data.
-pub trait Record: Recordable {
-  const N_FIELDS: usize;
-
-  fn fields<'a>(&'a self) -> Vec<&'a dyn Data>;
-  fn datatypes() -> Vec<Datatype>;
-  fn uid(&self) -> &i64;
-  fn set_uid(&mut self, u: i64);
-
-  /// Edit nth field from `str`.
-  fn set_nth(&mut self, n: usize, val: &str);
-}
-
-pub trait Recordable:
-  Serialize + Header + Clone + Send + Sync + Default
-{
-}
-
-pub trait Header {
-  fn header() -> Vec<&'static str>;
-}
-
-pub enum Datatype {
-  String,
-  Integer,
-}
-
-static DEF_STR: String = String::new();
-static DEF_INT: i64 = 0;
-
-impl Datatype {
-  pub fn default(&self) -> &'static dyn Data {
-    match self {
-      Datatype::String => &DEF_STR,
-      Datatype::Integer => &DEF_INT,
-    }
-  }
-}
-
-pub trait Data: ToString {}
-impl Data for String {}
-impl Data for i64 {}
 
 pub trait GenericDataset {
   /// Get `field` of record with `uid`.
   fn get(&self, uid: i64, field: usize) -> Option<&str>;
+
+  fn raw(&self, uid: i64, field: usize) -> Option<Data>;
 
   /// Get row under `uid`.
   fn row(&self, uid: i64) -> Option<Vec<&str>>;
@@ -68,6 +22,10 @@ impl<R: Record> GenericDataset for Dataset<R> {
     self
       .find(uid)
       .and_then(|(_, b)| b.0.get(field).map(|p| p.0.as_str()))
+  }
+
+  fn raw(&self, uid: i64, field: usize) -> Option<Data> {
+    self.find(uid).and_then(|(_, b)| b.1.get_nth(field))
   }
 
   /// Get row under `uid`.
@@ -105,9 +63,10 @@ impl<R: Record> Dataset<R> {
 
   /// Put a record in the dataset.
   pub fn put(&mut self, r: R) {
-    let fs = r
-      .fields()
-      .into_iter()
+    let fs = (0..)
+      .map(|n| r.get_nth(n))
+      .take_while(|o| o.is_some())
+      .filter_map(|o| o)
       .map(|d| d.to_string())
       .map(|s| {
         let lc = s.to_lowercase();
@@ -126,12 +85,17 @@ impl<R: Record> Dataset<R> {
 
   /// Set `field` of record with `uid` to `value`.
   pub fn set(&mut self, uid: i64, field: usize, value: &str) {
-    self.find_mut(uid).iter_mut().for_each(|(_, b)| {
-      if b.0.get(field).is_some() {
-        b.0[field] = (value.to_string(), value.to_lowercase());
-        b.1.set_nth(field, value);
-      }
-    });
+    self
+      .records
+      .iter_mut()
+      .find(|(u, _)| *u == uid)
+      .iter_mut()
+      .for_each(|(_, b)| {
+        if b.0.get(field).is_some() && !self.datatypes[field].is_fkey() {
+          b.0[field] = (value.to_string(), value.to_lowercase());
+          b.1.set_nth_str(field, value);
+        }
+      });
   }
 
   /// Remove record under `uid`.
@@ -213,22 +177,12 @@ impl<R: Record> Dataset<R> {
   fn find(&self, uid: i64) -> Option<&(i64, Box<(Vec<(String, String)>, R)>)> {
     self.records.iter().find(|(u, _)| *u == uid)
   }
-
-  /// Helper function for selecting row by index, mutably.
-  #[inline]
-  fn find_mut(
-    &mut self,
-    uid: i64,
-  ) -> Option<&mut (i64, Box<(Vec<(String, String)>, R)>)> {
-    self.records.iter_mut().find(|(u, _)| *u == uid)
-  }
 }
 
 #[cfg(test)]
 mod test_dataset {
-  use voidmacro::Record;
-
-  use super::*;
+  use crate::data::*;
+  use crate::Record;
 
   extern crate self as voidgui;
   #[derive(Record, Clone)]
@@ -238,7 +192,7 @@ mod test_dataset {
     d_s: String,
   }
 
-  impl Serialize for Pair {
+  impl serde::Serialize for Pair {
     fn serialize<S>(&self, _: S) -> Result<S::Ok, S::Error>
     where
       S: serde::Serializer,
@@ -250,16 +204,6 @@ mod test_dataset {
   impl Header for Pair {
     fn header() -> Vec<&'static str> {
       todo!()
-    }
-  }
-
-  impl Default for Pair {
-    fn default() -> Self {
-      Self {
-        uid: Default::default(),
-        d_i: Default::default(),
-        d_s: Default::default(),
-      }
     }
   }
 

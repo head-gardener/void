@@ -241,10 +241,11 @@ impl Ring {
     &mut self,
     desc: &RwLockReadGuard<Description>,
     drone: &Drone,
+    mods: &Modifiers,
     p: Point,
   ) -> (CallbackResult, Mark) {
     for (w, m) in self.click_sinks.iter().rev() {
-      match w.write().unwrap().handle_click(desc, drone, p) {
+      match w.write().unwrap().handle_click(desc, drone, p, mods) {
         CallbackResult::Pass => continue,
         res => return (res, *m),
       }

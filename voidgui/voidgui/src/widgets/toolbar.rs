@@ -1,9 +1,10 @@
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 
 use crate::{
+  data::GenericFile,
   logic::{
     ring::{self, Mark, RingElement, Wrap},
-    CallbackResult, Damage, GenericFile,
+    CallbackResult, Damage,
   },
   render::{
     painter::{Drone, DroneFeed},
@@ -66,6 +67,7 @@ impl ClickSink for Toolbar {
     desc: &RwLockReadGuard<Description>,
     drone: &Drone,
     p: Point,
+    _: &glfw::Modifiers,
   ) -> CallbackResult {
     let i = self.table.catch_point(&p).unwrap();
     match i {
@@ -144,6 +146,7 @@ impl ClickSink for ToolbarTable {
     _: &RwLockReadGuard<Description>,
     _: &Drone,
     p: Point,
+    _: &glfw::Modifiers,
   ) -> CallbackResult {
     let i = self.table.catch_point(&p).unwrap();
     match i {
@@ -205,6 +208,7 @@ impl ClickSink for ToolbarTools {
     desc: &RwLockReadGuard<Description>,
     drone: &Drone,
     p: Point,
+    _: &glfw::Modifiers,
   ) -> CallbackResult {
     let i = self.table.catch_point(&p).unwrap();
     match i {

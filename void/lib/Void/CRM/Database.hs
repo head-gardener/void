@@ -10,6 +10,7 @@ import Data.Int
 import Database.PostgreSQL.Simple as PG
 import Debug.Trace (trace, traceShow)
 import Void.CRM.Damage (Damage (..), group)
+import Void.CRM.Plan
 import Void.CRM.Subscriber
 
 connectInfo :: ConnectInfo
@@ -24,8 +25,11 @@ connectInfo =
 connection :: ExceptT SomeException IO Connection
 connection = ExceptT $ try $ PG.connect connectInfo
 
-pull :: Connection -> IO [Subscriber]
-pull conn = PG.query_ conn "select * from clients"
+pull :: Connection -> (IO [Subscriber], IO [Plan])
+pull conn =
+  ( PG.query_ conn "select * from clients"
+  , PG.query_ conn "select * from plans"
+  )
 
 push :: Connection -> [Damage] -> IO Int
 push c ds = do

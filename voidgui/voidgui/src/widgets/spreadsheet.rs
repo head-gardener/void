@@ -7,10 +7,11 @@ use glfw::{Action, Key, WindowEvent};
 use voidmacro::{ClickableMenu, DrawableMenu, Menu};
 
 use crate::{
+  data::{Datatype, FileSub, GenericFile, Record, Tag},
   description::*,
   logic::{
     ring::{self, Mark, RingElement, Wrap},
-    CallbackResult, Damage, Datatype, FileSub, GenericFile, Record, Tag,
+    CallbackResult, Damage,
   },
   render::{
     painter::{Drone, DroneFeed},
@@ -19,8 +20,9 @@ use crate::{
   widgets::InputField,
 };
 
-use super::traits::{
-  ClickSink, Clickable, Drawable, KeySink, Transient, Widget,
+use super::{
+  traits::{ClickSink, Clickable, Drawable, KeySink, Transient, Widget},
+  Status,
 };
 use crate::widgets;
 
@@ -177,10 +179,13 @@ impl ClickSink for Spreadsheet {
     desc: &RwLockReadGuard<Description>,
     _: &Drone,
     p: Point,
+    mods: &glfw::Modifiers,
   ) -> CallbackResult {
     let i = self.table.catch_point(&p).unwrap();
+    let mods = mods.clone();
+
     match i {
-      0 | 1 => CallbackResult::Pass,
+      n if n < self.table.columns() => CallbackResult::Pass,
       _ => match desc.mode() {
         Mode::Normal => CallbackResult::Read(
           self.target,
@@ -188,7 +193,9 @@ impl ClickSink for Spreadsheet {
             move |w: Option<Wrap<dyn Drawable>>,
                   f: Option<Wrap<dyn GenericFile>>,
                   desc: &Description,
-                  drone: &Drone| on_click(w, f, desc, drone, i),
+                  drone: &Drone| {
+              on_click(w, f, desc, drone, i, mods)
+            },
           ),
         ),
         Mode::Delete => {
@@ -202,12 +209,15 @@ impl ClickSink for Spreadsheet {
   }
 }
 
+// what follows is comically complex and i'm sorry for whoever is going to
+// be digging through that.
 fn on_click(
   w: Option<Wrap<dyn Drawable>>,
   f: Option<Wrap<dyn GenericFile>>,
   desc: &Description,
   drone: &Drone,
   i: usize,
+  mods: glfw::Modifiers,
 ) -> CallbackResult {
   if w.is_none() {
     return "widget gone after read".into();
@@ -219,38 +229,72 @@ fn on_click(
   }
   let mut w = w.unwrap();
   let ss: &mut Spreadsheet = w.downcast_mut().unwrap();
+  let field = i % ss.table.columns();
+  let n = i / ss.table.columns() - 1;
 
   if f.is_none() {
     ss.on_invalid_target();
   }
-
-  // goofy
   let f = f.unwrap();
   let f = f.read().unwrap();
   let f = f.read();
 
-  let uid = ss.uids[i / ss.table.columns() - 1];
-  let s = f.get(uid, i % ss.table.columns());
-  if s.is_none() {
+  let uid = ss.uids[n];
+  let sub = f.get(uid, field);
+  if sub.is_none() {
     return "couldn't get str".into();
   }
-  let s = s.unwrap();
-  ss.table.set_highlight(drone, i / ss.table.columns());
-  let closure = (
-    ss.uids[i / ss.table.columns() - 1],
-    i % ss.table.columns(),
-    s.to_string(),
-  );
+  let sub = sub.unwrap();
+  ss.table.set_highlight(drone, n + 1);
+  let closure = (uid, field, sub.to_string());
+
   match f.datatypes()[i % ss.table.columns()] {
     Datatype::String => unsafe {
-      InputField::<SpreadsheetIF, String>::new(desc, drone, s, closure)
+      InputField::<SpreadsheetIF, String>::new(desc, drone, sub, closure)
         .map(|f| Box::new(ring::wrap(f)))
         .map_or_else(|e| CallbackResult::Error(e), |f| CallbackResult::Push(f))
     },
     Datatype::Integer => unsafe {
-      InputField::<SpreadsheetIF, i64>::new(desc, drone, s, closure)
+      InputField::<SpreadsheetIF, i64>::new(desc, drone, sub, closure)
         .map(|f| Box::new(ring::wrap(f)))
         .map_or_else(|e| CallbackResult::Error(e), |f| CallbackResult::Push(f))
+    },
+    Datatype::FKey(_, _) => unsafe {
+      if mods != glfw::Modifiers::Control {
+        return CallbackResult::Pass;
+      }
+
+      let fkey = f.raw(uid, field).unwrap();
+      let fkey = match fkey {
+        crate::data::Data::FKey(None) => return CallbackResult::None,
+        crate::data::Data::FKey(Some(k)) => k,
+        _ => panic!(),
+      };
+      let tgt = match f.datatypes().iter().nth(field).unwrap() {
+        Datatype::FKey(tgt, tgt_f) => (tgt, tgt_f),
+        _ => panic!(),
+      };
+
+      CallbackResult::Read(
+        *tgt.0,
+        Box::new(
+          move |_: Option<Wrap<dyn Drawable>>,
+                f: Option<Wrap<dyn GenericFile>>,
+                desc: &Description,
+                drone: &Drone| {
+            if f.is_none() {
+              return CallbackResult::None;
+            }
+            let f = f.unwrap();
+            let f = f.read().unwrap();
+            let f = f.read();
+
+            let msg = f.row(fkey).unwrap().join(", ");
+
+            Status::create(msg, desc, drone)
+          },
+        ),
+      )
     },
   }
 }

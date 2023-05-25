@@ -1,4 +1,5 @@
 use std::{
+  collections::VecDeque,
   io::Cursor,
   sync::{Arc, RwLock},
 };
@@ -7,10 +8,10 @@ use glfw::{Action, Key, Modifiers, MouseButton, WindowEvent};
 
 use crate::{
   backend::Backend,
+  data::{File, FileCallback, GenericFile, Record, Tag},
   logic::{
     ring::{self, Mark, Wrap},
-    CallbackResult, DamageTracker, File, FileCallback, GenericFile, Record,
-    Ring, Tag,
+    CallbackResult, DamageTracker, Ring,
   },
   render::{painter::Drone, Point},
   widgets::{traits::InputEvent, Spreadsheet},
@@ -32,6 +33,7 @@ pub struct Core {
   ring: Wrap<Ring>,
   damage_tracker: Wrap<DamageTracker>,
   data: Files,
+  ext_queue: VecDeque<(CallbackResult, &'static str)>,
 
   cursor: Point,
 }
@@ -48,6 +50,7 @@ impl Core {
       cursor: Point::new(0, 0),
       damage_tracker,
       data: vec![],
+      ext_queue: VecDeque::new(),
     }
   }
 
@@ -58,6 +61,18 @@ impl Core {
       if b.drone.step() {
         return 1;
       }
+
+      let q: Vec<(CallbackResult, &str)> = self.ext_queue.drain(..).collect();
+      q.into_iter().for_each(|(r, what)| {
+        self
+          .handle_callback_result(
+            &mut b.desc.write().unwrap(),
+            &b.drone,
+            (r, Mark::None),
+            what,
+          )
+          .expect("jobs can't request exits");
+      });
 
       let events = glfw::flush_messages(&b.events);
       for (_, event) in events {
@@ -156,6 +171,7 @@ impl Core {
         let res = self.ring.write().unwrap().catch_click(
           &desc.read().unwrap(),
           drone,
+          mods,
           self.cursor,
         );
         if let Err(c) = self.handle_callback_result(
@@ -269,6 +285,13 @@ impl Core {
       .expect("Only spreadsheet should be marked as spreadsheet in the ring"))
   }
 
+  /// Arbitrry actions can be queued in form of callback results.
+  /// In such form they will be marked as [Mark::None] and executed
+  /// in an asyncronous maner.
+  pub fn job(&mut self, what: &'static str, r: CallbackResult) {
+    self.ext_queue.push_back((r, what));
+  }
+
   pub fn draw(&mut self, b: &Backend) {
     b.drone.clear();
     self
@@ -356,6 +379,10 @@ impl Core {
       }
       CallbackResult::Mode(m) => {
         desc.set_mode(m);
+      }
+      CallbackResult::Join(a, b) => {
+        self.handle_callback_result(desc, drone, (*a, who), what)?;
+        self.handle_callback_result(desc, drone, (*b, who), what)?;
       }
 
       _ => {}

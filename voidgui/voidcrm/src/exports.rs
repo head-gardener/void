@@ -8,8 +8,10 @@ use ciborium::de::from_reader;
 use voidgui::{
   backend::Backend,
   core::*,
-  logic::{ring, File, GenericFile, Wrap},
+  data::{File, GenericFile, Record},
+  ring,
   widgets::{self, toolbar::Toolbar, OrientedLayout, Spreadsheet, Status},
+  RingElement, Wrap,
 };
 
 struct Instance {
@@ -106,16 +108,16 @@ unsafe extern "C" fn void_gui_free_damage(_: Box<CStringLen>) -> i64 {
 #[no_mangle]
 extern "C" fn void_gui_status(msg: *const c_char, w: &mut Instance) {
   let msg = unsafe { CStr::from_ptr(msg) }.to_string_lossy();
-  unsafe {
-    Status::new(
-      msg,
-      &w.b.desc.read().unwrap(),
-      w.c.ring().clone(),
-      &w.b.drone,
-    )
-  }
-  .map(|(s, uid)| s.push_to_ring(uid, &mut w.c.ring().write().unwrap()))
-  .unwrap_or_default();
+  unsafe { Status::new(msg, &w.b.desc.read().unwrap(), &w.b.drone) }
+    .map(|s| {
+      s.timeout(
+        std::time::Duration::from_secs(3),
+        w.c.ring().clone(),
+        &w.b.drone,
+      );
+      ring::wrap(s).push_to_ring(w.c.ring().write().unwrap());
+    })
+    .unwrap_or_default();
 }
 
 #[no_mangle]
@@ -146,22 +148,29 @@ extern "C" fn void_gui_add(
   match tag {
     0 => {
       let s: Subscriber = from_reader(Cursor::new(data)).unwrap();
+      let uid = *s.uid();
       w.subs
         .write()
         .unwrap()
-        .put(&w.b.desc.read().unwrap(), &mut w.b.drone, s)
+        .put(&w.b.desc.read().unwrap(), &mut w.b.drone, s);
+
+      w.c.job(
+        "join",
+        w.subs.write().unwrap().join(Tags::Subscribers as u32, uid),
+      );
     }
     1 => {
       let p: Plan = from_reader(Cursor::new(data)).unwrap();
-      w.plans
-        .write()
-        .unwrap()
-        .put(&w.b.desc.read().unwrap(), &mut w.b.drone, p)
+      w.plans.write().unwrap().put(
+        &w.b.desc.read().unwrap(),
+        &mut w.b.drone,
+        p,
+      );
     }
     n => {
       panic!("{n}")
     }
-  }
+  };
 }
 
 #[no_mangle]

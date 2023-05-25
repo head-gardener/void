@@ -29,14 +29,14 @@ fill w =
   G.push
     w
     0
-    [ Subscriber 0 "Vovan" "123" 300 0
-    , Subscriber 1 "Ivan" "228" 523 1
+    [ Subscriber 0 "Vovan" "123" 300 100
+    , Subscriber 1 "Ivan" "228" 523 101
     ]
     >> G.push
       w
       1
-      [ Plan 0 "Basic" 10 300
-      , Plan 1 "Gold" 15 523
+      [ Plan 100 "Basic" 10 300
+      , Plan 101 "Gold" 15 523
       ]
 
 requests :: G.VoidInstance -> [CInt]
@@ -52,8 +52,13 @@ pull :: StateT WindowState IO ()
 pull = do
   (w, c, _, _) <- get
   tryWithConnection
-    ( DB.pull
-        >=> (\es -> G.drop w `seq` G.putStatus w "Pull successful" >> G.push w 0 es)
+    ( \c -> do
+        subs <- (fst . DB.pull) c
+        plans <- (snd . DB.pull) c
+        G.drop w `seq` return ()
+        G.push w 0 subs
+        G.push w 1 plans
+        G.putStatus w "Pull successful"
     )
 
 push :: StateT WindowState IO ()

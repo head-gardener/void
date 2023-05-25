@@ -5,13 +5,16 @@ use serde::Serialize;
 use slice_group_by::GroupBy;
 
 use crate::{
-  logic::ring::Mark, render::painter::Drone, widgets::traits::KeySink,
+  data::{File, GenericFile, Record, Tag},
+  logic::ring::Mark,
+  render::painter::Drone,
+  widgets::traits::KeySink,
   Description,
 };
 
 use super::{
   ring::{self, Wrap},
-  CallbackResult, File, GenericFile, Record, Tag,
+  CallbackResult,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -1,11 +1,12 @@
 use crate::{
+  data::{FileCallback, GenericFile, Tag},
   description::Mode,
   render::painter::Drone,
   widgets::{self, traits::Drawable},
   Description,
 };
 
-use super::{DamageTracker, FileCallback, GenericFile, RingElement, Tag, Wrap};
+use super::{DamageTracker, RingElement, Wrap};
 
 pub enum CallbackResult {
   /// Event was dropped.
@@ -49,6 +50,9 @@ pub enum CallbackResult {
 
   /// Change window global mode.
   Mode(Mode),
+
+  /// Two callback results combined.
+  Join(Box<CallbackResult>, Box<CallbackResult>),
 }
 
 impl std::fmt::Debug for CallbackResult {
@@ -63,6 +67,7 @@ impl std::fmt::Debug for CallbackResult {
       CallbackResult::Mode(m) => write!(f, "Mode({:?})", m),
       CallbackResult::Read(t, _) => write!(f, "Read({t}, _)"),
       CallbackResult::File(t, _) => write!(f, "File({t}, _)"),
+      CallbackResult::Join(l, r) => write!(f, "Join({:?}, {:?})", l, r),
     }
   }
 }
@@ -74,6 +79,10 @@ impl CallbackResult {
   #[must_use]
   pub fn is_pass(&self) -> bool {
     matches!(self, Self::Pass)
+  }
+
+  pub fn join(self, rhs: CallbackResult) -> CallbackResult {
+    CallbackResult::Join(Box::new(self), Box::new(rhs))
   }
 }
 
