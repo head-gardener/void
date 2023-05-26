@@ -4,7 +4,7 @@ use crate::{
   CallbackResult, Description, Mark, Wrap,
 };
 
-use super::{Dataset, GenericDataset, Record, Tag};
+use super::{Data, Dataset, GenericDataset, Record, Tag};
 
 pub trait FileSub: Send + Sync {
   fn on_drop(&mut self, _: &Description, _: &Drone) {}
@@ -38,8 +38,20 @@ pub trait GenericFile {
     field: usize,
     value: &str,
   );
+  fn set_raw(
+    &mut self,
+    desc: &Description,
+    drone: &Drone,
+    uid: i64,
+    field: usize,
+    value: Data,
+  );
   fn new_row(&mut self, desc: &Description, drone: &Drone, uid: i64);
   fn rem(&mut self, desc: &Description, drone: &Drone, uid: i64);
+
+  /// Get a [CallbackResult] that, once handled, fills first FKeys in the table
+  /// with appropriate value from a target dataset.
+  fn join(&self, tag: Tag, uid: i64) -> CallbackResult;
 
   fn new_search(&mut self, desc: &Description, drone: &Drone, value: &str);
   fn clear_search(&mut self, desc: &Description, drone: &Drone) -> bool;
@@ -73,7 +85,33 @@ impl<R: Record> GenericFile for File<R> {
   ) {
     self.data.set(uid, field, value);
     self.subscribers.iter().for_each(|(_, s)| {
-      s.write().unwrap().on_set(desc, drone, uid, field, value)
+      s.write().unwrap().on_set(
+        desc,
+        drone,
+        uid,
+        field,
+        self.data.get(uid, field).unwrap(),
+      )
+    });
+  }
+
+  fn set_raw(
+    &mut self,
+    desc: &Description,
+    drone: &Drone,
+    uid: i64,
+    field: usize,
+    value: Data,
+  ) {
+    self.data.set_raw(uid, field, value);
+    self.subscribers.iter().for_each(|(_, s)| {
+      s.write().unwrap().on_set(
+        desc,
+        drone,
+        uid,
+        field,
+        self.data.get(uid, field).unwrap(),
+      )
     });
   }
 
@@ -93,6 +131,57 @@ impl<R: Record> GenericFile for File<R> {
       .subscribers
       .iter()
       .for_each(|(_, s)| s.write().unwrap().on_rem(desc, drone, uid));
+  }
+
+  fn join(&self, tag: Tag, uid: i64) -> CallbackResult {
+    let tgt = self
+      .data
+      .datatypes()
+      .iter()
+      .enumerate()
+      .find_map(|(ind, t)| match t {
+        super::Datatype::FKey(t, f) => Some((*t, *f, ind)),
+        _ => None,
+      });
+    if tgt.is_none() {
+      return CallbackResult::None;
+    }
+    // (target tag, target field, own field)
+    let tgt = tgt.unwrap();
+    let tgt_uid = match self.data.raw(uid, tgt.2).unwrap() {
+      super::Data::FKey(None) => return CallbackResult::Pass,
+      super::Data::FKey(Some(uid)) => uid,
+      _ => panic!(),
+    };
+
+    CallbackResult::Read(
+      tgt.0,
+      Box::new(
+        move |_: Option<Wrap<dyn Drawable>>,
+              f: Option<Wrap<dyn GenericFile>>,
+              _: &Description,
+              _: &Drone| {
+          let f = f.unwrap();
+          let f = f.try_write().ok();
+          if f.is_none() {
+            return "can't lock file".into();
+          }
+          let f = f.unwrap();
+          let val = f.read().get(tgt_uid, tgt.1).unwrap().to_string();
+
+          CallbackResult::File(
+            tag,
+            Box::new(
+              move |f: Wrap<dyn GenericFile>,
+                    desc: &Description,
+                    drone: &Drone| {
+                f.write().unwrap().set(desc, drone, uid, tgt.2, &val);
+              },
+            ),
+          )
+        },
+      ),
+    )
   }
 
   fn new_search(&mut self, desc: &Description, drone: &Drone, value: &str) {
@@ -158,59 +247,6 @@ impl<R: Record> File<R> {
 
   pub fn read(&self) -> &Dataset<R> {
     &self.data
-  }
-
-  /// Get a [CallbackResult] that, once handled, fills first FKeys in the table
-  /// with appropriate value from a target dataset.
-  pub fn join(&self, tag: Tag, uid: i64) -> CallbackResult {
-    let tgt = self
-      .data
-      .datatypes()
-      .iter()
-      .enumerate()
-      .find_map(|(ind, t)| match t {
-        super::Datatype::FKey(t, f) => Some((*t, *f, ind)),
-        _ => None,
-      });
-    if tgt.is_none() {
-      return CallbackResult::None;
-    }
-    // (target tag, target field, own field)
-    let tgt = tgt.unwrap();
-    let tgt_uid = match self.data.raw(uid, tgt.2).unwrap() {
-      super::Data::FKey(None) => return CallbackResult::Pass,
-      super::Data::FKey(Some(uid)) => uid,
-      _ => panic!(),
-    };
-
-    CallbackResult::Read(
-      tgt.0,
-      Box::new(
-        move |_: Option<Wrap<dyn Drawable>>,
-              f: Option<Wrap<dyn GenericFile>>,
-              _: &Description,
-              _: &Drone| {
-          let f = f.unwrap();
-          let f = f.try_write().ok();
-          if f.is_none() {
-            return "can't lock file".into();
-          }
-          let f = f.unwrap();
-          let val = f.read().get(tgt_uid, tgt.1).unwrap().to_string();
-
-          CallbackResult::File(
-            tag,
-            Box::new(
-              move |f: Wrap<dyn GenericFile>,
-                    desc: &Description,
-                    drone: &Drone| {
-                f.write().unwrap().set(desc, drone, uid, tgt.2, &val);
-              },
-            ),
-          )
-        },
-      ),
-    )
   }
 
   pub fn put(&mut self, desc: &Description, drone: &Drone, x: R) {

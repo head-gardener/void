@@ -384,6 +384,13 @@ impl Core {
         self.handle_callback_result(desc, drone, (*a, who), what)?;
         self.handle_callback_result(desc, drone, (*b, who), what)?;
       }
+      CallbackResult::Die => {
+        self
+          .ring()
+          .write()
+          .unwrap()
+          .kill_transient(drone.feed(), who);
+      }
 
       _ => {}
     }

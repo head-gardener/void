@@ -15,7 +15,7 @@ pub trait Record: Recordable {
   /// Set nth field from `str`.
   fn set_nth_str(&mut self, n: usize, val: &str);
   /// Set nth field from `i64`.
-  fn set_nth_int(&mut self, n: usize, val: i64);
+  fn set_nth_raw(&mut self, n: usize, val: Data);
 
   /// Get nth field.
   fn get_nth(&self, n: usize) -> Option<Data>;
@@ -60,6 +60,7 @@ impl Datatype {
   }
 }
 
+#[derive(Debug, Clone)]
 pub enum Data {
   String(String),
   I64(i64),

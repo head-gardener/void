@@ -7,7 +7,7 @@ use glfw::{Action, Key, WindowEvent};
 use voidmacro::{ClickableMenu, DrawableMenu, Menu};
 
 use crate::{
-  data::{Datatype, FileSub, GenericFile, Record, Tag},
+  data::{Data, Datatype, FileSub, GenericFile, Record, Tag},
   description::*,
   logic::{
     ring::{self, Mark, RingElement, Wrap},
@@ -21,8 +21,11 @@ use crate::{
 };
 
 use super::{
-  traits::{ClickSink, Clickable, Drawable, KeySink, Transient, Widget},
-  Status,
+  picker::Picker,
+  traits::{
+    ClickSink, Clickable, Drawable, KeySink, Parent, Transient, Widget,
+  },
+  Error, Status,
 };
 use crate::widgets;
 
@@ -62,6 +65,7 @@ impl Spreadsheet {
     let rc = ring::wrap(self);
     ring.push_click_sink(rc.clone(), Mark::Spreadsheet);
     ring.push_key_sink(rc.clone(), Mark::Spreadsheet);
+    ring.push_parent(rc.clone(), Mark::Spreadsheet);
     ring.push_static(rc.clone(), Mark::Spreadsheet, Mark::Window, 0);
     rc
   }
@@ -209,6 +213,17 @@ impl ClickSink for Spreadsheet {
   }
 }
 
+impl Parent for Spreadsheet {
+  fn nth_child(&self, n: usize) -> Option<Origin> {
+    let a = self.table.cells()?.get(n)?;
+    Some(Origin {
+      x: a.x,
+      y: a.y + a.height,
+      pole: crate::render::OriginPole::TopLeft,
+    })
+  }
+}
+
 // what follows is comically complex and i'm sorry for whoever is going to
 // be digging through that.
 fn on_click(
@@ -229,8 +244,8 @@ fn on_click(
   }
   let mut w = w.unwrap();
   let ss: &mut Spreadsheet = w.downcast_mut().unwrap();
-  let field = i % ss.table.columns();
-  let n = i / ss.table.columns() - 1;
+  let column = i % ss.table.columns();
+  let row = i / ss.table.columns() - 1;
 
   if f.is_none() {
     ss.on_invalid_target();
@@ -239,14 +254,15 @@ fn on_click(
   let f = f.read().unwrap();
   let f = f.read();
 
-  let uid = ss.uids[n];
-  let sub = f.get(uid, field);
+  let uid = ss.uids[row];
+  let sub = f.get(uid, column);
   if sub.is_none() {
     return "couldn't get str".into();
   }
   let sub = sub.unwrap();
-  ss.table.set_highlight(drone, n + 1);
-  let closure = (uid, field, sub.to_string());
+  ss.table.set_highlight(drone, row + 1);
+  let closure = (uid, column, sub.to_string());
+  let edit_target = ss.target;
 
   match f.datatypes()[i % ss.table.columns()] {
     Datatype::String => unsafe {
@@ -260,23 +276,19 @@ fn on_click(
         .map_or_else(|e| CallbackResult::Error(e), |f| CallbackResult::Push(f))
     },
     Datatype::FKey(_, _) => unsafe {
-      if mods != glfw::Modifiers::Control {
-        return CallbackResult::Pass;
-      }
-
-      let fkey = f.raw(uid, field).unwrap();
+      let fkey = f.raw(uid, column).unwrap();
       let fkey = match fkey {
         crate::data::Data::FKey(None) => return CallbackResult::None,
         crate::data::Data::FKey(Some(k)) => k,
         _ => panic!(),
       };
-      let tgt = match f.datatypes().iter().nth(field).unwrap() {
-        Datatype::FKey(tgt, tgt_f) => (tgt, tgt_f),
+      let tgt = match f.datatypes().iter().nth(column).unwrap() {
+        Datatype::FKey(tgt, tgt_f) => (*tgt, *tgt_f),
         _ => panic!(),
       };
 
       CallbackResult::Read(
-        *tgt.0,
+        tgt.0,
         Box::new(
           move |_: Option<Wrap<dyn Drawable>>,
                 f: Option<Wrap<dyn GenericFile>>,
@@ -288,6 +300,24 @@ fn on_click(
             let f = f.unwrap();
             let f = f.read().unwrap();
             let f = f.read();
+
+            if mods != glfw::Modifiers::Control {
+              let (uids, data): (Vec<i64>, Vec<&str>) =
+                f.column(tgt.1).unwrap().into_iter().unzip();
+              return FKeyPicker::new(
+                desc,
+                drone,
+                &data.as_slice(),
+                Mark::InputFloat,
+                Mark::Spreadsheet,
+                i,
+                crate::render::text_table::CellStyle::Lighter,
+                (edit_target, uid, column, uids),
+              )
+              .map_or(CallbackResult::Error(Error::InitFailure), |m| {
+                CallbackResult::Push(Box::new(ring::wrap(m)))
+              });
+            }
 
             let msg = f.row(fkey).unwrap().join(", ");
 
@@ -315,6 +345,50 @@ impl KeySink for Spreadsheet {
     }
   }
 }
+
+// Picker
+
+type FKeyPicker = Picker<(Tag, i64, usize, Vec<i64>)>;
+
+impl ClickSink for FKeyPicker {
+  fn onclick(
+    &mut self,
+    _: &RwLockReadGuard<Description>,
+    _: &Drone,
+    p: Point,
+    _: &glfw::Modifiers,
+  ) -> CallbackResult {
+    let i = self.catch_point(&p).unwrap();
+    let closure = self.closure().clone();
+    CallbackResult::File(
+      closure.0,
+      Box::new(move |f, desc, drone| {
+        let mut f = f.write().unwrap();
+        f.set_raw(
+          desc,
+          drone,
+          closure.1,
+          closure.2,
+          Data::FKey(Some(closure.3[i])),
+        );
+      }),
+    )
+    .join(CallbackResult::Read(
+      closure.0,
+      Box::new(
+        move |_: Option<Wrap<dyn Drawable>>,
+              f: Option<Wrap<dyn GenericFile>>,
+              _: &Description,
+              _: &Drone| {
+          f.unwrap().read().unwrap().join(closure.0, closure.1)
+        },
+      ),
+    ))
+    .join(CallbackResult::Die)
+  }
+}
+
+// InputField
 
 type SpreadsheetIF = (i64, usize, String);
 

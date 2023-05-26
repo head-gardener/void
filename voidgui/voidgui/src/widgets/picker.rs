@@ -4,7 +4,7 @@ use crate::{
   logic::ring::{self, Mark, RingElement},
   render::{
     painter::{Drone, DroneFeed},
-    text_table::Orientation,
+    text_table::{CellStyle, Orientation},
     Area, Origin, Point, Size, TextTable,
   },
   widgets, Description,
@@ -21,7 +21,7 @@ pub struct Picker<C> {
   mark: Mark,
   parent: Mark,
   child_n: usize,
-  _closure: C,
+  closure: C,
 }
 
 impl<C> Picker<C> {
@@ -32,6 +32,7 @@ impl<C> Picker<C> {
     mark: Mark,
     parent: Mark,
     child_n: usize,
+    style: CellStyle,
     closure: C,
   ) -> Result<Self, Error> {
     Ok(Self {
@@ -39,18 +40,22 @@ impl<C> Picker<C> {
         desc,
         drone,
         Orientation::Vertical,
-        crate::render::text_table::CellStyle::Normal,
+        style,
         items,
       )?,
       mark,
       parent,
       child_n,
-      _closure: closure,
+      closure,
     })
   }
 
   pub fn catch_point(&self, p: &Point) -> Option<usize> {
     self.table.catch_point(p)
+  }
+
+  pub fn closure(&self) -> &C {
+    &self.closure
   }
 }
 

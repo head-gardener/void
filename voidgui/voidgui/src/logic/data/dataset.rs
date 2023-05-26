@@ -4,10 +4,14 @@ use std::cmp::max;
 type Search = Option<(String, usize)>;
 
 pub trait GenericDataset {
-  /// Get `field` of record with `uid`.
+  /// Get `field` of record with `uid` as `&str`.
   fn get(&self, uid: i64, field: usize) -> Option<&str>;
 
+  /// Get `field` of record with `uid` as [Data].
   fn raw(&self, uid: i64, field: usize) -> Option<Data>;
+
+  /// Get `field` of all records as `&str`.
+  fn column(&self, field: usize) -> Option<Vec<(i64, &str)>>;
 
   /// Get row under `uid`.
   fn row(&self, uid: i64) -> Option<Vec<&str>>;
@@ -17,7 +21,6 @@ pub trait GenericDataset {
 }
 
 impl<R: Record> GenericDataset for Dataset<R> {
-  /// Get `field` of record with `uid`.
   fn get(&self, uid: i64, field: usize) -> Option<&str> {
     self
       .find(uid)
@@ -28,14 +31,23 @@ impl<R: Record> GenericDataset for Dataset<R> {
     self.find(uid).and_then(|(_, b)| b.1.get_nth(field))
   }
 
-  /// Get row under `uid`.
+  fn column(&self, field: usize) -> Option<Vec<(i64, &str)>> {
+    self.datatypes().iter().nth(field)?;
+    Some(
+      self
+        .records
+        .iter()
+        .map(|(uid, b)| (*uid, b.0[field].0.as_str()))
+        .collect(),
+    )
+  }
+
   fn row(&self, uid: i64) -> Option<Vec<&str>> {
     self
       .find(uid)
       .map(|(_, b)| b.0.iter().map(|(s, _)| s.as_str()).collect())
   }
 
-  /// Returns a reference to the datatypes of this [`Dataset`].
   fn datatypes(&self) -> &[Datatype] {
     self.datatypes.as_ref()
   }
@@ -84,6 +96,8 @@ impl<R: Record> Dataset<R> {
   }
 
   /// Set `field` of record with `uid` to `value`.
+  /// This function is 'shallow': FKey values won't be overwritten, only their
+  /// representation. For 'deep' alternative see [Dataset::set_raw]
   pub fn set(&mut self, uid: i64, field: usize, value: &str) {
     self
       .records
@@ -91,9 +105,27 @@ impl<R: Record> Dataset<R> {
       .find(|(u, _)| *u == uid)
       .iter_mut()
       .for_each(|(_, b)| {
-        if b.0.get(field).is_some() && !self.datatypes[field].is_fkey() {
+        if b.0.get(field).is_some() {
+          if !self.datatypes[field].is_fkey() {
+            b.1.set_nth_str(field, value);
+          }
           b.0[field] = (value.to_string(), value.to_lowercase());
-          b.1.set_nth_str(field, value);
+        }
+      });
+  }
+
+  pub fn set_raw(&mut self, uid: i64, field: usize, value: Data) {
+    self
+      .records
+      .iter_mut()
+      .find(|(u, _)| *u == uid)
+      .iter_mut()
+      .for_each(move |(_, b)| {
+        if b.0.get(field).is_some() {
+          b.1.set_nth_raw(field, value.clone());
+          let s = value.to_string();
+          let lc = (&s).to_lowercase();
+          b.0[field] = (s, lc);
         }
       });
   }

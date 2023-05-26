@@ -180,5 +180,10 @@ extern "C" fn void_gui_drop(w: &mut Instance) {
     &w.b.desc.read().unwrap(),
     &w.b.drone,
   );
+  File::drop(
+    &mut w.plans.write().unwrap(),
+    &w.b.desc.read().unwrap(),
+    &w.b.drone,
+  );
   w.c.wipe_damage_tracker();
 }

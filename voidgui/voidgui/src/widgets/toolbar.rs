@@ -80,6 +80,7 @@ impl ClickSink for Toolbar {
           Mark::ToolbarDropdown,
           Mark::Toolbar,
           0,
+          crate::render::text_table::CellStyle::Normal,
           (),
         )
       }
@@ -94,6 +95,7 @@ impl ClickSink for Toolbar {
           Mark::ToolbarDropdown,
           Mark::Toolbar,
           1,
+          crate::render::text_table::CellStyle::Normal,
           0,
         )
       }

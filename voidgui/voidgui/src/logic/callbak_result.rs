@@ -53,6 +53,9 @@ pub enum CallbackResult {
 
   /// Two callback results combined.
   Join(Box<CallbackResult>, Box<CallbackResult>),
+
+  /// Kills calling widget. Only works if it's a transient.
+  Die,
 }
 
 impl std::fmt::Debug for CallbackResult {
@@ -60,6 +63,7 @@ impl std::fmt::Debug for CallbackResult {
     match self {
       CallbackResult::Pass => write!(f, "Pass"),
       CallbackResult::None => write!(f, "None"),
+      CallbackResult::Die => write!(f, "Die"),
       CallbackResult::Error(e) => write!(f, "Error({})", e),
       CallbackResult::Push(_) => write!(f, "Push(_)"),
       CallbackResult::Damage(_) => write!(f, "Damage(_)"),

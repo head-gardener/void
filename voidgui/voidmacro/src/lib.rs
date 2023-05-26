@@ -201,22 +201,32 @@ pub fn derive_record(input: TokenStream) -> TokenStream {
       quote!(val.parse().unwrap())
     }
     Type::Path(p) if p.path.is_ident::<Ident>(parse_quote!(FKey)) => {
-      quote!(Some(val.parse().unwrap()))
+      quote!(panic!())
+      // quote!(Some(val.parse().unwrap()))
     }
     _ => panic!(
       "Unexpected type for field {:?}",
       f.ident.as_ref().map(|i| i.to_string())
     ),
   });
-  let conv_int = fields.iter().map(|f| match &f.ty {
+  let conv_dat = fields.iter().map(|f| match &f.ty {
     Type::Path(p) if p.path.is_ident::<Ident>(parse_quote!(String)) => {
-      quote!(val.to_string())
+      quote!(match val {
+        voidgui::data::Data::String(s) => s,
+        _ => panic!(),
+      })
     }
     Type::Path(p) if p.path.is_ident::<Ident>(parse_quote!(i64)) => {
-      quote!(val.into())
+      quote!(match val {
+        voidgui::data::Data::I64(s) => s,
+        _ => panic!(),
+      })
     }
     Type::Path(p) if p.path.is_ident::<Ident>(parse_quote!(FKey)) => {
-      quote!(Some(val.into()))
+      quote!(match val {
+        voidgui::data::Data::FKey(u) => u,
+        _ => panic!(),
+      })
     }
     _ => panic!(
       "Unexpected type for field {:?}",
@@ -262,11 +272,11 @@ pub fn derive_record(input: TokenStream) -> TokenStream {
         }
       }
 
-      fn set_nth_int(&mut self, n: usize, val: i64) {
+      fn set_nth_raw(&mut self, n: usize, val: Data) {
         match n {
-          #(#enm1 => self.#ids2 = #conv_int,)*
+          #(#enm1 => self.#ids2 = #conv_dat,)*
           _ =>
-            panic!(#msg, n, val)
+            panic!("bad n {}", n)
         }
       }
 
