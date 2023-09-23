@@ -1,5 +1,5 @@
 # Void
-Who the hell forked this shit.
+Who the hell forked this.
 
 # Deps
 - haskell stuff
